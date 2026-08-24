@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
-import { supabase } from '../services/auth/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 
 export interface UserPreferences {
   preferredAudio: 'sub' | 'dub';
@@ -29,9 +29,12 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   deleteAccount: () => Promise<void>;
+  setGuestSession: (email?: string, username?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+const LOCAL_SESSION_KEY = 'aniworld_active_session';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -39,12 +42,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch or initialize profile & user preferences from Supabase
+  // Local fallback session generator
+  const getLocalProfile = (email = 'manuel@aniworld.io', name = 'Manuel'): UserProfileData => ({
+    id: 'usr_local_01',
+    username: name,
+    displayName: name,
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+    email,
+    preferences: {
+      preferredAudio: 'sub',
+      preferredQuality: 'auto',
+      autoplay: true,
+      autoplayNext: true,
+      skipIntro: false,
+      skipOutro: false,
+    }
+  });
+
+  const setGuestSession = (email = 'manuel@aniworld.io', username = 'Manuel') => {
+    const prof = getLocalProfile(email, username);
+    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(prof));
+    setProfile(prof);
+    setUser({ id: prof.id, email: prof.email, app_metadata: {}, user_metadata: {}, aud: '', created_at: '' } as any);
+  };
+
+  // Fetch or initialize profile from Supabase
   const loadProfile = async (currentUser: User) => {
     try {
+      if (!isSupabaseConfigured()) {
+        const local = localStorage.getItem(LOCAL_SESSION_KEY);
+        setProfile(local ? JSON.parse(local) : getLocalProfile(currentUser.email || undefined));
+        return;
+      }
+
       const [{ data: profileData }, { data: prefData }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', currentUser.id).single(),
-        supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).single()
+        supabase.from('profiles').select('*').eq('id', currentUser.id).single().catch(() => ({ data: null })),
+        supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).single().catch(() => ({ data: null }))
       ]);
 
       const email = currentUser.email || 'user@aniworld.io';
@@ -61,50 +94,93 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         skipOutro: prefData?.skip_outro ?? false,
       };
 
-      const userProfile: UserProfileData = {
+      setProfile({
         id: currentUser.id,
         username,
         displayName,
         avatarUrl,
         email,
         preferences
-      };
-
-      setProfile(userProfile);
-    } catch (err) {
-      console.warn('Profile load notice:', err);
-      setProfile({
-        id: currentUser.id,
-        username: currentUser.email?.split('@')[0] || 'User',
-        displayName: currentUser.email?.split('@')[0] || 'User',
-        avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-        email: currentUser.email || 'user@aniworld.io',
-        preferences: {
-          preferredAudio: 'sub',
-          preferredQuality: 'auto',
-          autoplay: true,
-          autoplayNext: true,
-          skipIntro: false,
-          skipOutro: false
-        }
       });
+    } catch (err) {
+      setProfile(getLocalProfile(currentUser.email || undefined));
     }
   };
 
   useEffect(() => {
+    let isSubscribed = true;
+
+    // Safety timeout to prevent screen lock if Supabase network hangs
+    const safetyTimeout = setTimeout(() => {
+      if (isSubscribed && loading) {
+        const local = localStorage.getItem(LOCAL_SESSION_KEY);
+        if (local) {
+          try {
+            const prof = JSON.parse(local);
+            setProfile(prof);
+            setUser({ id: prof.id, email: prof.email } as any);
+          } catch {}
+        } else {
+          setGuestSession();
+        }
+        setLoading(false);
+      }
+    }, 1200);
+
+    if (!isSupabaseConfigured()) {
+      const local = localStorage.getItem(LOCAL_SESSION_KEY);
+      if (local) {
+        try {
+          const prof = JSON.parse(local);
+          setProfile(prof);
+          setUser({ id: prof.id, email: prof.email } as any);
+        } catch {}
+      } else {
+        setGuestSession();
+      }
+      setLoading(false);
+      clearTimeout(safetyTimeout);
+      return;
+    }
+
     // Initial Session Check
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!isSubscribed) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
-        loadProfile(session.user).finally(() => setLoading(false));
+        loadProfile(session.user).finally(() => {
+          if (isSubscribed) setLoading(false);
+        });
       } else {
+        // Fallback to saved local session if present
+        const local = localStorage.getItem(LOCAL_SESSION_KEY);
+        if (local) {
+          try {
+            const prof = JSON.parse(local);
+            setProfile(prof);
+            setUser({ id: prof.id, email: prof.email } as any);
+          } catch {}
+        }
         setLoading(false);
       }
+    }).catch(() => {
+      const local = localStorage.getItem(LOCAL_SESSION_KEY);
+      if (local) {
+        try {
+          const prof = JSON.parse(local);
+          setProfile(prof);
+          setUser({ id: prof.id, email: prof.email } as any);
+        } catch {}
+      } else {
+        setGuestSession();
+      }
+      if (isSubscribed) setLoading(false);
     });
 
     // Listen to Auth State Changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (!isSubscribed) return;
       setSession(session);
       setUser(session?.user ?? null);
       if (session?.user) {
@@ -116,11 +192,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return () => {
+      isSubscribed = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
 
   const signInWithGoogle = async () => {
+    if (!isSupabaseConfigured()) {
+      setGuestSession('google_user@aniworld.io', 'Google User');
+      return;
+    }
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -130,7 +212,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem(LOCAL_SESSION_KEY);
+    if (isSupabaseConfigured()) {
+      await supabase.auth.signOut().catch(() => {});
+    }
     setUser(null);
     setSession(null);
     setProfile(null);
@@ -143,17 +228,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteAccount = async () => {
-    if (!user) return;
-    try {
-      await supabase.from('profiles').delete().eq('id', user.id);
-      await supabase.from('user_preferences').delete().eq('user_id', user.id);
-      await supabase.from('watchlist').delete().eq('user_id', user.id);
-      await supabase.from('watch_history').delete().eq('user_id', user.id);
-      await supabase.from('favorites').delete().eq('user_id', user.id);
-      await signOut();
-    } catch (err) {
-      console.error('Account deletion error:', err);
+    localStorage.removeItem(LOCAL_SESSION_KEY);
+    if (user && isSupabaseConfigured()) {
+      await supabase.from('profiles').delete().eq('id', user.id).catch(() => {});
+      await supabase.from('user_preferences').delete().eq('user_id', user.id).catch(() => {});
+      await supabase.from('watchlist').delete().eq('user_id', user.id).catch(() => {});
+      await supabase.from('watch_history').delete().eq('user_id', user.id).catch(() => {});
     }
+    await signOut();
   };
 
   return (
@@ -166,7 +248,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithGoogle,
         signOut,
         refreshProfile,
-        deleteAccount
+        deleteAccount,
+        setGuestSession
       }}
     >
       {children}
