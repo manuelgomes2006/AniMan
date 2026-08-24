@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { Mail, Lock, LogIn } from 'lucide-react';
+import { Mail, Lock, LogIn, CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -11,11 +11,25 @@ export default function LoginPage() {
 
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get('redirect') || '/';
+  const isVerified = searchParams.get('verified') === 'true';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verifiedSuccess, setVerifiedSuccess] = useState(isVerified);
+
+  useEffect(() => {
+    // Handle Supabase Auth hash tokens (e.g. #access_token=...&type=signup)
+    if (window.location.hash.includes('access_token') || window.location.hash.includes('type=signup')) {
+      setVerifiedSuccess(true);
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (session) {
+          navigate('/', { replace: true });
+        }
+      });
+    }
+  }, [navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +51,7 @@ export default function LoginPage() {
 
       if (authError) {
         if (authError.message.toLowerCase().includes('email not confirmed')) {
-          setError('Please confirm your email address before signing in.');
+          setError('Please check your email inbox and click the verification link before signing in.');
         } else {
           setError('Invalid email or password. If you do not have an account, please Sign Up first.');
         }
@@ -65,6 +79,13 @@ export default function LoginPage() {
           <h2 className="text-lg font-extrabold text-white">Welcome back 👋</h2>
           <p className="text-xs text-slate-400">Sign in to sync your watch history and list.</p>
         </div>
+
+        {verifiedSuccess && (
+          <div className="bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs p-3 rounded-xl flex items-center justify-center gap-2 text-center font-bold">
+            <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>Email verified successfully! You can now sign in below.</span>
+          </div>
+        )}
 
         {error && (
           <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center leading-relaxed">
