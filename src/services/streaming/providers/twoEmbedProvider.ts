@@ -2,7 +2,7 @@ import { StreamingProvider, StreamingSource, AudioVariant } from '../providerTyp
 
 export class TwoEmbedProvider implements StreamingProvider {
   id = '2embed-mirror';
-  name = '2Embed Mirror';
+  name = '2Embed HD';
 
   async getSources(
     animeId: number,
@@ -12,7 +12,7 @@ export class TwoEmbedProvider implements StreamingProvider {
     malId?: number
   ): Promise<StreamingSource | null> {
     const ep = Math.max(1, episode);
-    const targetId = malId || animeId || 11061;
+    const targetId = malId || animeId || 151807;
     const url = `https://2embed.cc/embed/anime/${targetId}/${ep}`;
 
     return {

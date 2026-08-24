@@ -2,7 +2,7 @@ import { StreamingProvider, StreamingSource, AudioVariant } from '../providerTyp
 
 export class VidStreamProvider implements StreamingProvider {
   id = 'vidstream-hd';
-  name = 'VidStream / AutoEmbed';
+  name = 'AutoEmbed HD';
 
   async getSources(
     animeId: number,
@@ -12,7 +12,7 @@ export class VidStreamProvider implements StreamingProvider {
     malId?: number
   ): Promise<StreamingSource | null> {
     const ep = Math.max(1, episode);
-    const targetId = animeId || malId || 11061;
+    const targetId = malId || animeId || 151807;
     const url = `https://player.autoembed.cc/embed/anime/${targetId}/${ep}?sub=1&audio=${variant}`;
 
     return {

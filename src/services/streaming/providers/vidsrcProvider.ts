@@ -2,7 +2,7 @@ import { StreamingProvider, StreamingSource, AudioVariant } from '../providerTyp
 
 export class VidSrcProvider implements StreamingProvider {
   id = 'vidsrc-mirror';
-  name = 'VidSrc Mirror';
+  name = 'VidSrc HD';
 
   async getSources(
     animeId: number,
@@ -12,8 +12,8 @@ export class VidSrcProvider implements StreamingProvider {
     malId?: number
   ): Promise<StreamingSource | null> {
     const ep = Math.max(1, episode);
-    const targetId = malId || animeId || 11061;
-    const url = `https://vidsrc.to/embed/anime/${targetId}/${ep}`;
+    const targetId = malId || animeId || 151807;
+    const url = `https://vidsrc.cc/v2/embed/anime/${targetId}/${ep}?autoPlay=true`;
 
     return {
       providerId: this.id,
