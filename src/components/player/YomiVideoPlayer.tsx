@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, FastForward, Settings, ShieldCheck } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, FastForward, Settings } from 'lucide-react';
 import { StreamingSource } from '../../services/streaming/providerTypes';
 
-interface YomiVideoPlayerProps {
+interface AniworldVideoPlayerProps {
   source: StreamingSource | null;
   title: string;
   episodeNumber: number;
@@ -25,7 +25,7 @@ export default function YomiVideoPlayer({
   skipIntroEnabled = false,
   skipOutroEnabled = false,
   onSwitchMirror
-}: YomiVideoPlayerProps) {
+}: AniworldVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
 
@@ -145,7 +145,7 @@ export default function YomiVideoPlayer({
   };
 
   const toggleFullscreen = () => {
-    const container = document.getElementById('yomi-player-container');
+    const container = document.getElementById('aniworld-player-container');
     if (!container) return;
     if (!document.fullscreenElement) {
       container.requestFullscreen().catch(() => {});
@@ -169,14 +169,14 @@ export default function YomiVideoPlayer({
   if (!source || !source.url) {
     return (
       <div className="w-full aspect-video bg-[#0D0D12] border border-slate-900 rounded-3xl flex items-center justify-center">
-        <span className="text-xs text-purple-400 font-extrabold animate-pulse">Loading Yomi stream feed...</span>
+        <span className="text-xs text-purple-400 font-extrabold animate-pulse">Loading AniWorld stream feed...</span>
       </div>
     );
   }
 
   return (
     <div
-      id="yomi-player-container"
+      id="aniworld-player-container"
       onMouseMove={handleMouseMove}
       className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-900/90 group select-none"
     >
@@ -213,7 +213,7 @@ export default function YomiVideoPlayer({
         </button>
       </div>
 
-      {/* 3. Custom Yomi HLS Controls Overlay */}
+      {/* 3. Custom AniWorld Player Controls Overlay */}
       {isHlsSource && (
         <div
           className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent transition-opacity duration-300 flex flex-col justify-between p-4 z-20 ${
@@ -224,7 +224,7 @@ export default function YomiVideoPlayer({
           <div className="flex items-center justify-between text-xs font-black text-white">
             <div className="flex items-center gap-2">
               <span className="bg-purple-600 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider">
-                YOMI HLS HD
+                ANIWORLD HD
               </span>
               <span className="truncate max-w-[200px] sm:max-w-xs">{title} • Ep {episodeNumber}</span>
             </div>
