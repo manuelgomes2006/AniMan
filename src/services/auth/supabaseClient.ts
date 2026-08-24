@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gxcflibgvgvnwhngxygl.supabase.co';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 export function isSupabaseConfigured(): boolean {
@@ -12,9 +12,9 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
-// Create client with fallback URL to prevent instant initialization crash
-const fallbackUrl = isSupabaseConfigured() ? SUPABASE_URL : 'https://demo-project.supabase.co';
-const fallbackKey = isSupabaseConfigured() ? SUPABASE_ANON_KEY : 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo';
+// Create client with user's Supabase Project URL
+const fallbackUrl = SUPABASE_URL;
+const fallbackKey = SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo';
 
 export const supabase = createClient(fallbackUrl, fallbackKey, {
   auth: {
