@@ -35,7 +35,7 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
     setInWatchlist(Boolean(updated));
   };
 
-  // HiAnime-Style Latest Episode Card Variant (with [SUB] [DUB] badges)
+  // HiAnime-Style Latest Episode Card Variant
   if (variant === 'latest') {
     const epNum = episodeNumber || 1;
     return (
@@ -137,7 +137,7 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
     );
   }
 
-  // Dense Standard Poster Card (110-130px width on mobile screens)
+  // Standard Poster Card
   return (
     <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-auto shrink-0">
       <Link to={`/anime/${anime.id}`} className="relative aspect-[3/4] overflow-hidden bg-slate-950 block">

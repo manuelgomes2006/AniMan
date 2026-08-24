@@ -147,7 +147,7 @@ export default function HomePage() {
         </section>
       ) : (
         <>
-          {/* LATEST EPISODES SECTION (HiAnime-Style Prominent Section with SUB/DUB Badges) */}
+          {/* LATEST EPISODES SECTION (Proportioned to neat 6-column grid on laptop/desktop) */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
@@ -161,14 +161,14 @@ export default function HomePage() {
             </div>
 
             {loading ? (
-              <div className="flex gap-2.5 overflow-x-auto">
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
+                  <div key={i} className="aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
-              <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x">
-                {airing.slice(0, 10).map((anime, idx) => (
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
+                {airing.slice(0, 12).map((anime, idx) => (
                   <AnimeCard
                     key={anime.id}
                     anime={anime}
@@ -181,7 +181,7 @@ export default function HomePage() {
             )}
           </section>
 
-          {/* TRENDING NOW SECTION (Dense horizontal carousel) */}
+          {/* TRENDING NOW SECTION */}
           <section className="space-y-3">
             <div className="flex items-center justify-between">
               <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
@@ -195,9 +195,9 @@ export default function HomePage() {
             </div>
 
             {loading ? (
-              <div className="flex gap-2.5 overflow-x-auto">
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
+                  <div key={i} className="aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
@@ -262,9 +262,9 @@ export default function HomePage() {
             </div>
 
             {loading ? (
-              <div className="flex gap-2.5 overflow-x-auto">
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
+                  <div key={i} className="aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
@@ -289,9 +289,9 @@ export default function HomePage() {
             </div>
 
             {loading ? (
-              <div className="flex gap-2.5 overflow-x-auto">
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
+                  <div key={i} className="aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
@@ -317,9 +317,9 @@ export default function HomePage() {
             </div>
 
             {loading ? (
-              <div className="flex gap-2.5 overflow-x-auto">
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
+                  <div key={i} className="aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
