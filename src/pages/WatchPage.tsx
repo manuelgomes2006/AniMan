@@ -2,7 +2,11 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getAnimeDetails } from '../services/anilist/client';
 import { getNormalizedEpisodes, NormalizedEpisode } from '../services/episodes/episodes';
-import { getAniLinkStreamUrl } from '../services/streaming/anilink';
+import {
+  resolveParallelSources,
+  prefetchNextEpisodeSources
+} from '../services/streaming/resolver';
+import { NormalizedStreamResponse, StreamingSource } from '../services/streaming/providerTypes';
 import {
   getUserAudioPreference,
   setUserAudioPreference,
@@ -14,7 +18,7 @@ import SubDubControls from '../components/player/SubDubControls';
 import EpisodeSelector from '../components/player/EpisodeSelector';
 import ErrorState from '../components/shared/ErrorState';
 
-import { ChevronLeft, ChevronRight, Play, RefreshCw, AlertCircle } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, RefreshCw } from 'lucide-react';
 
 export default function WatchPage() {
   const { id, episode } = useParams<{ id: string; episode: string }>();
@@ -25,12 +29,13 @@ export default function WatchPage() {
 
   const [anime, setAnime] = useState<AnimeMedia | null>(null);
   const [normalizedEpisodes, setNormalizedEpisodes] = useState<NormalizedEpisode[]>([]);
+  const [streamResponse, setStreamResponse] = useState<NormalizedStreamResponse | null>(null);
+  const [activeSourceIndex, setActiveSourceIndex] = useState(0);
   const [loading, setLoading] = useState(true);
   const [audioVariant, setAudioVariant] = useState<'sub' | 'dub'>(getUserAudioPreference());
-  const [activeServer, setActiveServer] = useState('server-1');
   const [streamError, setStreamError] = useState(false);
 
-  // Load Anime Metadata & Accurate Episode List
+  // Load Anime Metadata, Normalized MAL Episodes, & Parallel Sources
   useEffect(() => {
     async function loadWatchData() {
       setLoading(true);
@@ -39,12 +44,20 @@ export default function WatchPage() {
         const animeData = await getAnimeDetails(animeId);
         setAnime(animeData);
 
-        const episodesData = await getNormalizedEpisodes(
-          animeId,
-          animeData.episodes || 12,
-          animeData.idMal
-        );
+        const [episodesData, resolvedStreams] = await Promise.all([
+          getNormalizedEpisodes(animeId, animeData.episodes || 12, animeData.idMal),
+          resolveParallelSources({
+            animeId,
+            title: animeData.title?.english || animeData.title?.romaji || 'Anime',
+            episode: currentEpNum,
+            variant: audioVariant,
+            malId: animeData.idMal
+          })
+        ]);
+
         setNormalizedEpisodes(episodesData);
+        setStreamResponse(resolvedStreams);
+        setActiveSourceIndex(0);
       } catch (err) {
         console.error('Watch data load error:', err);
       } finally {
@@ -52,7 +65,7 @@ export default function WatchPage() {
       }
     }
     loadWatchData();
-  }, [animeId]);
+  }, [animeId, currentEpNum, audioVariant]);
 
   const currentEpData = normalizedEpisodes.find(ep => ep.number === currentEpNum) || {
     number: currentEpNum,
@@ -84,44 +97,49 @@ export default function WatchPage() {
     }
   };
 
+  // Switch to next valid source on error fallback
   const handleSwitchMirror = () => {
     setStreamError(false);
-    setActiveServer(prev => (prev === 'server-1' ? 'server-2' : prev === 'server-2' ? 'server-3' : 'server-1'));
+    if (streamResponse && streamResponse.sources.length > 1) {
+      setActiveSourceIndex((prev) => (prev + 1) % streamResponse.sources.length);
+    }
   };
 
-  // High-speed stream embed URL resolution
-  const streamUrl = getAniLinkStreamUrl({
-    animeId,
-    episode: currentEpNum,
-    variant: audioVariant,
-    malId: anime?.idMal,
-    server: activeServer
-  });
+  const activeSource: StreamingSource | null =
+    streamResponse && streamResponse.sources[activeSourceIndex]
+      ? streamResponse.sources[activeSourceIndex]
+      : streamResponse?.firstValidSource || null;
 
   const title = anime?.title?.english || anime?.title?.romaji || 'Anime';
   const cover = anime?.coverImage?.large || anime?.coverImage?.medium;
 
-  // Track watch progress periodically
+  // Track watch progress & prefetch Episode N+1 readiness when watching
   useEffect(() => {
     if (anime) {
       updateWatchProgress(anime, currentEpNum, 120, 1440);
+      // Prefetch Episode N+1 source readiness
+      prefetchNextEpisodeSources({
+        animeId,
+        title,
+        episode: currentEpNum,
+        variant: audioVariant,
+        malId: anime.idMal
+      });
     }
-  }, [anime, currentEpNum]);
+  }, [anime, currentEpNum, audioVariant]);
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto py-6 space-y-4">
-        <div className="w-full aspect-video bg-[#0D0D12] rounded-3xl animate-pulse" />
+        <div className="w-full aspect-video bg-[#0D0D12] rounded-3xl animate-pulse flex items-center justify-center">
+          <span className="text-xs text-purple-400 font-bold animate-pulse">Resolving fastest stream source...</span>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-16">
-      {/* Pre-warm Stream Connection */}
-      <link rel="preconnect" href="https://anilink.cc" />
-      <link rel="dns-prefetch" href="https://anilink.cc" />
-
       {/* Mobile Top Control Header (< 768px) */}
       <div className="flex items-center justify-between md:hidden pb-1 border-b border-slate-900">
         <Link to={`/anime/${animeId}`} className="flex items-center gap-1 text-slate-300 hover:text-white text-xs font-bold">
@@ -135,16 +153,16 @@ export default function WatchPage() {
 
       {/* Main High-Speed Video Player Container */}
       <div className="relative w-full aspect-video bg-black rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-900 group">
-        {streamError ? (
+        {streamError || !activeSource ? (
           <ErrorState
             title="Streaming Source Unavailable"
-            message="This stream server is currently unresponsive. Click Switch Stream Source to try an alternative mirror."
+            message="This stream mirror is currently unresponsive. Click Switch Source to try an alternative stream."
             onRetry={handleSwitchMirror}
           />
         ) : (
           <iframe
-            key={`${streamUrl}-${audioVariant}`}
-            src={streamUrl}
+            key={`${activeSource.url}-${audioVariant}`}
+            src={activeSource.url}
             title={`${title} - Episode ${currentEpNum}`}
             className="w-full h-full border-0"
             allow="autoplay; fullscreen; picture-in-picture; presentation"
@@ -165,16 +183,18 @@ export default function WatchPage() {
           />
         </div>
 
-        {/* Action Controls: Switch Stream Mirror & Next/Prev Episode Buttons */}
+        {/* Action Controls: Switch Source & Next/Prev Navigation */}
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleSwitchMirror}
-            className="px-3 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] hover:bg-slate-900 text-purple-300 border border-slate-800 transition flex items-center gap-1.5"
-            title="Switch Video Mirror Source"
-          >
-            <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
-            <span className="hidden sm:inline">Switch Stream Source</span>
-          </button>
+          {streamResponse && streamResponse.sources.length > 1 && (
+            <button
+              onClick={handleSwitchMirror}
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] hover:bg-slate-900 text-purple-300 border border-slate-800 transition flex items-center gap-1.5"
+              title="Switch Mirror Source"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+              <span className="hidden sm:inline">Switch Stream Source</span>
+            </button>
+          )}
 
           <button
             onClick={handlePrevEpisode}
