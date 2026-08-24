@@ -8,7 +8,8 @@ import { AnimeMedia } from '../types/anime';
 import { StreamingResult, AudioVariant, ServerOption } from '../types/stream';
 import {
   Star, Plus, Heart, MessageSquare, AlertTriangle, ThumbsUp, ThumbsDown,
-  Loader2, Play, ChevronDown, Check, Server
+  Loader2, Play, ChevronDown, Check, Server, ArrowLeft, Download, Share2,
+  MoreVertical, Cast, Activity, Pause
 } from 'lucide-react';
 import { getPreferredAudio, setPreferredAudio, getWatchProgress, setWatchlistCategory, getWatchlistItem } from '../services/userStore';
 
@@ -45,7 +46,6 @@ export default function WatchPage() {
     }
   ]);
 
-  // Load Anime Metadata
   useEffect(() => {
     if (!id) return;
     async function loadMeta() {
@@ -62,7 +62,6 @@ export default function WatchPage() {
     loadMeta();
   }, [id]);
 
-  // Fetch Stream Sources when episode, variant, or anime changes
   useEffect(() => {
     if (!anime) return;
     async function fetchStreams() {
@@ -143,12 +142,34 @@ export default function WatchPage() {
     }
   };
 
+  const handlePrevEpisode = () => {
+    if (epNum > 1) {
+      navigate(`/watch/${anime.id}/${epNum - 1}`);
+    }
+  };
+
   return (
-    <div className="space-y-6 pb-16">
-      {/* Main Grid: Left Column Player & Metadata | Right Column Episode Sidebar */}
+    <div className="space-y-4 sm:space-y-6 pb-16">
+      {/* Mobile Top Navigation Header (Matching Mockup 2 format) */}
+      <div className="flex lg:hidden items-center justify-between px-1 py-2 text-white">
+        <button onClick={() => navigate(-1)} className="p-1 text-slate-300 hover:text-white">
+          <ArrowLeft className="w-5 h-5" />
+        </button>
+        <div className="flex flex-col items-center text-center truncate px-2">
+          <span className="font-bold text-sm truncate">{title}</span>
+          <span className="text-[10px] text-slate-400 font-medium">S1 • Ep {epNum}</span>
+        </div>
+        <div className="flex items-center gap-3 text-slate-300">
+          <button className="hover:text-white"><Cast className="w-4 h-4" /></button>
+          <button className="hover:text-white"><Download className="w-4 h-4" /></button>
+          <button className="hover:text-white"><MoreVertical className="w-4 h-4" /></button>
+        </div>
+      </div>
+
+      {/* Main Container Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 items-start">
-        {/* Left 3 Columns: Player, Audio, Controls, Details, Comments */}
-        <div className="lg:col-span-3 space-y-6">
+        {/* Left Section (Player, Info, Audio, Servers, Episodes on Mobile) */}
+        <div className="lg:col-span-3 space-y-4 sm:space-y-6">
           {/* Main Video Player */}
           {streamLoading ? (
             <div className="w-full aspect-video bg-[#0D0D12] rounded-3xl border border-slate-800 flex flex-col items-center justify-center gap-3">
@@ -166,105 +187,157 @@ export default function WatchPage() {
             />
           )}
 
-          {/* AUDIO SUB / DUB Controls (Matching Spec) */}
+          {/* Episode Info & Quick Actions Header (Matching Mockup 2 layout) */}
+          <div className="bg-[#0D0D12] border border-slate-800/80 rounded-2xl p-4 sm:p-6 space-y-3 shadow-xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h1 className="text-xl sm:text-3xl font-black text-white">{title}</h1>
+                <div className="text-xs text-purple-400 font-bold flex items-center gap-1.5 mt-0.5">
+                  <span>S1 • Episode {epNum}</span>
+                </div>
+                <h3 className="text-xs font-semibold text-purple-300 hover:underline cursor-pointer mt-0.5">
+                  {episodeTitle}
+                </h3>
+              </div>
+
+              <button
+                onClick={handleNextEpisode}
+                disabled={epNum >= totalEpisodes}
+                className="hidden sm:flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-xs px-4 py-2 rounded-xl shadow shrink-0"
+              >
+                <Play className="w-3.5 h-3.5 fill-white" />
+                Next Episode
+              </button>
+            </div>
+
+            {/* Quick Action Bar (Matching Mockup 2: + Watchlist, Like, Share) */}
+            <div className="flex items-center justify-between pt-1 text-xs">
+              <div className="flex items-center gap-4 text-slate-300">
+                <button
+                  onClick={() => setWatchlistCategory(anime, 'watching')}
+                  className="flex items-center gap-1.5 hover:text-purple-400 font-semibold"
+                >
+                  {inWatchlist ? <Check className="w-4 h-4 text-purple-400" /> : <Plus className="w-4 h-4" />}
+                  <span>Watchlist</span>
+                </button>
+
+                <button className="flex items-center gap-1.5 hover:text-purple-400 font-semibold">
+                  <ThumbsUp className="w-4 h-4" />
+                  <span>Like</span>
+                </button>
+
+                <button className="flex items-center gap-1.5 hover:text-purple-400 font-semibold">
+                  <Share2 className="w-4 h-4" />
+                  <span>Share</span>
+                </button>
+              </div>
+
+              <button
+                onClick={handleNextEpisode}
+                disabled={epNum >= totalEpisodes}
+                className="flex sm:hidden items-center gap-1 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold text-[11px] px-3 py-1.5 rounded-xl shadow shrink-0"
+              >
+                <Play className="w-3 h-3 fill-white" />
+                Next Episode
+              </button>
+            </div>
+          </div>
+
+          {/* AUDIO SUB / DUB Controls (Matching Mockup 2) */}
           <SubDubControls
             currentVariant={audioVariant}
             isDubAvailable={streamData?.isDubAvailable ?? true}
             onChangeVariant={handleAudioChange}
           />
 
-          {/* Server Selector Options */}
+          {/* SERVER Selector Options (Matching Mockup 2: horizontally scrollable pills) */}
           {streamData?.servers && streamData.servers.length > 0 && (
             <div className="bg-[#0D0D12] border border-slate-800/80 rounded-2xl p-4 space-y-2">
-              <div className="flex items-center gap-2 text-xs font-bold text-slate-400 uppercase tracking-wider">
-                <Server className="w-4 h-4 text-purple-400" />
-                <span>Streaming Server</span>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                {streamData.servers.map((srv) => (
-                  <button
-                    key={srv.id}
-                    onClick={() => setSelectedServer(srv)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold transition ${
-                      selectedServer?.id === srv.id
-                        ? 'bg-purple-600 text-white shadow-lg shadow-purple-950 border border-purple-400'
-                        : 'bg-[#050507] text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
-                    }`}
-                  >
-                    {srv.name}
-                  </button>
-                ))}
+              <span className="text-xs font-extrabold text-slate-300 uppercase tracking-wider block">SERVER</span>
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                {streamData.servers.map((srv) => {
+                  const isSel = selectedServer?.id === srv.id;
+                  return (
+                    <button
+                      key={srv.id}
+                      onClick={() => setSelectedServer(srv)}
+                      className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all ${
+                        isSel
+                          ? 'bg-purple-600/20 text-purple-300 border-2 border-purple-500 shadow-lg ring-1 ring-purple-500/40'
+                          : 'bg-[#050507] text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-800'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5">
+                        {srv.name}
+                        {isSel && <Activity className="w-3 h-3 text-purple-400 animate-pulse" />}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* Below Player Metadata Block (Image 2 style) */}
-          <div className="bg-[#0D0D12] border border-slate-800/80 rounded-3xl p-6 space-y-4 shadow-xl">
-            <div className="flex flex-wrap items-start justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <h1 className="text-2xl sm:text-3xl font-black text-white">{title}</h1>
-                  <span className="bg-purple-600/30 text-purple-400 p-1 rounded-lg">
-                    <Play className="w-4 h-4 fill-purple-400" />
-                  </span>
-                </div>
-                <div className="text-xs text-purple-400 font-bold flex items-center gap-2">
-                  <span>S1 • Ep {epNum}</span>
-                  <span>—</span>
-                  <span className="text-white hover:underline cursor-pointer">{episodeTitle}</span>
-                </div>
-              </div>
-
-              <button className="text-xs text-slate-400 hover:text-rose-400 flex items-center gap-1.5 font-semibold">
-                <AlertTriangle className="w-4 h-4 text-rose-500" />
-                Report
+          {/* MOBILE EPISODES SECTION — Placed Below Player on Mobile (< 1024px) matching Mockup 2 */}
+          <div className="block lg:hidden bg-[#0D0D12] border border-slate-800/80 rounded-2xl p-4 space-y-3">
+            <div className="flex items-center justify-between border-b border-slate-900 pb-3">
+              <span className="text-xs font-extrabold text-slate-200 uppercase tracking-wider">EPISODES</span>
+              <button className="flex items-center gap-1 text-xs font-bold text-slate-300 bg-[#050507] px-2.5 py-1 rounded-lg border border-slate-800">
+                <span>Season 1</span>
+                <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
               </button>
             </div>
 
-            {/* Badges */}
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="bg-amber-500/10 text-amber-400 font-bold px-2.5 py-1 rounded-lg flex items-center gap-1 border border-amber-500/20">
-                <Star className="w-3.5 h-3.5 fill-amber-400" />
-                {score}
-              </span>
-              <span className="bg-slate-900 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-800 font-semibold">
-                {anime.duration || 24}m
-              </span>
-              <span className="bg-slate-900 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-800 font-semibold">
-                {anime.seasonYear || 2024}
-              </span>
-              <span className="bg-slate-900 text-slate-300 px-2.5 py-1 rounded-lg border border-slate-800 font-semibold">
-                1080p
-              </span>
-              <span className="bg-slate-900 text-slate-300 px-2 py-1 rounded-lg border border-slate-800 font-bold text-[10px]">
-                CC
-              </span>
-            </div>
+            {/* Stacked Episode Cards (Matching Mockup 2 format) */}
+            <div className="space-y-2 max-h-[500px] overflow-y-auto pr-1">
+              {[...Array(totalEpisodes)].map((_, i) => {
+                const ep = i + 1;
+                const isActive = ep === epNum;
+                const epData = anime.streamingEpisodes?.[i];
+                const epTitle = epData?.title || `Episode ${ep}`;
+                const epThumb = epData?.thumbnail || anime.coverImage?.large;
 
-            {/* Synopsis */}
-            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed opacity-90">
-              {anime.description?.replace(/<[^>]*>?/gm, '') || 'No synopsis available.'}
-            </p>
-
-            {/* Action Buttons */}
-            <div className="flex items-center gap-3 pt-2">
-              <button
-                onClick={() => setWatchlistCategory(anime, 'watching')}
-                className="flex items-center gap-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold text-sm px-6 py-3 rounded-2xl shadow-xl shadow-purple-950/50 transition-all border border-purple-500/30"
-              >
-                {inWatchlist ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
-                {inWatchlist ? 'In Watchlist' : 'Add to List'}
-              </button>
-
-              <button className="p-3 rounded-2xl bg-[#050507] hover:bg-slate-800 text-slate-300 hover:text-rose-500 border border-slate-800 transition">
-                <Heart className="w-5 h-5" />
-              </button>
+                return (
+                  <Link
+                    key={ep}
+                    to={`/watch/${anime.id}/${ep}`}
+                    className={`flex items-center gap-3 p-2 rounded-xl border transition group ${
+                      isActive
+                        ? 'bg-purple-600/20 border-2 border-purple-500 text-white shadow-lg shadow-purple-950/60 ring-1 ring-purple-500/40'
+                        : 'bg-[#050507]/90 border-slate-900 text-slate-300 hover:bg-slate-900 hover:text-white'
+                    }`}
+                  >
+                    <div className="relative w-20 aspect-video rounded-lg overflow-hidden bg-slate-950 shrink-0">
+                      <img src={epThumb} alt={epTitle} className="w-full h-full object-cover" />
+                      {isActive && (
+                        <div className="absolute inset-0 bg-purple-950/70 flex items-center justify-center">
+                          <Pause className="w-4 h-4 fill-white text-white" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">
+                        Episode {ep}
+                      </span>
+                      <h4 className="text-xs font-bold line-clamp-1 group-hover:text-purple-300">
+                        {epTitle}
+                      </h4>
+                      <span className="text-[10px] text-slate-500 block mt-0.5">24m</span>
+                      {isActive && savedProgress && (
+                        <div className="w-full bg-slate-900 h-1 rounded-full mt-1.5 overflow-hidden">
+                          <div className="bg-purple-500 h-full rounded-full" style={{ width: `${savedProgress.percentage}%` }} />
+                        </div>
+                      )}
+                    </div>
+                  </Link>
+                );
+              })}
             </div>
           </div>
 
-          {/* Comments & Reviews Tabs (Image 2 style) */}
-          <div className="bg-[#0D0D12] border border-slate-800/80 rounded-3xl p-6 space-y-6">
-            <div className="flex items-center gap-6 border-b border-slate-900 pb-3 text-sm font-bold">
+          {/* Comments & Reviews Section */}
+          <div className="bg-[#0D0D12] border border-slate-800/80 rounded-2xl sm:rounded-3xl p-4 sm:p-6 space-y-6">
+            <div className="flex items-center gap-6 border-b border-slate-900 pb-3 text-xs sm:text-sm font-bold">
               <span className="text-purple-400 border-b-2 border-purple-500 pb-3 -mb-3 flex items-center gap-2">
                 <MessageSquare className="w-4 h-4" />
                 Comments (1.2K)
@@ -274,12 +347,11 @@ export default function WatchPage() {
               </span>
             </div>
 
-            {/* Comment Form */}
             <form onSubmit={handlePostComment} className="flex gap-3">
               <img
                 src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
                 alt="Avatar"
-                className="w-10 h-10 rounded-full object-cover shrink-0 border border-purple-500/30"
+                className="w-8 h-8 sm:w-10 sm:h-10 rounded-full object-cover shrink-0 border border-purple-500/30"
               />
               <div className="flex-1 flex gap-2">
                 <input
@@ -287,22 +359,21 @@ export default function WatchPage() {
                   placeholder="Add a comment..."
                   value={commentInput}
                   onChange={(e) => setCommentInput(e.target.value)}
-                  className="w-full bg-[#050507] border border-slate-800 rounded-2xl px-4 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
+                  className="w-full bg-[#050507] border border-slate-800 rounded-2xl px-4 py-2 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-purple-500"
                 />
                 <button
                   type="submit"
-                  className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-5 py-2.5 rounded-2xl shadow-lg shadow-purple-950 shrink-0"
+                  className="bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold px-4 py-2 rounded-2xl shadow-lg shadow-purple-950 shrink-0"
                 >
                   Post
                 </button>
               </div>
             </form>
 
-            {/* Comments List */}
-            <div className="space-y-4">
+            <div className="space-y-3">
               {comments.map((item) => (
-                <div key={item.id} className="flex gap-3 text-xs bg-[#050507]/60 p-3.5 rounded-2xl border border-slate-900">
-                  <img src={item.avatar} alt={item.author} className="w-9 h-9 rounded-full object-cover shrink-0" />
+                <div key={item.id} className="flex gap-3 text-xs bg-[#050507]/60 p-3 rounded-2xl border border-slate-900">
+                  <img src={item.avatar} alt={item.author} className="w-8 h-8 rounded-full object-cover shrink-0" />
                   <div className="flex-1 space-y-1">
                     <div className="flex items-center gap-2">
                       <span className="font-bold text-white">{item.author}</span>
@@ -328,10 +399,9 @@ export default function WatchPage() {
           </div>
         </div>
 
-        {/* Right 1 Column Sidebar: Season Selector & Episodes List (Image 2 style) */}
-        <div className="space-y-4">
+        {/* DESKTOP RIGHT SIDEBAR (Hidden on Mobile <1024px, 100% Intact on Desktop ≥1024px) */}
+        <div className="hidden lg:block space-y-4">
           <div className="bg-[#0D0D12] border border-slate-800/80 rounded-3xl p-4 space-y-4">
-            {/* Top Tabs */}
             <div className="flex items-center justify-between border-b border-slate-900 pb-3 text-xs font-bold">
               <span className="text-purple-400 border-b-2 border-purple-500 pb-3 -mb-3">
                 Episodes
@@ -341,7 +411,6 @@ export default function WatchPage() {
               </span>
             </div>
 
-            {/* Season Selector */}
             <div className="flex items-center justify-between text-xs bg-[#050507] p-2.5 rounded-xl border border-slate-800">
               <span className="font-bold text-white flex items-center gap-1">
                 Season 1 <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
@@ -349,7 +418,6 @@ export default function WatchPage() {
               <span className="text-[11px] text-slate-400 font-semibold">{totalEpisodes} Episodes</span>
             </div>
 
-            {/* Episode List Cards (Image 2 style) */}
             <div className="space-y-2 max-h-[560px] overflow-y-auto pr-1">
               {[...Array(totalEpisodes)].map((_, i) => {
                 const ep = i + 1;
@@ -391,7 +459,6 @@ export default function WatchPage() {
             </div>
           </div>
 
-          {/* "You're Watching" Progress Card (Image 2 style) */}
           <div className="bg-[#0D0D12] border border-slate-800/80 rounded-3xl p-4 space-y-3">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
               You're Watching
