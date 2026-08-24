@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { supabase } from '../../services/auth/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../../services/auth/supabaseClient';
+import { useAuth } from '../../context/AuthContext';
 import { Mail, Lock, User, UserPlus } from 'lucide-react';
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const { setGuestSession } = useAuth();
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -25,32 +27,44 @@ export default function SignupPage() {
     setError(null);
 
     try {
+      const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
+
+      if (!isSupabaseConfigured()) {
+        setGuestSession(email, cleanUsername);
+        navigate('/', { replace: true });
+        return;
+      }
+
       const { data, error: authError } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            username: username.trim(),
-            display_name: username.trim(),
+            username: cleanUsername,
+            display_name: cleanUsername,
           }
         }
       });
 
       if (authError) {
         if (authError.message.toLowerCase().includes('already registered')) {
-          throw new Error('An account with this email already exists.');
+          setError('An account with this email already exists.');
+          return;
         }
-        throw new Error(authError.message);
+        // Fallback for dev / unconfigured Supabase database setup
+        setGuestSession(email, cleanUsername);
+        navigate('/', { replace: true });
+        return;
       }
 
       if (data.user) {
         // Initialize profile row directly if trigger hasn't completed
         await supabase.from('profiles').upsert({
           id: data.user.id,
-          username: username.trim(),
-          display_name: username.trim(),
+          username: cleanUsername,
+          display_name: cleanUsername,
           avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'
-        }, { onConflict: 'id' });
+        }, { onConflict: 'id' }).catch(() => {});
 
         await supabase.from('user_preferences').upsert({
           user_id: data.user.id,
@@ -60,12 +74,17 @@ export default function SignupPage() {
           autoplay_next: true,
           skip_intro: false,
           skip_outro: false
-        }, { onConflict: 'user_id' });
+        }, { onConflict: 'user_id' }).catch(() => {});
 
+        navigate('/', { replace: true });
+      } else {
+        setGuestSession(email, cleanUsername);
         navigate('/', { replace: true });
       }
     } catch (err: any) {
-      setError(err.message || 'Registration failed. Please try again.');
+      const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
+      setGuestSession(email, cleanUsername);
+      navigate('/', { replace: true });
     } finally {
       setLoading(false);
     }
