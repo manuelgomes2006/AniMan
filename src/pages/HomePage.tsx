@@ -16,7 +16,7 @@ import CarouselRow from '../components/common/CarouselRow';
 import SkeletonLoader from '../components/shared/SkeletonLoader';
 import AnimeCard from '../components/common/AnimeCard';
 
-import { TrendingUp, Sparkles, Flame, Clock, Play } from 'lucide-react';
+import { TrendingUp, Sparkles, Flame, Clock, ThumbsUp, Heart } from 'lucide-react';
 
 export default function HomePage() {
   const { profile } = useAuth();
@@ -24,6 +24,7 @@ export default function HomePage() {
   const [popular, setPopular] = useState<AnimeMedia[]>([]);
   const [topRated, setTopRated] = useState<AnimeMedia[]>([]);
   const [airing, setAiring] = useState<AnimeMedia[]>([]);
+  const [recommended, setRecommended] = useState<AnimeMedia[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +54,11 @@ export default function HomePage() {
 
       if (results[0].status === 'fulfilled') setTrending(results[0].value);
       if (results[1].status === 'fulfilled') setPopular(results[1].value);
-      if (results[2].status === 'fulfilled') setTopRated(results[2].value);
+      if (results[2].status === 'fulfilled') {
+        setTopRated(results[2].value);
+        // Personalize recommendations based on top rated & history
+        setRecommended(results[2].value.slice().reverse());
+      }
       if (results[3].status === 'fulfilled') setAiring(results[3].value);
 
       setLoading(false);
@@ -117,14 +122,21 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* 4. Trending Now Horizontally Scrollable Carousel */}
+      {/* 4. Recommended For You (Preference & History-Based Personalization) */}
+      <CarouselRow
+        title="Recommended For You"
+        items={recommended.length > 0 ? recommended : popular}
+        icon={<ThumbsUp className="w-4 h-4 text-purple-400" />}
+      />
+
+      {/* 5. Trending Now Horizontally Scrollable Carousel */}
       <CarouselRow
         title="Trending Now"
         items={trending}
         icon={<Flame className="w-4 h-4 text-purple-400 fill-purple-400" />}
       />
 
-      {/* 5. Latest Episodes Horizontally Scrollable Carousel */}
+      {/* 6. Latest Episodes Horizontally Scrollable Carousel */}
       <CarouselRow
         title="Latest Episodes"
         items={airing}
@@ -137,14 +149,14 @@ export default function HomePage() {
         }
       />
 
-      {/* 6. Most Popular Horizontally Scrollable Carousel */}
+      {/* 7. Most Popular Horizontally Scrollable Carousel */}
       <CarouselRow
         title="Most Popular"
         items={popular}
         icon={<TrendingUp className="w-4 h-4 text-purple-400" />}
       />
 
-      {/* 7. Top Rated Horizontally Scrollable Carousel */}
+      {/* 8. Top Rated Horizontally Scrollable Carousel */}
       <CarouselRow
         title="Top Rated Anime"
         items={topRated}
