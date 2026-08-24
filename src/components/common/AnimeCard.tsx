@@ -17,17 +17,19 @@ interface AnimeCardProps {
   };
 }
 
+const FALLBACK_COVER = 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80';
+
 export default function AnimeCard({ anime, variant = 'standard', episodeNumber, hasDub = true, progressData }: AnimeCardProps) {
   if (!anime) return null;
 
   const title = anime.title?.english || anime.title?.romaji || anime.title?.native || 'Untitled Anime';
   const score = anime.averageScore ? (anime.averageScore / 10).toFixed(1) : '8.5';
-  const cover = anime.coverImage?.extraLarge || anime.coverImage?.large || anime.coverImage?.medium;
+  const cover = anime.coverImage?.extraLarge || anime.coverImage?.large || anime.coverImage?.medium || FALLBACK_COVER;
   const episodes = anime.episodes ? `Ep ${anime.episodes}` : 'Ongoing';
   const format = anime.format || 'TV';
 
   const [inWatchlist, setInWatchlist] = useState(Boolean(getWatchlistItem(anime.id)));
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imgSrc, setImgSrc] = useState(cover);
 
   const handleToggleWatchlist = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -43,14 +45,12 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
       <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-[135px] md:w-[155px] lg:w-[165px] shrink-0 gpu-accelerated active:scale-95">
         <Link to={`/watch/${anime.id}/${epNum}`} className="relative aspect-[2/3] overflow-hidden bg-slate-950 block">
           <img
-            src={cover}
+            src={imgSrc}
             alt={title}
             loading="lazy"
             decoding="async"
-            onLoad={() => setImageLoaded(true)}
-            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
+            onError={() => setImgSrc(FALLBACK_COVER)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500 opacity-100"
           />
 
           {/* Episode Number Badge Overlay */}
@@ -111,14 +111,12 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
       >
         <div className="relative w-16 sm:w-20 aspect-video rounded-xl overflow-hidden bg-slate-950 shrink-0">
           <img
-            src={cover}
+            src={imgSrc}
             alt={title}
             loading="lazy"
             decoding="async"
-            onLoad={() => setImageLoaded(true)}
-            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
-              imageLoaded ? 'opacity-100' : 'opacity-0'
-            }`}
+            onError={() => setImgSrc(FALLBACK_COVER)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500 opacity-100"
           />
         </div>
 
@@ -152,14 +150,12 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
     <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-[135px] md:w-[155px] lg:w-[165px] shrink-0 gpu-accelerated active:scale-95">
       <Link to={`/anime/${anime.id}`} className="relative aspect-[2/3] overflow-hidden bg-slate-950 block">
         <img
-          src={cover}
+          src={imgSrc}
           alt={title}
           loading="lazy"
           decoding="async"
-          onLoad={() => setImageLoaded(true)}
-          className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
-            imageLoaded ? 'opacity-100' : 'opacity-0'
-          }`}
+          onError={() => setImgSrc(FALLBACK_COVER)}
+          className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500 opacity-100"
         />
 
         <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D12] via-transparent to-transparent opacity-80" />
