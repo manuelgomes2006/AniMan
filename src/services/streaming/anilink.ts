@@ -1,30 +1,40 @@
 import { BaseStreamingProvider } from './provider';
 import { StreamingResult, AudioVariant, ServerOption } from '../../types/stream';
 
-export function getAniLinkStreamUrl(options: {
+export interface StreamUrlOptions {
   animeId: number;
   episode: number;
   variant?: 'sub' | 'dub';
+  malId?: number;
   server?: string;
-}): string {
-  const { animeId, episode, variant = 'sub', server = 'server-1' } = options;
+}
+
+export function getAniLinkStreamUrl(options: StreamUrlOptions): string {
+  const { animeId, episode, variant = 'sub', malId, server = 'server-1' } = options;
   const ep = Math.max(1, episode);
   const targetId = animeId || 11061;
+  const malTargetId = malId || targetId;
 
-  // Server 2: VidStream / MegaCloud
-  if (server === 'server-2' || server === 'vidstream-hd') {
+  // Primary AniLink Embed
+  if (server === 'server-1' || !server) {
+    return `https://anilink.cc/watch/${targetId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
+  }
+
+  // AniLink Direct Player Route
+  if (server === 'server-2') {
     return `https://anilink.cc/e/${targetId}-ep-${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1`;
   }
-  // Server 3: 2Embed Mirror
-  if (server === 'server-3' || server === '2embed-mirror') {
-    return `https://2embed.cc/embed/anime/${targetId}/${ep}`;
-  }
-  // Server 4: Streamtape HLS
-  if (server === 'server-4' || server === 'streamtape-hls') {
-    return `https://streamtape.com/e/${targetId}/${ep}`;
+
+  // 2Embed Anime Mirror
+  if (server === 'server-3') {
+    return `https://2embed.cc/embed/anime/${malTargetId}/${ep}`;
   }
 
-  // Server 1: AniLink Primary (Default)
+  // VidSrc Anime Mirror
+  if (server === 'server-4') {
+    return `https://vidsrc.to/embed/anime/${malTargetId}/${ep}`;
+  }
+
   return `https://anilink.cc/watch/${targetId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
 }
 
@@ -41,33 +51,33 @@ export class AniLinkProvider extends BaseStreamingProvider {
     const ep = Math.max(1, episode);
     const targetId = animeId || 11061;
 
-    const primaryEmbedUrl = getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant, server: 'server-1' });
+    const primaryEmbedUrl = getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant, malId });
 
     const servers: ServerOption[] = [
       {
         id: 'server-1',
-        name: 'Server 1 (AniLink Primary)',
+        name: 'AniLink Primary',
         type: 'embed',
         url: primaryEmbedUrl,
         isDefault: true
       },
       {
         id: 'server-2',
-        name: 'Server 2 (VidStream / MegaCloud)',
+        name: 'AniLink Direct',
         type: 'embed',
-        url: getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant, server: 'server-2' })
+        url: getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant, malId, server: 'server-2' })
       },
       {
         id: 'server-3',
-        name: 'Server 3 (2Embed Mirror)',
+        name: '2Embed Mirror',
         type: 'embed',
-        url: getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant, server: 'server-3' })
+        url: getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant, malId, server: 'server-3' })
       },
       {
         id: 'server-4',
-        name: 'Server 4 (Streamtape HLS)',
+        name: 'VidSrc Mirror',
         type: 'embed',
-        url: getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant, server: 'server-4' })
+        url: getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant, malId, server: 'server-4' })
       }
     ];
 
@@ -79,9 +89,9 @@ export class AniLinkProvider extends BaseStreamingProvider {
       servers,
       sources: [
         {
-          name: '1080p Adaptive HLS',
-          url: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
-          isHLS: true,
+          name: '1080p HD Stream',
+          url: primaryEmbedUrl,
+          isHLS: false,
           quality: '1080p'
         }
       ],

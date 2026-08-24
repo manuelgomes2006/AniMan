@@ -14,7 +14,7 @@ import SubDubControls from '../components/player/SubDubControls';
 import EpisodeSelector from '../components/player/EpisodeSelector';
 import ErrorState from '../components/shared/ErrorState';
 
-import { ChevronLeft, ChevronRight, Play, Star } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, RefreshCw, AlertCircle } from 'lucide-react';
 
 export default function WatchPage() {
   const { id, episode } = useParams<{ id: string; episode: string }>();
@@ -27,6 +27,7 @@ export default function WatchPage() {
   const [normalizedEpisodes, setNormalizedEpisodes] = useState<NormalizedEpisode[]>([]);
   const [loading, setLoading] = useState(true);
   const [audioVariant, setAudioVariant] = useState<'sub' | 'dub'>(getUserAudioPreference());
+  const [activeServer, setActiveServer] = useState('server-1');
   const [streamError, setStreamError] = useState(false);
 
   // Load Anime Metadata & Accurate Episode List
@@ -83,11 +84,18 @@ export default function WatchPage() {
     }
   };
 
+  const handleSwitchMirror = () => {
+    setStreamError(false);
+    setActiveServer(prev => (prev === 'server-1' ? 'server-2' : prev === 'server-2' ? 'server-3' : 'server-1'));
+  };
+
   // High-speed stream embed URL resolution
   const streamUrl = getAniLinkStreamUrl({
     animeId,
     episode: currentEpNum,
     variant: audioVariant,
+    malId: anime?.idMal,
+    server: activeServer
   });
 
   const title = anime?.title?.english || anime?.title?.romaji || 'Anime';
@@ -110,7 +118,7 @@ export default function WatchPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-16">
-      {/* Pre-warm Stream Connection for Maximum Player Speed */}
+      {/* Pre-warm Stream Connection */}
       <link rel="preconnect" href="https://anilink.cc" />
       <link rel="dns-prefetch" href="https://anilink.cc" />
 
@@ -130,11 +138,12 @@ export default function WatchPage() {
         {streamError ? (
           <ErrorState
             title="Streaming Source Unavailable"
-            message="Unable to load this video stream. Click retry to refresh."
-            onRetry={() => setStreamError(false)}
+            message="This stream server is currently unresponsive. Click Switch Stream Source to try an alternative mirror."
+            onRetry={handleSwitchMirror}
           />
         ) : (
           <iframe
+            key={`${streamUrl}-${audioVariant}`}
             src={streamUrl}
             title={`${title} - Episode ${currentEpNum}`}
             className="w-full h-full border-0"
@@ -146,8 +155,8 @@ export default function WatchPage() {
         )}
       </div>
 
-      {/* Touch Control Bar Below Player (Audio Selector Only — Server details hidden as requested) */}
-      <div className="flex items-center justify-between gap-3">
+      {/* Touch Control Bar Below Player */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="w-full sm:w-auto min-w-[200px]">
           <SubDubControls
             currentVariant={audioVariant}
@@ -156,8 +165,17 @@ export default function WatchPage() {
           />
         </div>
 
-        {/* Quick Next/Prev Episode Buttons */}
+        {/* Action Controls: Switch Stream Mirror & Next/Prev Episode Buttons */}
         <div className="flex items-center gap-2">
+          <button
+            onClick={handleSwitchMirror}
+            className="px-3 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] hover:bg-slate-900 text-purple-300 border border-slate-800 transition flex items-center gap-1.5"
+            title="Switch Video Mirror Source"
+          >
+            <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden sm:inline">Switch Stream Source</span>
+          </button>
+
           <button
             onClick={handlePrevEpisode}
             disabled={currentEpNum <= 1}
