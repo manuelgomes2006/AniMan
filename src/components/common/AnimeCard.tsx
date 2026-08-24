@@ -27,6 +27,7 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
   const format = anime.format || 'TV';
 
   const [inWatchlist, setInWatchlist] = useState(Boolean(getWatchlistItem(anime.id)));
+  const [imageLoaded, setImageLoaded] = useState(false);
 
   const handleToggleWatchlist = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -39,17 +40,20 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
   if (variant === 'latest') {
     const epNum = episodeNumber || 1;
     return (
-      <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-auto shrink-0">
+      <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-auto shrink-0 gpu-accelerated active:scale-95">
         <Link to={`/watch/${anime.id}/${epNum}`} className="relative aspect-[3/4] overflow-hidden bg-slate-950 block">
           <img
             src={cover}
             alt={title}
             loading="lazy"
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            onLoad={() => setImageLoaded(true)}
+            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
           />
 
           {/* Episode Number Badge Overlay */}
-          <div className="absolute top-1.5 left-1.5 z-10 bg-purple-600/90 backdrop-blur-md px-1.5 py-0.5 rounded-md text-[9px] font-black text-white uppercase shadow-md">
+          <div className="absolute top-1.5 left-1.5 z-10 bg-purple-600/95 backdrop-blur-md px-1.5 py-0.5 rounded-md text-[9px] font-black text-white uppercase shadow-md">
             EP {epNum < 10 ? `0${epNum}` : epNum}
           </div>
 
@@ -61,17 +65,17 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
 
           {/* Quick Play Hover */}
           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-            <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
+            <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg transform group-hover:scale-110 transition-transform">
               <Play className="w-4 h-4 fill-white ml-0.5" />
             </div>
           </div>
         </Link>
 
-        {/* Card Info + SUB/DUB Indicators */}
+        {/* Card Info + SUB/DUB Badges */}
         <div className="p-2 flex-1 flex flex-col justify-between space-y-1">
           <Link
             to={`/watch/${anime.id}/${epNum}`}
-            className="font-bold text-[11px] text-slate-100 hover:text-purple-400 line-clamp-1 leading-tight"
+            className="font-bold text-[11px] text-slate-100 hover:text-purple-400 line-clamp-1 leading-tight transition"
             title={title}
           >
             {title}
@@ -102,13 +106,17 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
     return (
       <Link
         to={`/watch/${anime.id}/${progressData.episodeNumber}`}
-        className="group bg-[#0D0D12] border border-slate-900/90 hover:border-purple-500/50 rounded-2xl p-2.5 flex items-center gap-3 transition-all duration-300 shadow-md"
+        className="group bg-[#0D0D12] border border-slate-900/90 hover:border-purple-500/50 rounded-2xl p-2.5 flex items-center gap-3 transition-all duration-300 shadow-md active:scale-98 gpu-accelerated"
       >
         <div className="relative w-20 sm:w-24 aspect-video rounded-xl overflow-hidden bg-slate-950 shrink-0">
           <img
             src={cover}
             alt={title}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+            loading="lazy"
+            onLoad={() => setImageLoaded(true)}
+            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
+              imageLoaded ? 'opacity-100' : 'opacity-0'
+            }`}
           />
         </div>
 
@@ -124,13 +132,13 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
           </span>
           <div className="w-full bg-slate-900 h-1 rounded-full mt-1.5 overflow-hidden">
             <div
-              className="bg-purple-500 h-full rounded-full transition-all"
+              className="bg-purple-500 h-full rounded-full transition-all duration-300"
               style={{ width: `${percentage}%` }}
             />
           </div>
         </div>
 
-        <div className="w-7 h-7 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg shrink-0">
+        <div className="w-7 h-7 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg shrink-0 transform group-hover:scale-110 transition-transform">
           <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
         </div>
       </Link>
@@ -139,13 +147,16 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
 
   // Standard Poster Card
   return (
-    <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-auto shrink-0">
+    <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-auto shrink-0 gpu-accelerated active:scale-95">
       <Link to={`/anime/${anime.id}`} className="relative aspect-[3/4] overflow-hidden bg-slate-950 block">
         <img
           src={cover}
           alt={title}
           loading="lazy"
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          onLoad={() => setImageLoaded(true)}
+          className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${
+            imageLoaded ? 'opacity-100' : 'opacity-0'
+          }`}
         />
 
         <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D12] via-transparent to-transparent opacity-80" />
@@ -153,7 +164,7 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
         {/* Watchlist Toggle */}
         <button
           onClick={handleToggleWatchlist}
-          className={`absolute top-1.5 right-1.5 z-20 p-1 rounded-full backdrop-blur-md transition-transform ${
+          className={`absolute top-1.5 right-1.5 z-20 p-1 rounded-full backdrop-blur-md transition-all active:scale-90 ${
             inWatchlist
               ? 'bg-purple-600 text-white shadow-md'
               : 'bg-black/60 text-slate-300 hover:text-white border border-slate-700/60'
@@ -173,7 +184,7 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
       <div className="p-2 flex-1 flex flex-col justify-between space-y-0.5">
         <Link
           to={`/anime/${anime.id}`}
-          className="font-bold text-[11px] text-slate-100 hover:text-purple-400 line-clamp-1 leading-tight"
+          className="font-bold text-[11px] text-slate-100 hover:text-purple-400 line-clamp-1 leading-tight transition"
           title={title}
         >
           {title}
