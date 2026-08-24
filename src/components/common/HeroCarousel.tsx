@@ -33,9 +33,9 @@ export default function HeroCarousel({ items = [] }: HeroCarouselProps) {
   };
 
   return (
-    <div className="relative w-full rounded-2xl sm:rounded-3xl overflow-hidden mb-5 sm:mb-10 border border-slate-900 shadow-2xl bg-[#050507]">
-      {/* Background Image Container — 35-45% Viewport Height on Mobile (<768px) */}
-      <div className="relative w-full h-[220px] sm:h-[480px]">
+    <div className="relative w-full rounded-2xl overflow-hidden mb-4 border border-slate-900 shadow-xl bg-[#050507]">
+      {/* Background Image Container — Sleek 320px-360px Height on Desktop */}
+      <div className="relative w-full h-[200px] sm:h-[300px] md:h-[340px]">
         <img
           src={banner}
           alt={title}
@@ -60,15 +60,15 @@ export default function HeroCarousel({ items = [] }: HeroCarouselProps) {
         </div>
 
         {/* Hero Content Overlay */}
-        <div className="relative z-20 h-full max-w-3xl px-4 sm:px-12 flex flex-col justify-end pb-4 sm:pb-12">
+        <div className="relative z-20 h-full max-w-2xl px-4 sm:px-8 flex flex-col justify-end pb-4 sm:pb-8">
           {/* Badges */}
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="bg-purple-600/90 text-white font-extrabold text-[9px] sm:text-[11px] uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-lg">
+          <div className="flex items-center gap-2 mb-1">
+            <span className="bg-purple-600/90 text-white font-extrabold text-[9px] sm:text-[10px] uppercase tracking-wider px-2 py-0.5 rounded-md flex items-center gap-1 shadow-md">
               <Flame className="w-3 h-3 fill-white" />
               #{currentIndex + 1} Trending
             </span>
             {anime.averageScore && (
-              <span className="bg-[#0D0D12]/90 text-amber-400 text-[9px] sm:text-xs font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-amber-500/20">
+              <span className="bg-[#0D0D12]/90 text-amber-400 text-[9px] sm:text-[10px] font-bold px-2 py-0.5 rounded-md flex items-center gap-1 border border-amber-500/20">
                 <Star className="w-3 h-3 fill-amber-400" />
                 {(anime.averageScore / 10).toFixed(1)}
               </span>
@@ -79,20 +79,20 @@ export default function HeroCarousel({ items = [] }: HeroCarouselProps) {
           </div>
 
           {/* Title */}
-          <h1 className="text-xl sm:text-4xl font-black text-white uppercase tracking-tight leading-none mb-1.5 sm:mb-3 drop-shadow-md line-clamp-1">
+          <h1 className="text-lg sm:text-2xl font-black text-white uppercase tracking-tight leading-none mb-1 sm:mb-2 drop-shadow-md line-clamp-1">
             {title}
           </h1>
 
           {/* Synopsis */}
-          <p className="text-slate-300 text-[11px] sm:text-sm line-clamp-2 sm:line-clamp-3 mb-3 sm:mb-6 leading-relaxed max-w-2xl font-normal opacity-90">
+          <p className="text-slate-300 text-[11px] sm:text-xs line-clamp-2 mb-2 sm:mb-4 leading-relaxed max-w-xl font-normal opacity-90">
             {synopsis}
           </p>
 
           {/* Buttons: [ ▶ Watch Now ] [ + ] */}
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-2">
             <Link
               to={`/watch/${anime.id}/1`}
-              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs sm:text-sm px-4 sm:px-7 py-2 sm:py-3.5 rounded-xl sm:rounded-2xl shadow-xl shadow-purple-950/60 transition-all border border-purple-500/30"
+              className="flex items-center gap-1.5 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl shadow-lg shadow-purple-950/60 transition border border-purple-500/30"
             >
               <Play className="w-3.5 h-3.5 fill-white" />
               Watch Now
@@ -100,7 +100,7 @@ export default function HeroCarousel({ items = [] }: HeroCarouselProps) {
 
             <button
               onClick={handleToggleList}
-              className="p-2 sm:px-5 sm:py-3.5 bg-[#0D0D12]/90 hover:bg-[#0D0D12] backdrop-blur-md text-white font-semibold text-xs rounded-xl sm:rounded-2xl border border-slate-800 transition hover:border-purple-500/40"
+              className="p-2 sm:px-3.5 sm:py-2 bg-[#0D0D12]/90 hover:bg-[#0D0D12] backdrop-blur-md text-white font-semibold text-xs rounded-xl border border-slate-800 transition hover:border-purple-500/40 cursor-pointer"
               title={inWatchlist ? 'In List' : 'Add to List'}
             >
               {inWatchlist ? <Check className="w-3.5 h-3.5 text-purple-400" /> : <Plus className="w-3.5 h-3.5 text-slate-200" />}
