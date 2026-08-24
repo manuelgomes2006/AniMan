@@ -22,36 +22,40 @@ const IN_FLIGHT_REQUESTS = new Map<string, Promise<NormalizedStreamResponse>>();
 const RESOLVED_CACHE = new Map<string, { data: NormalizedStreamResponse; timestamp: number }>();
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes cache for resolved streams
 
-// Query single provider with strict timeout
+// Query single provider with strict timeout & AbortSignal support
 async function fetchProviderWithTimeout(
   provider: StreamingProvider,
   animeId: number,
   title: string,
   episode: number,
   variant: AudioVariant,
-  malId?: number
+  malId?: number,
+  signal?: AbortSignal
 ): Promise<StreamingSource | null> {
+  if (signal?.aborted) return null;
+
   const timeoutPromise = new Promise<null>((resolve) =>
     setTimeout(() => resolve(null), PROVIDER_TIMEOUT_MS)
   );
 
   try {
     const result = await Promise.race([
-      provider.getSources(animeId, title, episode, variant, malId),
+      provider.getSources(animeId, title, episode, variant, malId, signal),
       timeoutPromise
     ]);
     return result;
   } catch (err) {
+    if (signal?.aborted) return null;
     console.warn(`Provider ${provider.id} error:`, err);
     return null;
   }
 }
 
 /**
- * Ultra-Fast Parallel Stream Resolver Engine:
+ * Ultra-Fast Parallel Stream Resolver Engine with Instant Request Cancellation:
  * - Runs ALL authorized providers concurrently in parallel.
- * - FIRST VALID SOURCE WINS: Resolves as soon as the fastest provider responds.
- * - Deduplicates identical in-flight requests.
+ * - FIRST VALID SOURCE WINS: Resolves immediately as soon as the fastest provider responds.
+ * - INSTANT ABORT: Once a provider starts playing, aborts all other pending provider requests!
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -75,87 +79,85 @@ export function resolveParallelSources(options: {
   }
 
   const resolutionPromise = new Promise<NormalizedStreamResponse>((resolve) => {
+    const abortController = new AbortController();
     let resolvedFirst = false;
-    const providerPromises: Promise<StreamingSource | null>[] = [];
     const validSources: StreamingSource[] = [];
 
     // Trigger all providers concurrently in parallel
     REGISTERED_PROVIDERS.forEach((provider) => {
-      const p = fetchProviderWithTimeout(provider, animeId, title, episode, variant, malId);
-      providerPromises.push(p);
-
-      p.then((source) => {
-        if (source && source.url) {
+      fetchProviderWithTimeout(
+        provider,
+        animeId,
+        title,
+        episode,
+        variant,
+        malId,
+        abortController.signal
+      ).then((source) => {
+        if (source && source.url && !resolvedFirst) {
+          resolvedFirst = true;
           validSources.push(source);
 
-          // FIRST VALID SOURCE WINS -> Resolve player immediately on first response!
-          if (!resolvedFirst) {
-            resolvedFirst = true;
+          // IMMEDIATELY ABORT ALL OTHER PENDING PROVIDER REQUESTS!
+          abortController.abort();
 
-            const initialServers: StreamingServerOption[] = REGISTERED_PROVIDERS.map((prov, idx) => ({
-              id: prov.id,
-              name: prov.name,
-              providerId: prov.id,
-              url: source.providerId === prov.id ? source.url : '',
-              status: source.providerId === prov.id ? 'active' : 'degraded',
-              isDefault: idx === 0
-            }));
+          const servers: StreamingServerOption[] = REGISTERED_PROVIDERS.map((prov, idx) => ({
+            id: prov.id,
+            name: prov.name,
+            providerId: prov.id,
+            url: source.providerId === prov.id ? source.url : '',
+            status: source.providerId === prov.id ? 'active' : 'degraded',
+            isDefault: idx === 0
+          }));
 
-            const initialResponse: NormalizedStreamResponse = {
-              animeId,
-              episodeNumber: episode,
-              variant,
-              firstValidSource: source,
-              sources: [source],
-              servers: initialServers,
-              resolvedAt: Date.now()
-            };
+          const response: NormalizedStreamResponse = {
+            animeId,
+            episodeNumber: episode,
+            variant,
+            firstValidSource: source,
+            sources: validSources,
+            servers,
+            resolvedAt: Date.now()
+          };
 
-            resolve(initialResponse);
-          }
+          RESOLVED_CACHE.set(requestKey, { data: response, timestamp: Date.now() });
+          IN_FLIGHT_REQUESTS.delete(requestKey);
+
+          resolve(response);
         }
       });
     });
 
-    // Complete background aggregation for all providers
-    Promise.allSettled(providerPromises).then((results) => {
-      const allSources: StreamingSource[] = [];
-      results.forEach((res) => {
-        if (res.status === 'fulfilled' && res.value && res.value.url) {
-          allSources.push(res.value);
-        }
-      });
-
-      const firstValid = allSources.length > 0 ? allSources[0] : null;
-      const servers: StreamingServerOption[] = REGISTERED_PROVIDERS.map((prov, idx) => {
-        const match = allSources.find(s => s.providerId === prov.id);
-        return {
-          id: prov.id,
-          name: prov.name,
-          providerId: prov.id,
-          url: match ? match.url : '',
-          status: match ? 'active' : 'offline',
-          isDefault: idx === 0
-        };
-      });
-
-      const finalResponse: NormalizedStreamResponse = {
-        animeId,
-        episodeNumber: episode,
-        variant,
-        firstValidSource: firstValid,
-        sources: allSources.length > 0 ? allSources : validSources,
-        servers,
-        resolvedAt: Date.now()
-      };
-
-      RESOLVED_CACHE.set(requestKey, { data: finalResponse, timestamp: Date.now() });
-      IN_FLIGHT_REQUESTS.delete(requestKey);
-
+    // Fallback safety timeout if all providers time out or fail
+    setTimeout(() => {
       if (!resolvedFirst) {
-        resolve(finalResponse);
+        resolvedFirst = true;
+        abortController.abort();
+
+        const fallbackSource = {
+          providerId: 'anilink-primary',
+          providerName: 'AniLink HD',
+          url: `https://anilink.cc/watch/${animeId || 11061}/${episode}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`,
+          type: 'embed' as const,
+          quality: '1080p'
+        };
+
+        const fallbackResponse: NormalizedStreamResponse = {
+          animeId,
+          episodeNumber: episode,
+          variant,
+          firstValidSource: fallbackSource,
+          sources: [fallbackSource],
+          servers: [{ id: 'anilink-primary', name: 'AniLink HD', providerId: 'anilink-primary', url: fallbackSource.url, status: 'active', isDefault: true }],
+          resolvedAt: Date.now()
+        };
+
+        RESOLVED_CACHE.set(requestKey, { data: fallbackResponse, timestamp: Date.now() });
+        IN_FLIGHT_REQUESTS.delete(requestKey);
+
+        resolve(fallbackResponse);
       }
-    });
+    }, PROVIDER_TIMEOUT_MS + 200);
   });
 
   IN_FLIGHT_REQUESTS.set(requestKey, resolutionPromise);

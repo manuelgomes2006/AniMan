@@ -37,6 +37,7 @@ export interface StreamingProvider {
     title: string,
     episode: number,
     variant: AudioVariant,
-    malId?: number
+    malId?: number,
+    signal?: AbortSignal
   ): Promise<StreamingSource | null>;
 }
