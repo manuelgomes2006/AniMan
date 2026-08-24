@@ -12,32 +12,30 @@ export interface StreamUrlOptions {
 export function getAniLinkStreamUrl(options: StreamUrlOptions): string {
   const { animeId, episode, variant = 'sub', malId, server = 'server-1' } = options;
   const ep = Math.max(1, episode);
+  const targetAniListId = animeId || 11061;
+  const targetMalId = malId || animeId || 11061;
 
-  // High-compatibility ID selection: prefer MAL ID if available, fallback to AniList ID
-  const primaryId = malId || animeId || 11061;
-  const secondaryId = animeId || malId || 11061;
-
-  // Server 1: AniLink Primary Embed
+  // Server 1: AniLink Primary Embed (AniList ID)
   if (server === 'server-1' || !server) {
-    return `https://anilink.cc/watch/${primaryId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
+    return `https://anilink.cc/watch/${targetAniListId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
   }
 
-  // Server 2: AniLink Direct Route
+  // Server 2: AniLink Mirror (MAL ID)
   if (server === 'server-2') {
-    return `https://anilink.cc/watch/${secondaryId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
+    return `https://anilink.cc/watch/${targetMalId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
   }
 
   // Server 3: 2Embed Resolver
   if (server === 'server-3') {
-    return `https://2embed.cc/embed/anime/${primaryId}/${ep}`;
+    return `https://2embed.cc/embed/anime/${targetMalId}/${ep}`;
   }
 
   // Server 4: VidSrc Resolver
   if (server === 'server-4') {
-    return `https://vidsrc.to/embed/anime/${primaryId}/${ep}`;
+    return `https://vidsrc.to/embed/anime/${targetMalId}/${ep}`;
   }
 
-  return `https://anilink.cc/watch/${primaryId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
+  return `https://anilink.cc/watch/${targetAniListId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
 }
 
 export class AniLinkProvider extends BaseStreamingProvider {
@@ -63,7 +61,7 @@ export class AniLinkProvider extends BaseStreamingProvider {
       },
       {
         id: 'server-2',
-        name: 'AniLink Direct',
+        name: 'AniLink Mirror',
         type: 'embed',
         url: getAniLinkStreamUrl({ animeId, episode: ep, variant, malId, server: 'server-2' })
       },
