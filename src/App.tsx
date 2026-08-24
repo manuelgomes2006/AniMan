@@ -2,8 +2,13 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import SkeletonLoader from './components/shared/SkeletonLoader';
+import ProtectedRoute from './components/shared/ProtectedRoute';
 
-// Code-split pages for faster initial load & smooth route transitions
+// Public Auth Pages
+import LoginPage from './pages/Auth/LoginPage';
+import SignupPage from './pages/Auth/SignupPage';
+
+// Code-split pages for max performance
 const HomePage = lazy(() => import('./pages/HomePage'));
 const BrowsePage = lazy(() => import('./pages/BrowsePage'));
 const DetailsPage = lazy(() => import('./pages/DetailsPage'));
@@ -23,13 +28,18 @@ export default function App() {
           </div>
         }>
           <Routes>
-            <Route path="/" element={<HomePage />} />
-            <Route path="/browse" element={<BrowsePage />} />
-            <Route path="/anime/:id" element={<DetailsPage />} />
-            <Route path="/watch/:id/:episode" element={<WatchPage />} />
-            <Route path="/watchlist" element={<WatchlistPage />} />
-            <Route path="/schedule" element={<SchedulePage />} />
-            <Route path="/profile" element={<ProfilePage />} />
+            {/* Public Authentication Routes */}
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/signup" element={<SignupPage />} />
+
+            {/* Protected Routes */}
+            <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+            <Route path="/browse" element={<ProtectedRoute><BrowsePage /></ProtectedRoute>} />
+            <Route path="/anime/:id" element={<ProtectedRoute><DetailsPage /></ProtectedRoute>} />
+            <Route path="/watch/:id/:episode" element={<ProtectedRoute><WatchPage /></ProtectedRoute>} />
+            <Route path="/watchlist" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
+            <Route path="/schedule" element={<ProtectedRoute><SchedulePage /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
           </Routes>
         </Suspense>
       </MainLayout>
