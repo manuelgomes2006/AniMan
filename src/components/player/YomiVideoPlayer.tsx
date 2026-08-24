@@ -173,7 +173,7 @@ export default function YomiVideoPlayer({
       onMouseMove={handleMouseMove}
       className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-900/90 group select-none"
     >
-      {/* 1. HLS Video Element or iFrame Fallback */}
+      {/* 1. HLS Video Element or iFrame Embed Fallback */}
       {isHlsSource ? (
         <video
           ref={videoRef}
@@ -188,43 +188,44 @@ export default function YomiVideoPlayer({
           key={`${source.url}`}
           src={source.url}
           title={`${title} - Episode ${episodeNumber}`}
-          className="w-full h-full border-0"
+          className="w-full h-full border-0 relative z-10 pointer-events-auto"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
           referrerPolicy="origin"
         />
       )}
 
-      {/* 2. Custom AniWorld Player Controls Overlay */}
+      {/* 2. Top Header Overlay (Always visible on hover for both HLS & Embed sources) */}
+      <div
+        className={`absolute top-0 left-0 right-0 p-3.5 z-30 flex items-center justify-between transition-opacity duration-300 pointer-events-auto ${
+          showControls ? 'opacity-100 bg-gradient-to-b from-black/80 to-transparent' : 'opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <span className="bg-purple-600 text-white text-[10px] uppercase font-black px-2.5 py-1 rounded-full tracking-wider shadow-md">
+            ANIWORLD HD
+          </span>
+          <span className="text-xs font-black text-white truncate max-w-[180px] sm:max-w-xs">{title} • Ep {episodeNumber}</span>
+        </div>
+
+        {onSwitchMirror && (
+          <button
+            onClick={onSwitchMirror}
+            className="bg-slate-900/90 hover:bg-purple-900 border border-slate-700/80 text-purple-300 hover:text-white font-extrabold text-xs px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer shadow-md active:scale-95"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+            <span>Switch Mirror</span>
+          </button>
+        )}
+      </div>
+
+      {/* 3. Bottom Bar Custom Controls (for HLS Direct Sources) */}
       {isHlsSource && (
         <div
-          className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent transition-opacity duration-300 flex flex-col justify-between p-4 z-20 ${
+          className={`absolute bottom-0 left-0 right-0 p-4 z-30 transition-opacity duration-300 bg-gradient-to-t from-black/90 to-transparent ${
             showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
-          {/* Top Bar */}
-          <div className="flex items-center justify-between text-xs font-black text-white">
-            <div className="flex items-center gap-2">
-              <span className="bg-purple-600 text-white text-[10px] uppercase font-black px-2 py-0.5 rounded-full tracking-wider">
-                ANIWORLD HD
-              </span>
-              <span className="truncate max-w-[200px] sm:max-w-xs">{title} • Ep {episodeNumber}</span>
-            </div>
-
-            <div className="flex items-center gap-2">
-              {onSwitchMirror && (
-                <button
-                  onClick={onSwitchMirror}
-                  className="bg-slate-900/80 hover:bg-slate-800 border border-slate-700 text-slate-300 font-bold text-xs px-2.5 py-1 rounded-xl transition flex items-center gap-1 cursor-pointer"
-                >
-                  <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
-                  <span>Switch Mirror</span>
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Bottom Bar Controls */}
           <div className="space-y-2">
             {/* Seek Bar */}
             <input
