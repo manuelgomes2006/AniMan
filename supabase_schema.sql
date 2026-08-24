@@ -24,13 +24,13 @@ CREATE TABLE IF NOT EXISTS public.watchlist (
   UNIQUE(user_id, anime_id)
 );
 
--- 3. WATCH HISTORY TABLE
+-- 3. WATCH HISTORY TABLE (Double-quoted "current_time" to avoid PostgreSQL keyword collision)
 CREATE TABLE IF NOT EXISTS public.watch_history (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   anime_id INTEGER NOT NULL,
   episode_number INTEGER NOT NULL,
-  current_time NUMERIC DEFAULT 0,
+  "current_time" NUMERIC DEFAULT 0,
   duration NUMERIC DEFAULT 0,
   completed BOOLEAN DEFAULT FALSE,
   last_watched TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -87,79 +87,25 @@ ALTER TABLE public.user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
-CREATE POLICY "Users can read their own profile or public profiles" ON public.profiles
-  FOR SELECT USING (true);
-
-CREATE POLICY "Users can insert their own profile" ON public.profiles
-  FOR INSERT WITH CHECK (auth.uid() = id);
-
-CREATE POLICY "Users can update their own profile" ON public.profiles
-  FOR UPDATE USING (auth.uid() = id);
-
-CREATE POLICY "Users can delete their own profile" ON public.profiles
-  FOR DELETE USING (auth.uid() = id);
+CREATE POLICY "Users can read public profiles" ON public.profiles FOR SELECT USING (true);
+CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can delete own profile" ON public.profiles FOR DELETE USING (auth.uid() = id);
 
 -- Watchlist Policies
-CREATE POLICY "Users can read own watchlist" ON public.watchlist
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own watchlist" ON public.watchlist
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own watchlist" ON public.watchlist
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own watchlist" ON public.watchlist
-  FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage own watchlist" ON public.watchlist FOR ALL USING (auth.uid() = user_id);
 
 -- Watch History Policies
-CREATE POLICY "Users can read own watch history" ON public.watch_history
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own watch history" ON public.watch_history
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own watch history" ON public.watch_history
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own watch history" ON public.watch_history
-  FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage own watch history" ON public.watch_history FOR ALL USING (auth.uid() = user_id);
 
 -- Favorites Policies
-CREATE POLICY "Users can read own favorites" ON public.favorites
-  FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage own favorites" ON public.favorites FOR ALL USING (auth.uid() = user_id);
 
-CREATE POLICY "Users can insert own favorites" ON public.favorites
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own favorites" ON public.favorites
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own favorites" ON public.favorites
-  FOR DELETE USING (auth.uid() = user_id);
-
--- User Preferences Policies
-CREATE POLICY "Users can read own preferences" ON public.user_preferences
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own preferences" ON public.user_preferences
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can update own preferences" ON public.user_preferences
-  FOR UPDATE USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own preferences" ON public.user_preferences
-  FOR DELETE USING (auth.uid() = user_id);
+-- Preferences Policies
+CREATE POLICY "Users can manage own preferences" ON public.user_preferences FOR ALL USING (auth.uid() = user_id);
 
 -- Search History Policies
-CREATE POLICY "Users can read own search history" ON public.search_history
-  FOR SELECT USING (auth.uid() = user_id);
-
-CREATE POLICY "Users can insert own search history" ON public.search_history
-  FOR INSERT WITH CHECK (auth.uid() = user_id);
-
-CREATE POLICY "Users can delete own search history" ON public.search_history
-  FOR DELETE USING (auth.uid() = user_id);
+CREATE POLICY "Users can manage own search history" ON public.search_history FOR ALL USING (auth.uid() = user_id);
 
 -- ====================================================================
 -- AUTOMATIC NEW USER INITIALIZATION TRIGGER
@@ -177,21 +123,13 @@ BEGIN
   ) ON CONFLICT (id) DO NOTHING;
 
   INSERT INTO public.user_preferences (user_id, preferred_audio, preferred_quality, autoplay, autoplay_next, skip_intro, skip_outro)
-  VALUES (
-    NEW.id,
-    'sub',
-    'auto',
-    true,
-    true,
-    false,
-    false
-  ) ON CONFLICT (user_id) DO NOTHING;
+  VALUES (NEW.id, 'sub', 'auto', true, true, false, false)
+  ON CONFLICT (user_id) DO NOTHING;
 
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Trigger execution
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
@@ -206,8 +144,6 @@ RETURNS INTEGER AS $$
 DECLARE
   deleted_count INTEGER := 0;
 BEGIN
-  -- Delete users from auth.users who have been inactive for more than 6 months (180 days)
-  -- ON DELETE CASCADE automatically purges profiles, watchlist, history, favorites, preferences, search_history
   WITH inactive_users AS (
     SELECT id FROM auth.users
     WHERE COALESCE(last_sign_in_at, created_at) < (NOW() - INTERVAL '6 months')
@@ -219,13 +155,3 @@ BEGIN
   RETURN deleted_count;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
-
--- Enable pg_cron extension if supported on Supabase project and schedule daily cleanup at 3:00 AM UTC
-DO $$
-BEGIN
-  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
-    PERFORM cron.schedule('delete_inactive_users_daily', '0 3 * * *', 'SELECT public.delete_inactive_users_6_months()');
-  END IF;
-EXCEPTION
-  WHEN OTHERS THEN NULL;
-END $$;
