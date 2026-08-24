@@ -12,6 +12,7 @@ import { AnimeMedia } from '../types/anime';
 
 import SubDubControls from '../components/player/SubDubControls';
 import ServerSelector from '../components/player/ServerSelector';
+import EpisodeSelector from '../components/player/EpisodeSelector';
 import ErrorState from '../components/shared/ErrorState';
 
 import {
@@ -67,6 +68,10 @@ export default function WatchPage() {
   const handleAudioChange = (variant: 'sub' | 'dub') => {
     setAudioVariant(variant);
     setUserAudioPreference(variant);
+  };
+
+  const handleSelectEpisode = (epNum: number) => {
+    navigate(`/watch/${animeId}/${epNum}`);
   };
 
   const handleNextEpisode = () => {
@@ -162,7 +167,7 @@ export default function WatchPage() {
         </div>
       </div>
 
-      {/* Touch Touch Next/Prev Navigation Buttons */}
+      {/* Touch Next/Prev Navigation Buttons */}
       <div className="flex items-center justify-between gap-3 pt-1">
         <button
           onClick={handlePrevEpisode}
@@ -186,57 +191,15 @@ export default function WatchPage() {
         </button>
       </div>
 
-      {/* Episodes Catalog List Below Player */}
-      <section className="space-y-3 pt-3">
-        <div className="flex items-center justify-between border-b border-slate-900 pb-3">
-          <h3 className="text-base sm:text-lg font-extrabold text-white flex items-center gap-2">
-            <span className="w-1 h-4 bg-purple-500 rounded-full inline-block" />
-            Episodes Catalog ({normalizedEpisodes.length} Total)
-          </h3>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-          {normalizedEpisodes.map((ep) => {
-            const isCurrent = ep.number === currentEpNum;
-            return (
-              <button
-                key={ep.number}
-                onClick={() => navigate(`/watch/${animeId}/${ep.number}`)}
-                className={`w-full text-left rounded-xl overflow-hidden flex items-center gap-2.5 p-2 transition border ${
-                  isCurrent
-                    ? 'bg-purple-950/40 border-purple-500 shadow-md ring-1 ring-purple-500/40'
-                    : 'bg-[#0D0D12] hover:bg-slate-900 border-slate-900'
-                }`}
-              >
-                <div className="relative w-20 aspect-video rounded-lg overflow-hidden shrink-0 bg-slate-950">
-                  <img src={cover} alt={ep.title} className="w-full h-full object-cover" />
-                  {isCurrent && (
-                    <div className="absolute inset-0 bg-purple-900/60 backdrop-blur-[1px] flex items-center justify-center">
-                      <Play className="w-4 h-4 fill-white text-white animate-pulse" />
-                    </div>
-                  )}
-                </div>
-
-                <div className="min-w-0 flex-1 space-y-0.5">
-                  <div className="flex items-center justify-between">
-                    <span className={`text-[9px] font-black uppercase tracking-wider ${isCurrent ? 'text-purple-400' : 'text-slate-400'}`}>
-                      EPISODE {ep.number}
-                    </span>
-                    {ep.isFiller && (
-                      <span className="text-[8px] font-bold text-amber-400 bg-amber-950/60 px-1 rounded">
-                        FILLER
-                      </span>
-                    )}
-                  </div>
-                  <h4 className="text-xs font-bold text-slate-200 line-clamp-1">
-                    {ep.title}
-                  </h4>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </section>
+      {/* Episode Selector Component Matching Screenshot */}
+      <div className="pt-2">
+        <EpisodeSelector
+          episodes={normalizedEpisodes}
+          currentEpisode={currentEpNum}
+          onSelectEpisode={handleSelectEpisode}
+          coverImage={cover}
+        />
+      </div>
     </div>
   );
 }
