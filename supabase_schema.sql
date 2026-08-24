@@ -136,6 +136,22 @@ CREATE TRIGGER on_auth_user_created
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
 -- ====================================================================
+-- 🛑 SECURE SELF ACCOUNT DELETION RPC FUNCTION
+-- ====================================================================
+
+CREATE OR REPLACE FUNCTION public.delete_user_account()
+RETURNS void AS $$
+BEGIN
+  -- Permanently delete the authenticated user from auth.users
+  -- ON DELETE CASCADE automatically purges profiles, watchlist, history, favorites, preferences, search_history
+  DELETE FROM auth.users WHERE id = auth.uid();
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Grant execution to authenticated users
+GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;
+
+-- ====================================================================
 -- 🧹 AUTOMATIC 6-MONTH INACTIVE USER ACCOUNT DELETION PROCEDURE
 -- ====================================================================
 
