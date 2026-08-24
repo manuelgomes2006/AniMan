@@ -1,6 +1,7 @@
 import { WatchProgress, UserProfile } from '../types/user';
 import { AnimeMedia } from '../types/anime';
 import { supabase } from './auth/supabaseClient';
+import { getAnimeDetails } from './anilist/client';
 
 const STORAGE_KEYS = {
   USER: 'aniworld_user',
@@ -119,7 +120,7 @@ export function getWatchHistory(): WatchProgress[] {
 }
 
 /**
- * Fetch Watch History from Supabase (Source of Truth) with Title & Image Enrichment
+ * Fetch Watch History from Supabase (Source of Truth) with Local & API Artwork Enrichment
  */
 export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> {
   const localHistory = getWatchHistory();
@@ -137,23 +138,54 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
 
     if (error || !data || data.length === 0) return localHistory;
 
-    const parsed: WatchProgress[] = data.map(item => {
-      const match = localHistory.find(l => l.animeId === item.anime_id);
+    const parsedPromises = data.map(async (item) => {
+      const match = localHistory.find((l) => l.animeId === item.anime_id);
+      let title = match?.title;
+      let coverImage = match?.coverImage;
+
+      // If missing from local cache, fetch metadata from AniList
+      if (!title || !coverImage) {
+        try {
+          const details = await getAnimeDetails(item.anime_id);
+          title = details.title?.english || details.title?.romaji || `Anime #${item.anime_id}`;
+          coverImage = details.coverImage?.large || details.coverImage?.extraLarge || details.coverImage?.medium || '';
+        } catch {
+          title = `Anime #${item.anime_id}`;
+          coverImage = 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80';
+        }
+      }
+
       return {
         animeId: item.anime_id,
-        title: match?.title || `Anime #${item.anime_id}`,
-        coverImage: match?.coverImage || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80',
+        title: title || `Anime #${item.anime_id}`,
+        coverImage: coverImage || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80',
         episodeNumber: item.episode_number,
-        currentTime: Number(item.current_time || item['current_time'] || 0),
+        currentTime: Number(item.current_time || 0),
         duration: Number(item.duration || 0),
         lastWatched: item.last_watched
       };
     });
 
+    const parsed = await Promise.all(parsedPromises);
     localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(parsed));
     return parsed;
   } catch (err) {
     return localHistory;
+  }
+}
+
+/**
+ * Clear Watch History both locally and from Supabase database
+ */
+export async function clearWatchHistory(): Promise<void> {
+  localStorage.removeItem(STORAGE_KEYS.WATCH_HISTORY);
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from('watch_history').delete().eq('user_id', user.id);
+    }
+  } catch (err) {
+    console.warn('Clear watch history notice:', err);
   }
 }
 

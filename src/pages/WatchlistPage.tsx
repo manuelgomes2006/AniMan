@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getWatchlist, getWatchHistory, fetchWatchHistoryFromSupabase } from '../services/userStore';
+import { getWatchlist, fetchWatchHistoryFromSupabase, clearWatchHistory } from '../services/userStore';
 import { WatchProgress, WatchlistCategory } from '../types/user';
 import AnimeCard from '../components/common/AnimeCard';
 import { Bookmark, Clock, Trash2, Heart, Play } from 'lucide-react';
@@ -43,8 +43,8 @@ export default function WatchlistPage() {
     loadData();
   }, []);
 
-  const handleClearHistory = () => {
-    localStorage.removeItem('aniworld_watch_history');
+  const handleClearHistory = async () => {
+    await clearWatchHistory();
     setHistory([]);
   };
 
