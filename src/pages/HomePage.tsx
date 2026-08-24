@@ -1,12 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import {
   getTrendingAnime,
   getPopularAnime,
   getTopRatedAnime,
   getCurrentlyAiringAnime
 } from '../services/anilist/client';
-import { getWatchHistory } from '../services/userStore';
+import { fetchWatchHistoryFromSupabase } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
 import { WatchProgress } from '../types/user';
 
@@ -15,9 +16,10 @@ import CarouselRow from '../components/common/CarouselRow';
 import SkeletonLoader from '../components/shared/SkeletonLoader';
 import AnimeCard from '../components/common/AnimeCard';
 
-import { TrendingUp, Sparkles, Flame, Clock } from 'lucide-react';
+import { TrendingUp, Sparkles, Flame, Clock, Play } from 'lucide-react';
 
 export default function HomePage() {
+  const { profile } = useAuth();
   const [trending, setTrending] = useState<AnimeMedia[]>([]);
   const [popular, setPopular] = useState<AnimeMedia[]>([]);
   const [topRated, setTopRated] = useState<AnimeMedia[]>([]);
@@ -25,12 +27,21 @@ export default function HomePage() {
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Parallel Query Execution Engine for 0ms Perception
+  // Time-based Greeting Helper
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return 'Good morning';
+    if (hour < 18) return 'Good afternoon';
+    return 'Good evening';
+  };
+
+  const username = profile?.displayName || profile?.username || 'Manuel';
+
   useEffect(() => {
     async function loadHomeData() {
       setLoading(true);
 
-      const historyData = getWatchHistory();
+      const historyData = await fetchWatchHistoryFromSupabase();
       setWatchHistory(historyData);
 
       const results = await Promise.allSettled([
@@ -52,14 +63,24 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-16">
-      {/* 1. Hero Carousel Container */}
+      {/* 1. Personalized Greeting Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900/80 pb-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+            {getGreeting()}, <span className="text-purple-400">{username}</span> 👋
+          </h1>
+          <p className="text-xs text-slate-400 font-semibold">Ready for your next episode?</p>
+        </div>
+      </div>
+
+      {/* 2. Hero Carousel Container */}
       {loading ? (
         <SkeletonLoader type="hero" />
       ) : (
         trending.length > 0 && <HeroCarousel items={trending.slice(0, 5)} />
       )}
 
-      {/* 2. Continue Watching Row (Supabase / Local Sync) */}
+      {/* 3. Continue Watching Row (Loaded from Supabase watch_history) */}
       {watchHistory.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -96,14 +117,14 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* 3. Trending Now Horizontally Scrollable Carousel */}
+      {/* 4. Trending Now Horizontally Scrollable Carousel */}
       <CarouselRow
         title="Trending Now"
         items={trending}
         icon={<Flame className="w-4 h-4 text-purple-400 fill-purple-400" />}
       />
 
-      {/* 4. Latest Episodes Horizontally Scrollable Carousel */}
+      {/* 5. Latest Episodes Horizontally Scrollable Carousel */}
       <CarouselRow
         title="Latest Episodes"
         items={airing}
@@ -116,14 +137,14 @@ export default function HomePage() {
         }
       />
 
-      {/* 5. Most Popular Horizontally Scrollable Carousel */}
+      {/* 6. Most Popular Horizontally Scrollable Carousel */}
       <CarouselRow
         title="Most Popular"
         items={popular}
         icon={<TrendingUp className="w-4 h-4 text-purple-400" />}
       />
 
-      {/* 6. Top Rated Horizontally Scrollable Carousel */}
+      {/* 7. Top Rated Horizontally Scrollable Carousel */}
       <CarouselRow
         title="Top Rated Anime"
         items={topRated}

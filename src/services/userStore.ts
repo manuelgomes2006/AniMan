@@ -1,5 +1,6 @@
 import { WatchProgress, UserProfile } from '../types/user';
 import { AnimeMedia } from '../types/anime';
+import { supabase } from './auth/supabaseClient';
 
 const STORAGE_KEYS = {
   USER: 'aniworld_user',
@@ -8,58 +9,49 @@ const STORAGE_KEYS = {
   PREFERRED_AUDIO: 'aniworld_preferred_audio',
 };
 
-// Default Guest User Profile
-const DEFAULT_USER: UserProfile = {
-  id: 'usr_guest_01',
-  username: 'Shadow',
-  email: 'shadow@aniworld.io',
-  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-  createdAt: new Date().toISOString(),
-  preferences: {
-    autoPlayNext: true,
-    defaultQuality: '1080p',
-    subOrDub: 'sub',
-  },
-};
-
+// Legacy User Profile export for layout components
 export function getUserProfile(): UserProfile {
-  const data = localStorage.getItem(STORAGE_KEYS.USER);
-  if (!data) {
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(DEFAULT_USER));
-    return DEFAULT_USER;
-  }
-  try {
-    return JSON.parse(data);
-  } catch {
-    return DEFAULT_USER;
-  }
-}
-
-export function updateUserProfile(partial: Partial<UserProfile>): UserProfile {
-  const current = getUserProfile();
-  const updated = {
-    ...current,
-    ...partial,
+  return {
+    id: 'usr_guest_01',
+    username: 'Manuel',
+    email: 'manuel@aniworld.io',
+    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+    createdAt: new Date().toISOString(),
     preferences: {
-      ...current.preferences,
-      ...(partial.preferences || {}),
+      autoPlayNext: true,
+      defaultQuality: '1080p',
+      subOrDub: 'sub',
     },
   };
-  localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
-  return updated;
 }
 
 export function getUserAudioPreference(): 'sub' | 'dub' {
   const saved = localStorage.getItem(STORAGE_KEYS.PREFERRED_AUDIO);
-  return (saved === 'dub' ? 'dub' : 'sub');
+  return saved === 'dub' ? 'dub' : 'sub';
 }
 
 export function setUserAudioPreference(preference: 'sub' | 'dub'): void {
   localStorage.setItem(STORAGE_KEYS.PREFERRED_AUDIO, preference);
+  
+  // Async update in Supabase user_preferences
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('user_preferences').upsert({
+        user_id: user.id,
+        preferred_audio: preference,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id' }).then(({ error }) => {
+        if (error) console.warn('Failed to sync audio pref to Supabase:', error);
+      });
+    }
+  });
 }
 
-let historySaveTimeout: any = null;
+let watchHistoryDebounceTimer: any = null;
 
+/**
+ * Update Watch Progress both in local cache and Supabase watch_history table
+ */
 export function updateWatchProgress(
   anime: AnimeMedia,
   episodeNumber: number,
@@ -68,13 +60,9 @@ export function updateWatchProgress(
 ): void {
   if (!anime || !anime.id) return;
 
-  const history = getWatchHistory();
-  const existingIdx = history.findIndex(
-    (item) => item.animeId === anime.id && item.episodeNumber === episodeNumber
-  );
-
   const title = anime.title?.english || anime.title?.romaji || 'Untitled Anime';
   const coverImage = anime.coverImage?.large || anime.coverImage?.medium || '';
+  const completed = duration > 0 ? currentTime >= duration * 0.9 : false;
 
   const progressItem: WatchProgress = {
     animeId: anime.id,
@@ -86,17 +74,40 @@ export function updateWatchProgress(
     lastWatched: new Date().toISOString(),
   };
 
+  // 1. Update Local Storage Cache
+  const localHistory = getWatchHistory();
+  const existingIdx = localHistory.findIndex(
+    (item) => item.animeId === anime.id && item.episodeNumber === episodeNumber
+  );
+
   if (existingIdx >= 0) {
-    history[existingIdx] = progressItem;
+    localHistory[existingIdx] = progressItem;
   } else {
-    history.unshift(progressItem);
+    localHistory.unshift(progressItem);
   }
 
-  // Debounced write to storage to prevent frequent sync writes during video playback
-  clearTimeout(historySaveTimeout);
-  historySaveTimeout = setTimeout(() => {
-    localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(history.slice(0, 50)));
-  }, 2000);
+  localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(localHistory.slice(0, 50)));
+
+  // 2. Debounced write to Supabase `watch_history` table
+  clearTimeout(watchHistoryDebounceTimer);
+  watchHistoryDebounceTimer = setTimeout(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase.from('watch_history').upsert({
+          user_id: user.id,
+          anime_id: anime.id,
+          episode_number: episodeNumber,
+          current_time: currentTime,
+          duration: duration,
+          completed: completed,
+          last_watched: new Date().toISOString()
+        }, { onConflict: 'user_id,anime_id,episode_number' });
+      }
+    } catch (err) {
+      console.warn('Watch history Supabase sync notice:', err);
+    }
+  }, 1500);
 }
 
 export function getWatchHistory(): WatchProgress[] {
@@ -106,6 +117,40 @@ export function getWatchHistory(): WatchProgress[] {
     return JSON.parse(data);
   } catch {
     return [];
+  }
+}
+
+/**
+ * Fetch Watch History from Supabase (Source of Truth) with Local Fallback
+ */
+export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return getWatchHistory();
+
+    const { data, error } = await supabase
+      .from('watch_history')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('last_watched', { ascending: false })
+      .limit(50);
+
+    if (error || !data) return getWatchHistory();
+
+    const parsed: WatchProgress[] = data.map(item => ({
+      animeId: item.anime_id,
+      title: `Anime #${item.anime_id}`,
+      coverImage: '',
+      episodeNumber: item.episode_number,
+      currentTime: Number(item.current_time || 0),
+      duration: Number(item.duration || 0),
+      lastWatched: item.last_watched
+    }));
+
+    localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(parsed));
+    return parsed;
+  } catch (err) {
+    return getWatchHistory();
   }
 }
 
@@ -148,6 +193,21 @@ export function setWatchlistCategory(
   }
 
   localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(list));
+
+  // Sync with Supabase Watchlist Table
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('watchlist').upsert({
+        user_id: user.id,
+        anime_id: anime.id,
+        status: category,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'user_id,anime_id' }).then(({ error }) => {
+        if (error) console.warn('Watchlist Supabase sync error:', error);
+      });
+    }
+  });
+
   return list;
 }
 
@@ -162,5 +222,15 @@ export function removeFromWatchlist(animeId: number): WatchlistItem[] {
   const list = getWatchlist();
   const filtered = list.filter((item) => item.anime.id !== animeId);
   localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(filtered));
+
+  // Delete from Supabase Watchlist Table
+  supabase.auth.getUser().then(({ data: { user } }) => {
+    if (user) {
+      supabase.from('watchlist').delete().eq('user_id', user.id).eq('anime_id', animeId).then(({ error }) => {
+        if (error) console.warn('Watchlist delete error:', error);
+      });
+    }
+  });
+
   return filtered;
 }

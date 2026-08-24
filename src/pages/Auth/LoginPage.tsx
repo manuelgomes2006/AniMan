@@ -1,13 +1,16 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase } from '../../services/auth/supabaseClient';
-import { updateUserProfile } from '../../services/userStore';
-import { Sparkles, Mail, Lock, LogIn, ArrowRight } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { Mail, Lock, LogIn } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const returnTo = (location.state as any)?.returnTo || '/';
+  const { signInWithGoogle } = useAuth();
+
+  const searchParams = new URLSearchParams(location.search);
+  const redirectUrl = searchParams.get('redirect') || '/';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -26,44 +29,29 @@ export default function LoginPage() {
       });
 
       if (authError) {
-        // Dev fallback for smooth local testing
-        updateUserProfile({
-          email,
-          username: email.split('@')[0] || 'Member',
-        });
-      } else if (data.user) {
-        updateUserProfile({
-          id: data.user.id,
-          email: data.user.email || email,
-          username: data.user.email?.split('@')[0] || 'Member',
-        });
+        throw new Error('Unable to sign in. Check your email and password.');
       }
 
-      navigate(returnTo, { replace: true });
+      if (data.session) {
+        navigate(redirectUrl, { replace: true });
+      }
     } catch (err: any) {
-      setError(err.message || 'Login failed. Please check your credentials.');
+      setError(err.message || 'Unable to sign in. Check your email and password.');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleGoogleLogin = async () => {
-    try {
-      await supabase.auth.signInWithOAuth({ provider: 'google' });
-    } catch (err) {
-      console.error('Google login error:', err);
-    }
-  };
-
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl">
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
             <span>Ani</span>
             <span className="text-purple-400">World</span>
           </Link>
-          <p className="text-xs text-slate-400">Welcome back! Sign in to access your watch history and list.</p>
+          <h2 className="text-lg font-extrabold text-white">Welcome back 👋</h2>
+          <p className="text-xs text-slate-400">Sign in to sync your watch history and list.</p>
         </div>
 
         {error && (
@@ -89,7 +77,12 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">Password</label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="block text-xs font-bold text-slate-300">Password</label>
+              <Link to="/forgot-password" className="text-[11px] text-purple-400 hover:underline font-bold">
+                Forgot password?
+              </Link>
+            </div>
             <div className="relative">
               <input
                 type="password"
@@ -106,22 +99,22 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2"
+            className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer"
           >
             <LogIn className="w-4 h-4" />
-            {loading ? 'Signing In...' : 'Sign In to AniWorld'}
+            {loading ? 'Signing In...' : 'Sign In'}
           </button>
         </form>
 
         <div className="relative border-t border-slate-800/80 my-4">
           <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-[#0D0D12] px-2 text-[10px] text-slate-500 font-bold uppercase">
-            Or
+            OR
           </span>
         </div>
 
         <button
-          onClick={handleGoogleLogin}
-          className="w-full py-2.5 bg-[#050507] hover:bg-slate-900 text-slate-200 font-bold text-xs rounded-xl border border-slate-800 transition flex items-center justify-center gap-2"
+          onClick={signInWithGoogle}
+          className="w-full py-2.5 bg-[#050507] hover:bg-slate-900 text-slate-200 font-bold text-xs rounded-xl border border-slate-800 transition flex items-center justify-center gap-2 cursor-pointer"
         >
           <span>Continue with Google</span>
         </button>

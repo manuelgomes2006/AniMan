@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useAuth } from '../context/AuthContext';
 import { getAnimeDetails } from '../services/anilist/client';
 import { getNormalizedEpisodes, NormalizedEpisode } from '../services/episodes/episodes';
 import {
@@ -12,7 +13,8 @@ import {
   setUserAudioPreference,
   updateWatchProgress,
   addToWatchlist,
-  getWatchlist
+  getWatchlist,
+  getWatchHistory
 } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
 
@@ -31,12 +33,14 @@ import {
   Plus,
   Heart,
   AlertTriangle,
-  Check
+  Check,
+  RotateCcw
 } from 'lucide-react';
 
 export default function WatchPage() {
   const { id, episode } = useParams<{ id: string; episode: string }>();
   const navigate = useNavigate();
+  const { profile } = useAuth();
 
   const animeId = parseInt(id || '151807', 10);
   const currentEpNum = parseInt(episode || '6', 10);
@@ -46,10 +50,16 @@ export default function WatchPage() {
   const [streamResponse, setStreamResponse] = useState<NormalizedStreamResponse | null>(null);
   const [activeSourceIndex, setActiveSourceIndex] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [audioVariant, setAudioVariant] = useState<'sub' | 'dub'>(getUserAudioPreference());
+
+  // Sync Audio Preference with Profile Preferences or Local Preference
+  const initialAudio = profile?.preferences?.preferredAudio || getUserAudioPreference();
+  const [audioVariant, setAudioVariant] = useState<'sub' | 'dub'>(initialAudio);
+
   const [streamError, setStreamError] = useState(false);
   const [inWatchlist, setInWatchlist] = useState(false);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [resumeTime, setResumeTime] = useState<number | null>(null);
+  const [showResumeBadge, setShowResumeBadge] = useState(false);
 
   // Load Anime Metadata, Normalized Episodes, & Streams
   useEffect(() => {
@@ -80,6 +90,16 @@ export default function WatchPage() {
 
         const list = getWatchlist();
         setInWatchlist(list.some(item => item.anime.id === animeId));
+
+        // Check Resume History Timestamp
+        const history = getWatchHistory();
+        const past = history.find(h => h.animeId === animeId && h.episodeNumber === currentEpNum);
+        if (past && past.currentTime > 10) {
+          setResumeTime(past.currentTime);
+          setShowResumeBadge(true);
+        } else {
+          setShowResumeBadge(false);
+        }
       } catch (err) {
         console.error('Watch data load error:', err);
       } finally {
@@ -131,10 +151,16 @@ export default function WatchPage() {
   const year = anime?.seasonYear || 2024;
   const cover = anime?.coverImage?.large || anime?.coverImage?.extraLarge;
 
+  const formatTime = (secs: number) => {
+    const m = Math.floor(secs / 60);
+    const s = Math.floor(secs % 60);
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
+
   // Track watch progress & prefetch Episode N+1
   useEffect(() => {
     if (anime) {
-      updateWatchProgress(anime, currentEpNum, 877, 1430);
+      updateWatchProgress(anime, currentEpNum, resumeTime || 877, 1430);
       prefetchNextEpisodeSources({
         animeId,
         title,
@@ -184,6 +210,22 @@ export default function WatchPage() {
           {/* Left Column (Span 2): Video Player + Details + Comments */}
           <div className="col-span-2 space-y-6">
             <div className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-900 group">
+              {/* Resume Playback Badge Overlay */}
+              {showResumeBadge && resumeTime && (
+                <div className="absolute top-3 left-3 z-30 bg-[#0D0D12]/95 backdrop-blur-md border border-purple-500/60 rounded-xl px-3 py-2 flex items-center gap-2.5 shadow-xl animate-fade-in">
+                  <RotateCcw className="w-3.5 h-3.5 text-purple-400" />
+                  <span className="text-xs font-extrabold text-white">
+                    Resume from <span className="text-purple-400">{formatTime(resumeTime)}</span>
+                  </span>
+                  <button
+                    onClick={() => setShowResumeBadge(false)}
+                    className="ml-2 text-[10px] bg-purple-600 hover:bg-purple-500 text-white font-black px-2 py-0.5 rounded-lg shadow-md cursor-pointer"
+                  >
+                    Resume
+                  </button>
+                </div>
+              )}
+
               {streamError || !activeSource ? (
                 <ErrorState
                   title="Streaming Source Unavailable"

@@ -3,12 +3,15 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import SkeletonLoader from './components/shared/SkeletonLoader';
 import ProtectedRoute from './components/shared/ProtectedRoute';
+import { AuthProvider } from './context/AuthContext';
 
 // Public Auth Pages
 import LoginPage from './pages/Auth/LoginPage';
 import SignupPage from './pages/Auth/SignupPage';
+import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
+import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
 
-// Code-split pages for instant loading
+// Lazy Loaded Main Pages
 const HomePage = lazy(() => import('./pages/HomePage'));
 const BrowsePage = lazy(() => import('./pages/BrowsePage'));
 const DetailsPage = lazy(() => import('./pages/DetailsPage'));
@@ -19,32 +22,35 @@ const ProfilePage = lazy(() => import('./pages/ProfilePage'));
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <MainLayout>
-        <Suspense fallback={
-          <div className="max-w-7xl mx-auto py-6 space-y-6">
-            <SkeletonLoader type="hero" />
-            <SkeletonLoader type="card" count={6} />
-          </div>
-        }>
-          <Routes>
-            {/* Instant Access Public Routes */}
-            <Route path="/" element={<HomePage />} />
-            <Route path="/browse" element={<BrowsePage />} />
-            <Route path="/anime/:id" element={<DetailsPage />} />
-            <Route path="/watch/:id/:episode" element={<WatchPage />} />
-            <Route path="/schedule" element={<SchedulePage />} />
+    <AuthProvider>
+      <BrowserRouter>
+        <MainLayout>
+          <Suspense fallback={
+            <div className="max-w-7xl mx-auto py-6 space-y-6">
+              <SkeletonLoader type="hero" />
+              <SkeletonLoader type="card" count={6} />
+            </div>
+          }>
+            <Routes>
+              {/* Public Unauthenticated Routes */}
+              <Route path="/login" element={<LoginPage />} />
+              <Route path="/signup" element={<SignupPage />} />
+              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+              <Route path="/reset-password" element={<ResetPasswordPage />} />
 
-            {/* Authentication Pages */}
-            <Route path="/login" element={<LoginPage />} />
-            <Route path="/signup" element={<SignupPage />} />
-
-            {/* User Personalization Routes */}
-            <Route path="/watchlist" element={<ProtectedRoute requireAuth={true}><WatchlistPage /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute requireAuth={true}><ProfilePage /></ProtectedRoute>} />
-          </Routes>
-        </Suspense>
-      </MainLayout>
-    </BrowserRouter>
+              {/* Authenticated Protected Routes */}
+              <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+              <Route path="/browse" element={<ProtectedRoute><BrowsePage /></ProtectedRoute>} />
+              <Route path="/anime/:id" element={<ProtectedRoute><DetailsPage /></ProtectedRoute>} />
+              <Route path="/watch/:id/:episode" element={<ProtectedRoute><WatchPage /></ProtectedRoute>} />
+              <Route path="/schedule" element={<ProtectedRoute><SchedulePage /></ProtectedRoute>} />
+              <Route path="/watchlist" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
+              <Route path="/history" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
+              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            </Routes>
+          </Suspense>
+        </MainLayout>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
