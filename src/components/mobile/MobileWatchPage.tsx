@@ -17,7 +17,8 @@ import {
   Share2,
   Edit3,
   Check,
-  ChevronDown
+  ChevronDown,
+  RefreshCw
 } from 'lucide-react';
 
 interface MobileWatchPageProps {
@@ -83,8 +84,11 @@ export default function MobileWatchPage({
         </div>
 
         <div className="flex items-center gap-3 text-slate-300">
+          <button onClick={onSwitchMirror} title="Switch Stream Mirror" className="hover:text-purple-400 flex items-center gap-1 text-[11px] font-bold cursor-pointer bg-slate-900 px-2 py-1 rounded-lg border border-slate-800">
+            <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+            <span>Mirror</span>
+          </button>
           <button className="hover:text-white cursor-pointer"><Cast className="w-4 h-4" /></button>
-          <button className="hover:text-white cursor-pointer"><Download className="w-4 h-4" /></button>
           <button className="hover:text-white cursor-pointer"><MoreVertical className="w-4 h-4" /></button>
         </div>
       </div>
@@ -103,8 +107,9 @@ export default function MobileWatchPage({
             src={activeSource.url}
             title={`${title} - Episode ${currentEpNum}`}
             className="w-full h-full border-0"
-            allow="autoplay; fullscreen; picture-in-picture; presentation"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
             allowFullScreen
+            referrerPolicy="origin"
             loading="eager"
             onError={onRetryStream}
           />
@@ -129,8 +134,8 @@ export default function MobileWatchPage({
           </button>
         </div>
 
-        {/* Quick Action Row: + Watchlist | 👍 Like | 🔗 Share */}
-        <div className="flex items-center gap-5 pt-1 text-xs font-bold text-slate-300 border-b border-slate-900 pb-3">
+        {/* Quick Action Row: + Watchlist | 👍 Like | 🔗 Share | 🔄 Switch Mirror */}
+        <div className="flex items-center justify-between gap-2 pt-1 text-xs font-bold text-slate-300 border-b border-slate-900 pb-3">
           <button
             onClick={onToggleWatchlist}
             className={`flex items-center gap-1.5 transition cursor-pointer ${inWatchlist ? 'text-purple-400' : 'hover:text-white'}`}
@@ -147,6 +152,14 @@ export default function MobileWatchPage({
           <button className="flex items-center gap-1.5 hover:text-white transition cursor-pointer">
             <Share2 className="w-4 h-4" />
             <span>Share</span>
+          </button>
+
+          <button
+            onClick={onSwitchMirror}
+            className="flex items-center gap-1.5 text-purple-400 hover:text-purple-300 transition cursor-pointer"
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            <span>Server</span>
           </button>
         </div>
       </div>
