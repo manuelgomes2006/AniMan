@@ -58,6 +58,14 @@ CREATE TABLE IF NOT EXISTS public.user_preferences (
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 6. SEARCH HISTORY TABLE
+CREATE TABLE IF NOT EXISTS public.search_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  search_query TEXT NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE
 CREATE INDEX IF NOT EXISTS idx_watchlist_user_id ON public.watchlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_user_anime ON public.watchlist(user_id, anime_id);
@@ -65,6 +73,7 @@ CREATE INDEX IF NOT EXISTS idx_watch_history_user_id ON public.watch_history(use
 CREATE INDEX IF NOT EXISTS idx_watch_history_user_anime ON public.watch_history(user_id, anime_id);
 CREATE INDEX IF NOT EXISTS idx_watch_history_last_watched ON public.watch_history(user_id, last_watched DESC);
 CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON public.favorites(user_id);
+CREATE INDEX IF NOT EXISTS idx_search_history_user_id ON public.search_history(user_id, created_at DESC);
 
 -- ====================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -75,6 +84,7 @@ ALTER TABLE public.watchlist ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.watch_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_preferences ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
 CREATE POLICY "Users can read their own profile or public profiles" ON public.profiles
@@ -139,6 +149,16 @@ CREATE POLICY "Users can update own preferences" ON public.user_preferences
   FOR UPDATE USING (auth.uid() = user_id);
 
 CREATE POLICY "Users can delete own preferences" ON public.user_preferences
+  FOR DELETE USING (auth.uid() = user_id);
+
+-- Search History Policies
+CREATE POLICY "Users can read own search history" ON public.search_history
+  FOR SELECT USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own search history" ON public.search_history
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own search history" ON public.search_history
   FOR DELETE USING (auth.uid() = user_id);
 
 -- ====================================================================
