@@ -87,12 +87,12 @@ export default function EpisodeSelector({
   };
 
   return (
-    <div className="bg-[#0D0D12] border border-slate-800/90 rounded-2xl p-3.5 space-y-3.5 shadow-xl">
+    <div className="bg-[#0D0D12] border border-slate-800/90 rounded-2xl p-3 sm:p-4 space-y-3 shadow-xl">
       {/* Header Row: ▶ Episodes | Range Dropdown | Total Badge | Sort & View Mode Switcher */}
-      <div className="flex items-center justify-between gap-2 border-b border-slate-900 pb-3">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-900 pb-2.5">
         <div className="flex items-center gap-2 min-w-0">
-          <div className="flex items-center gap-1.5 text-white font-extrabold text-sm sm:text-base">
-            <Play className="w-4 h-4 text-purple-500 fill-purple-500" />
+          <div className="flex items-center gap-1.5 text-white font-extrabold text-xs sm:text-sm">
+            <Play className="w-3.5 h-3.5 text-purple-500 fill-purple-500" />
             <span>Episodes</span>
           </div>
 
@@ -120,10 +120,10 @@ export default function EpisodeSelector({
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setSortOrder(sortOrder === 'oldest' ? 'newest' : 'oldest')}
-            className="flex items-center gap-1 bg-[#14141F] hover:bg-slate-800 text-slate-300 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs font-bold transition cursor-pointer"
+            className="flex items-center gap-1 bg-[#14141F] hover:bg-slate-800 text-slate-300 px-2 py-1 rounded-xl border border-slate-800 text-xs font-bold transition cursor-pointer"
             title="Sort Order"
           >
-            <ArrowUpDown className="w-3.5 h-3.5 text-purple-400" />
+            <ArrowUpDown className="w-3 h-3 text-purple-400" />
             <span className="hidden sm:inline capitalize">{sortOrder}</span>
           </button>
 
@@ -131,7 +131,7 @@ export default function EpisodeSelector({
           <div className="bg-[#14141F] p-0.5 rounded-xl border border-slate-800 flex items-center">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition cursor-pointer ${
+              className={`p-1 rounded-lg transition cursor-pointer ${
                 viewMode === 'grid'
                   ? 'bg-purple-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -142,7 +142,7 @@ export default function EpisodeSelector({
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg transition cursor-pointer ${
+              className={`p-1 rounded-lg transition cursor-pointer ${
                 viewMode === 'list'
                   ? 'bg-purple-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -163,11 +163,11 @@ export default function EpisodeSelector({
             placeholder="Ep #"
             value={jumpInput}
             onChange={(e) => setJumpInput(e.target.value)}
-            className="w-20 bg-[#14141F] text-white placeholder-slate-500 px-3 py-1.5 rounded-xl border border-slate-800 text-xs font-bold focus:outline-none focus:border-purple-500"
+            className="w-16 sm:w-20 bg-[#14141F] text-white placeholder-slate-500 px-2.5 py-1 rounded-xl border border-slate-800 text-xs font-bold focus:outline-none focus:border-purple-500"
           />
           <button
             type="submit"
-            className="bg-[#14141F] hover:bg-purple-600 text-slate-300 hover:text-white p-1.5 rounded-xl border border-slate-800 transition cursor-pointer"
+            className="bg-[#14141F] hover:bg-purple-600 text-slate-300 hover:text-white p-1 rounded-xl border border-slate-800 transition cursor-pointer"
             title="Jump to Episode"
           >
             <CornerDownLeft className="w-3.5 h-3.5" />
@@ -187,9 +187,9 @@ export default function EpisodeSelector({
         </div>
       </div>
 
-      {/* Grid View Mode (6-column compact episode tiles matching screenshot) */}
+      {/* Grid View Mode (Compact PC & Mobile episode tiles) */}
       {viewMode === 'grid' ? (
-        <div className="grid grid-cols-6 sm:grid-cols-6 md:grid-cols-6 gap-2 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
+        <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-15 gap-1.5 max-h-[240px] overflow-y-auto pr-1 scrollbar-thin">
           {displayedEpisodes.map((ep) => {
             const isCurrent = ep.number === currentEpisode;
             const isFiller = ep.isFiller;
@@ -198,7 +198,7 @@ export default function EpisodeSelector({
             let tileStyle = 'bg-[#12121A] text-slate-300 border-slate-800/80 hover:bg-slate-800 hover:text-white';
 
             if (isCurrent) {
-              tileStyle = 'bg-purple-600 text-white font-black shadow-lg shadow-purple-950/80 border-purple-400 ring-2 ring-purple-500/50 scale-105';
+              tileStyle = 'bg-purple-600 text-white font-black shadow-md shadow-purple-950/80 border-purple-400 ring-2 ring-purple-500/50 scale-105';
             } else if (isFiller) {
               tileStyle = 'bg-amber-950/20 text-amber-400 border-amber-500/60 hover:bg-amber-900/40';
             } else if (isRecap) {
@@ -209,7 +209,7 @@ export default function EpisodeSelector({
               <button
                 key={ep.number}
                 onClick={() => onSelectEpisode(ep.number)}
-                className={`aspect-square rounded-xl border flex items-center justify-center font-extrabold text-xs transition-all duration-200 active:scale-95 cursor-pointer ${tileStyle}`}
+                className={`h-9 rounded-lg border flex items-center justify-center font-extrabold text-xs transition-all duration-150 active:scale-95 cursor-pointer ${tileStyle}`}
                 title={`Episode ${ep.number}${ep.title ? `: ${ep.title}` : ''}`}
               >
                 {ep.number}
@@ -218,25 +218,25 @@ export default function EpisodeSelector({
           })}
         </div>
       ) : (
-        /* List View Mode (Row cards with cover, title, filler badges) */
-        <div className="space-y-2 max-h-[380px] overflow-y-auto pr-1 scrollbar-thin">
+        /* List View Mode (Row cards) */
+        <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-1 scrollbar-thin">
           {displayedEpisodes.map((ep) => {
             const isCurrent = ep.number === currentEpisode;
             return (
               <button
                 key={ep.number}
                 onClick={() => onSelectEpisode(ep.number)}
-                className={`w-full text-left rounded-xl overflow-hidden flex items-center gap-3 p-2 transition border cursor-pointer ${
+                className={`w-full text-left rounded-xl overflow-hidden flex items-center gap-3 p-1.5 transition border cursor-pointer ${
                   isCurrent
                     ? 'bg-purple-950/50 border-purple-500 shadow-md ring-1 ring-purple-500/40'
                     : 'bg-[#12121A] hover:bg-slate-900 border-slate-800/80'
                 }`}
               >
-                <div className="relative w-16 aspect-video rounded-lg overflow-hidden shrink-0 bg-slate-950">
+                <div className="relative w-14 aspect-video rounded-lg overflow-hidden shrink-0 bg-slate-950">
                   <img src={coverImage || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80'} alt={ep.title} className="w-full h-full object-cover" />
                   {isCurrent && (
                     <div className="absolute inset-0 bg-purple-900/70 backdrop-blur-[1px] flex items-center justify-center">
-                      <Play className="w-3.5 h-3.5 fill-white text-white animate-pulse" />
+                      <Play className="w-3 h-3 fill-white text-white animate-pulse" />
                     </div>
                   )}
                 </div>
@@ -247,7 +247,7 @@ export default function EpisodeSelector({
                       EPISODE {ep.number}
                     </span>
                     {ep.isFiller && (
-                      <span className="text-[8px] font-bold text-amber-400 bg-amber-950/60 border border-amber-500/40 px-1.5 rounded">
+                      <span className="text-[8px] font-bold text-amber-400 bg-amber-950/60 border border-amber-500/40 px-1 rounded">
                         FILLER
                       </span>
                     )}
