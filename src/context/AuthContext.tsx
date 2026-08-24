@@ -66,6 +66,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser({ id: prof.id, email: prof.email, app_metadata: {}, user_metadata: {}, aud: '', created_at: '' } as any);
   };
 
+  // Clear all local storage caches
+  const clearAllUserData = () => {
+    localStorage.removeItem(LOCAL_SESSION_KEY);
+    localStorage.removeItem('aniworld_watch_history');
+    localStorage.removeItem('aniworld_watchlist');
+    localStorage.removeItem('aniverse_watch_history');
+    localStorage.removeItem('aniverse_watchlist');
+  };
+
   // Fetch or initialize profile from Supabase
   const loadProfile = async (currentUser: User) => {
     try {
@@ -153,7 +162,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (isSubscribed) setLoading(false);
         });
       } else {
-        // Fallback to saved local session if present
         const local = localStorage.getItem(LOCAL_SESSION_KEY);
         if (local) {
           try {
@@ -212,13 +220,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    localStorage.removeItem(LOCAL_SESSION_KEY);
-    if (isSupabaseConfigured()) {
-      await supabase.auth.signOut().catch(() => {});
-    }
+    clearAllUserData();
     setUser(null);
     setSession(null);
     setProfile(null);
+    if (isSupabaseConfigured()) {
+      await supabase.auth.signOut().catch(() => {});
+    }
   };
 
   const refreshProfile = async () => {
@@ -228,12 +236,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const deleteAccount = async () => {
-    localStorage.removeItem(LOCAL_SESSION_KEY);
     if (user && isSupabaseConfigured()) {
-      await supabase.from('profiles').delete().eq('id', user.id).catch(() => {});
-      await supabase.from('user_preferences').delete().eq('user_id', user.id).catch(() => {});
-      await supabase.from('watchlist').delete().eq('user_id', user.id).catch(() => {});
-      await supabase.from('watch_history').delete().eq('user_id', user.id).catch(() => {});
+      try {
+        await supabase.from('profiles').delete().eq('id', user.id).catch(() => {});
+        await supabase.from('user_preferences').delete().eq('user_id', user.id).catch(() => {});
+        await supabase.from('watchlist').delete().eq('user_id', user.id).catch(() => {});
+        await supabase.from('watch_history').delete().eq('user_id', user.id).catch(() => {});
+        await supabase.from('favorites').delete().eq('user_id', user.id).catch(() => {});
+        await supabase.from('search_history').delete().eq('user_id', user.id).catch(() => {});
+      } catch (err) {
+        console.warn('Delete account error:', err);
+      }
     }
     await signOut();
   };

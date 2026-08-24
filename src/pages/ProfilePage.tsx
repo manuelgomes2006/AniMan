@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 import { getWatchlist, setUserAudioPreference } from '../services/userStore';
-import { User, Settings, Check, Bookmark, Clock, Volume2, LogOut, Trash2, Heart, ShieldAlert } from 'lucide-react';
+import { User, Settings, Check, Bookmark, Clock, Volume2, LogOut, Trash2, Heart, ShieldAlert, Loader2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -20,6 +20,7 @@ export default function ProfilePage() {
   const [skipOutro, setSkipOutro] = useState(false);
 
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
@@ -118,8 +119,14 @@ export default function ProfilePage() {
   };
 
   const handleConfirmDelete = async () => {
-    await deleteAccount();
-    navigate('/login', { replace: true });
+    setDeleting(true);
+    try {
+      await deleteAccount();
+    } finally {
+      setDeleting(false);
+      setShowDeleteModal(false);
+      navigate('/login', { replace: true });
+    }
   };
 
   return (
@@ -330,16 +337,27 @@ export default function ProfilePage() {
             </p>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
+                type="button"
                 onClick={() => setShowDeleteModal(false)}
+                disabled={deleting}
                 className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 cursor-pointer"
               >
                 Cancel
               </button>
               <button
+                type="button"
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-950/60 cursor-pointer"
+                disabled={deleting}
+                className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-950/60 transition flex items-center gap-1.5 cursor-pointer"
               >
-                Permanently Delete
+                {deleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                    <span>Deleting Account...</span>
+                  </>
+                ) : (
+                  <span>Permanently Delete</span>
+                )}
               </button>
             </div>
           </div>
