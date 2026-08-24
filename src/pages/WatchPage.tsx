@@ -11,13 +11,10 @@ import {
 import { AnimeMedia } from '../types/anime';
 
 import SubDubControls from '../components/player/SubDubControls';
-import ServerSelector from '../components/player/ServerSelector';
 import EpisodeSelector from '../components/player/EpisodeSelector';
 import ErrorState from '../components/shared/ErrorState';
 
-import {
-  ChevronLeft, ChevronRight, Play, Star, Plus, Check, Server, RefreshCw
-} from 'lucide-react';
+import { ChevronLeft, ChevronRight, Play, Star } from 'lucide-react';
 
 export default function WatchPage() {
   const { id, episode } = useParams<{ id: string; episode: string }>();
@@ -30,10 +27,9 @@ export default function WatchPage() {
   const [normalizedEpisodes, setNormalizedEpisodes] = useState<NormalizedEpisode[]>([]);
   const [loading, setLoading] = useState(true);
   const [audioVariant, setAudioVariant] = useState<'sub' | 'dub'>(getUserAudioPreference());
-  const [selectedServer, setSelectedServer] = useState('server-1');
   const [streamError, setStreamError] = useState(false);
 
-  // Load Anime Metadata & Normalized MAL Episode List
+  // Load Anime Metadata & Accurate Episode List
   useEffect(() => {
     async function loadWatchData() {
       setLoading(true);
@@ -87,12 +83,11 @@ export default function WatchPage() {
     }
   };
 
-  // Build stream embed URL
+  // High-speed stream embed URL resolution
   const streamUrl = getAniLinkStreamUrl({
     animeId,
     episode: currentEpNum,
     variant: audioVariant,
-    server: selectedServer
   });
 
   const title = anime?.title?.english || anime?.title?.romaji || 'Anime';
@@ -115,6 +110,10 @@ export default function WatchPage() {
 
   return (
     <div className="space-y-4 sm:space-y-6 pb-16">
+      {/* Pre-warm Stream Connection for Maximum Player Speed */}
+      <link rel="preconnect" href="https://anilink.cc" />
+      <link rel="dns-prefetch" href="https://anilink.cc" />
+
       {/* Mobile Top Control Header (< 768px) */}
       <div className="flex items-center justify-between md:hidden pb-1 border-b border-slate-900">
         <Link to={`/anime/${animeId}`} className="flex items-center gap-1 text-slate-300 hover:text-white text-xs font-bold">
@@ -126,14 +125,13 @@ export default function WatchPage() {
         </span>
       </div>
 
-      {/* Main Video Player Container */}
+      {/* Main High-Speed Video Player Container */}
       <div className="relative w-full aspect-video bg-black rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-900 group">
         {streamError ? (
           <ErrorState
             title="Streaming Source Unavailable"
-            message="The current server is unable to play this stream. Try switching to a backup server."
+            message="Unable to load this video stream. Click retry to refresh."
             onRetry={() => setStreamError(false)}
-            onChangeServer={() => setSelectedServer(selectedServer === 'server-1' ? 'server-2' : 'server-1')}
           />
         ) : (
           <iframe
@@ -142,15 +140,15 @@ export default function WatchPage() {
             className="w-full h-full border-0"
             allow="autoplay; fullscreen; picture-in-picture; presentation"
             allowFullScreen
+            loading="eager"
             onError={() => setStreamError(true)}
           />
         )}
       </div>
 
-      {/* Touch Control Bar Below Player */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        {/* SUB/DUB Audio Selector */}
-        <div className="md:col-span-1">
+      {/* Touch Control Bar Below Player (Audio Selector Only — Server details hidden as requested) */}
+      <div className="flex items-center justify-between gap-3">
+        <div className="w-full sm:w-auto min-w-[200px]">
           <SubDubControls
             currentVariant={audioVariant}
             onSelectVariant={handleAudioChange}
@@ -158,37 +156,31 @@ export default function WatchPage() {
           />
         </div>
 
-        {/* Server Selector */}
-        <div className="md:col-span-2">
-          <ServerSelector
-            currentServer={selectedServer}
-            onSelectServer={setSelectedServer}
-          />
+        {/* Quick Next/Prev Episode Buttons */}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handlePrevEpisode}
+            disabled={currentEpNum <= 1}
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+              currentEpNum <= 1
+                ? 'bg-[#0D0D12] text-slate-600 border border-slate-900 cursor-not-allowed'
+                : 'bg-[#0D0D12] hover:bg-slate-900 text-slate-200 border border-slate-800'
+            }`}
+            title="Previous Episode"
+          >
+            <ChevronLeft className="w-4 h-4 text-purple-400" />
+            <span className="hidden sm:inline">Prev</span>
+          </button>
+
+          <button
+            onClick={handleNextEpisode}
+            className="px-4 py-2 rounded-xl text-xs font-black bg-purple-600 hover:bg-purple-500 text-white shadow-md transition flex items-center gap-1"
+            title="Next Episode"
+          >
+            <span>Next</span>
+            <ChevronRight className="w-4 h-4 fill-white" />
+          </button>
         </div>
-      </div>
-
-      {/* Touch Next/Prev Navigation Buttons */}
-      <div className="flex items-center justify-between gap-3 pt-1">
-        <button
-          onClick={handlePrevEpisode}
-          disabled={currentEpNum <= 1}
-          className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-black transition ${
-            currentEpNum <= 1
-              ? 'bg-[#0D0D12] text-slate-600 border border-slate-900 cursor-not-allowed'
-              : 'bg-[#0D0D12] hover:bg-slate-900 text-slate-200 border border-slate-800'
-          }`}
-        >
-          <ChevronLeft className="w-4 h-4 text-purple-400" />
-          <span>Previous Episode</span>
-        </button>
-
-        <button
-          onClick={handleNextEpisode}
-          className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-2xl text-xs font-black bg-purple-600 hover:bg-purple-500 text-white shadow-lg shadow-purple-950/60 transition"
-        >
-          <span>Next Episode</span>
-          <ChevronRight className="w-4 h-4 fill-white" />
-        </button>
       </div>
 
       {/* Episode Selector Component Matching Screenshot */}
