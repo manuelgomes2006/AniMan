@@ -1,5 +1,5 @@
-import React, { useState, useMemo } from 'react';
-import { Play, ArrowUpDown, LayoutGrid, List, Search, CornerDownLeft } from 'lucide-react';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Play, ArrowUpDown, LayoutGrid, List, CornerDownLeft } from 'lucide-react';
 import { NormalizedEpisode } from '../../services/episodes/episodes';
 
 interface EpisodeSelectorProps {
@@ -20,7 +20,7 @@ export default function EpisodeSelector({
   const [jumpInput, setJumpInput] = useState('');
   const [rangeIndex, setRangeIndex] = useState(0);
 
-  const totalCount = episodes.length > 0 ? episodes.length : 24;
+  const totalCount = Math.max(episodes.length, currentEpisode, 12);
   const RANGE_SIZE = 100;
 
   // Compute 100-episode chunk ranges for long-running series
@@ -33,6 +33,16 @@ export default function EpisodeSelector({
     }
     return r;
   }, [totalCount]);
+
+  // Auto-sync rangeIndex when currentEpisode changes
+  useEffect(() => {
+    if (currentEpisode && ranges.length > 0) {
+      const targetIdx = ranges.findIndex(r => currentEpisode >= r.start && currentEpisode <= r.end);
+      if (targetIdx >= 0) {
+        setRangeIndex(targetIdx);
+      }
+    }
+  }, [currentEpisode, ranges]);
 
   // Filter & sort episodes for current range chunk
   const currentRange = ranges[rangeIndex] || { start: 1, end: totalCount };
@@ -48,6 +58,16 @@ export default function EpisodeSelector({
           playable: true
         }));
 
+    if (list.length === 0) {
+      list = Array.from({ length: currentRange.end - currentRange.start + 1 }, (_, i) => ({
+        number: currentRange.start + i,
+        title: `Episode ${currentRange.start + i}`,
+        subAvailable: true,
+        dubAvailable: true,
+        playable: true
+      }));
+    }
+
     if (sortOrder === 'newest') {
       list = [...list].reverse();
     }
@@ -59,7 +79,6 @@ export default function EpisodeSelector({
     e.preventDefault();
     const epNum = parseInt(jumpInput, 10);
     if (!isNaN(epNum) && epNum >= 1 && epNum <= totalCount) {
-      // Find range containing target episode
       const targetRangeIdx = ranges.findIndex(r => epNum >= r.start && epNum <= r.end);
       if (targetRangeIdx >= 0) setRangeIndex(targetRangeIdx);
       onSelectEpisode(epNum);
@@ -69,7 +88,7 @@ export default function EpisodeSelector({
 
   return (
     <div className="bg-[#0D0D12] border border-slate-800/90 rounded-2xl p-3.5 space-y-3.5 shadow-xl">
-      {/* Header Row: ▶ Episodes | Range Dropdown | Sort Toggle | Grid vs List View Switcher */}
+      {/* Header Row: ▶ Episodes | Range Dropdown | Total Badge | Sort & View Mode Switcher */}
       <div className="flex items-center justify-between gap-2 border-b border-slate-900 pb-3">
         <div className="flex items-center gap-2 min-w-0">
           <div className="flex items-center gap-1.5 text-white font-extrabold text-sm sm:text-base">
@@ -82,7 +101,7 @@ export default function EpisodeSelector({
             <select
               value={rangeIndex}
               onChange={(e) => setRangeIndex(parseInt(e.target.value, 10))}
-              className="bg-[#14141F] text-purple-300 border border-slate-800 rounded-lg px-2 py-0.5 text-xs font-bold focus:outline-none focus:border-purple-500"
+              className="bg-[#14141F] text-purple-300 border border-slate-800 rounded-lg px-2 py-0.5 text-xs font-bold focus:outline-none focus:border-purple-500 cursor-pointer"
             >
               {ranges.map((r, idx) => (
                 <option key={r.label} value={idx}>
@@ -101,7 +120,7 @@ export default function EpisodeSelector({
         <div className="flex items-center gap-1.5 shrink-0">
           <button
             onClick={() => setSortOrder(sortOrder === 'oldest' ? 'newest' : 'oldest')}
-            className="flex items-center gap-1 bg-[#14141F] hover:bg-slate-800 text-slate-300 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs font-bold transition"
+            className="flex items-center gap-1 bg-[#14141F] hover:bg-slate-800 text-slate-300 px-2.5 py-1.5 rounded-xl border border-slate-800 text-xs font-bold transition cursor-pointer"
             title="Sort Order"
           >
             <ArrowUpDown className="w-3.5 h-3.5 text-purple-400" />
@@ -112,7 +131,7 @@ export default function EpisodeSelector({
           <div className="bg-[#14141F] p-0.5 rounded-xl border border-slate-800 flex items-center">
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded-lg transition ${
+              className={`p-1.5 rounded-lg transition cursor-pointer ${
                 viewMode === 'grid'
                   ? 'bg-purple-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -123,7 +142,7 @@ export default function EpisodeSelector({
             </button>
             <button
               onClick={() => setViewMode('list')}
-              className={`p-1.5 rounded-lg transition ${
+              className={`p-1.5 rounded-lg transition cursor-pointer ${
                 viewMode === 'list'
                   ? 'bg-purple-600 text-white shadow-md'
                   : 'text-slate-400 hover:text-white'
@@ -148,7 +167,7 @@ export default function EpisodeSelector({
           />
           <button
             type="submit"
-            className="bg-[#14141F] hover:bg-purple-600 text-slate-300 hover:text-white p-1.5 rounded-xl border border-slate-800 transition"
+            className="bg-[#14141F] hover:bg-purple-600 text-slate-300 hover:text-white p-1.5 rounded-xl border border-slate-800 transition cursor-pointer"
             title="Jump to Episode"
           >
             <CornerDownLeft className="w-3.5 h-3.5" />
@@ -190,7 +209,7 @@ export default function EpisodeSelector({
               <button
                 key={ep.number}
                 onClick={() => onSelectEpisode(ep.number)}
-                className={`aspect-square rounded-xl border flex items-center justify-center font-extrabold text-xs transition-all duration-200 active:scale-95 ${tileStyle}`}
+                className={`aspect-square rounded-xl border flex items-center justify-center font-extrabold text-xs transition-all duration-200 active:scale-95 cursor-pointer ${tileStyle}`}
                 title={`Episode ${ep.number}${ep.title ? `: ${ep.title}` : ''}`}
               >
                 {ep.number}
@@ -207,7 +226,7 @@ export default function EpisodeSelector({
               <button
                 key={ep.number}
                 onClick={() => onSelectEpisode(ep.number)}
-                className={`w-full text-left rounded-xl overflow-hidden flex items-center gap-3 p-2 transition border ${
+                className={`w-full text-left rounded-xl overflow-hidden flex items-center gap-3 p-2 transition border cursor-pointer ${
                   isCurrent
                     ? 'bg-purple-950/50 border-purple-500 shadow-md ring-1 ring-purple-500/40'
                     : 'bg-[#12121A] hover:bg-slate-900 border-slate-800/80'
