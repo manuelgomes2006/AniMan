@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import { NormalizedEpisode } from '../../services/episodes/episodes';
 import { NormalizedStreamResponse, StreamingSource } from '../../services/streaming/providerTypes';
 import { AnimeMedia } from '../../types/anime';
@@ -17,9 +17,7 @@ import {
   Share2,
   Edit3,
   Check,
-  BarChart2,
-  ChevronDown,
-  RefreshCw
+  ChevronDown
 } from 'lucide-react';
 
 interface MobileWatchPageProps {
@@ -54,11 +52,8 @@ export default function MobileWatchPage({
   onToggleWatchlist
 }: MobileWatchPageProps) {
   const navigate = useNavigate();
-  const [activeServer, setActiveServer] = useState('vidstream');
-  const [rangeIndex, setRangeIndex] = useState(0);
 
   const title = anime?.title?.english || anime?.title?.romaji || 'Solo Leveling';
-  const totalCount = Math.max(episodes.length, currentEpNum, 12);
   const currentEpData = episodes.find(ep => ep.number === currentEpNum) || {
     number: currentEpNum,
     title: `Episode ${currentEpNum}`,
@@ -75,7 +70,7 @@ export default function MobileWatchPage({
 
   return (
     <div className="space-y-4 pb-20 text-white font-sans">
-      {/* 1. Mobile Top Header Bar matching Screenshot */}
+      {/* 1. Mobile Top Header Bar */}
       <div className="flex items-center justify-between py-1 px-1 border-b border-slate-900/80">
         <div className="flex items-center gap-2 min-w-0">
           <button onClick={() => navigate(-1)} className="p-1 text-slate-300 hover:text-white cursor-pointer">
@@ -99,7 +94,7 @@ export default function MobileWatchPage({
         {streamError || !activeSource ? (
           <ErrorState
             title="Streaming Source Unavailable"
-            message="This stream mirror is currently unresponsive. Tap Switch Source to try an alternative stream."
+            message="This stream mirror is currently unresponsive. Tap Retry to try an alternative stream."
             onRetry={onRetryStream}
           />
         ) : (
@@ -116,7 +111,7 @@ export default function MobileWatchPage({
         )}
       </div>
 
-      {/* 3. Anime Details & Action Buttons matching Screenshot */}
+      {/* 3. Anime Details & Action Buttons */}
       <div className="space-y-3 px-1">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-0.5">
@@ -156,7 +151,7 @@ export default function MobileWatchPage({
         </div>
       </div>
 
-      {/* 4. AUDIO Section matching Screenshot */}
+      {/* 4. AUDIO Section */}
       <div className="space-y-2 px-1">
         <div className="flex items-center justify-between text-xs">
           <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[11px]">AUDIO</span>
@@ -200,46 +195,7 @@ export default function MobileWatchPage({
         </div>
       </div>
 
-      {/* 5. SERVER Section matching Screenshot */}
-      <div className="space-y-2 px-1 pt-1">
-        <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[11px]">SERVER</span>
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-1">
-          <button
-            onClick={() => { setActiveServer('vidstream'); onSwitchMirror(); }}
-            className={`px-4 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer flex items-center gap-1.5 shrink-0 ${
-              activeServer === 'vidstream'
-                ? 'bg-purple-950/60 border-purple-500 text-purple-300 ring-1 ring-purple-500/50'
-                : 'bg-[#0D0D12] border-slate-800 text-slate-400 hover:text-white'
-            }`}
-          >
-            <span>VidStream</span>
-            <BarChart2 className="w-3 h-3 text-purple-400 animate-pulse" />
-          </button>
-
-          <button
-            onClick={() => { setActiveServer('streamsb'); onSwitchMirror(); }}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] border border-slate-800 text-slate-400 hover:text-white shrink-0 cursor-pointer"
-          >
-            StreamSB
-          </button>
-
-          <button
-            onClick={() => { setActiveServer('mycloud'); onSwitchMirror(); }}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] border border-slate-800 text-slate-400 hover:text-white shrink-0 cursor-pointer"
-          >
-            MyCloud
-          </button>
-
-          <button
-            onClick={() => { setActiveServer('doodstream'); onSwitchMirror(); }}
-            className="px-4 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] border border-slate-800 text-slate-400 hover:text-white shrink-0 cursor-pointer"
-          >
-            DoodStream
-          </button>
-        </div>
-      </div>
-
-      {/* 6. EPISODES Section matching Screenshot */}
+      {/* 5. EPISODES Section */}
       <div className="space-y-2.5 px-1 pt-2">
         <div className="flex items-center justify-between text-xs">
           <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[11px]">EPISODES</span>
