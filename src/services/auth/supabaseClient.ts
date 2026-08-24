@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || 'https://gxcflibgvgvnwhngxygl.supabase.co';
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || 'sb_publishable_bMPUv__U73SLnCBgs6Ab9g_VgXiJZZ2';
 
 export function isSupabaseConfigured(): boolean {
   return Boolean(
@@ -12,11 +12,7 @@ export function isSupabaseConfigured(): boolean {
   );
 }
 
-// Create client with user's Supabase Project URL
-const fallbackUrl = SUPABASE_URL;
-const fallbackKey = SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.demo';
-
-export const supabase = createClient(fallbackUrl, fallbackKey, {
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: {
     persistSession: true,
     autoRefreshToken: true,
