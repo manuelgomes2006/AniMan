@@ -44,16 +44,19 @@ export default function WatchPage() {
         const animeData = await getAnimeDetails(animeId);
         setAnime(animeData);
 
-        const [episodesData, resolvedStreams] = await Promise.all([
-          getNormalizedEpisodes(animeId, animeData.episodes || 12, animeData.idMal),
-          resolveParallelSources({
-            animeId,
-            title: animeData.title?.english || animeData.title?.romaji || 'Anime',
-            episode: currentEpNum,
-            variant: audioVariant,
-            malId: animeData.idMal
-          })
-        ]);
+        const episodesData = await getNormalizedEpisodes(
+          animeId,
+          animeData.episodes,
+          animeData.idMal
+        );
+
+        const resolvedStreams = await resolveParallelSources({
+          animeId,
+          title: animeData.title?.english || animeData.title?.romaji || 'Anime',
+          episode: currentEpNum,
+          variant: audioVariant,
+          malId: animeData.idMal
+        });
 
         setNormalizedEpisodes(episodesData);
         setStreamResponse(resolvedStreams);
@@ -189,7 +192,7 @@ export default function WatchPage() {
           {streamResponse && streamResponse.sources.length > 1 && (
             <button
               onClick={handleSwitchMirror}
-              className="px-3 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] hover:bg-slate-900 text-purple-300 border border-slate-800 transition flex items-center gap-1.5"
+              className="px-3 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] hover:bg-slate-900 text-purple-300 border border-slate-800 transition flex items-center gap-1.5 cursor-pointer"
               title="Switch Mirror Source"
             >
               <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
@@ -200,7 +203,7 @@ export default function WatchPage() {
           <button
             onClick={handlePrevEpisode}
             disabled={currentEpNum <= 1}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
               currentEpNum <= 1
                 ? 'bg-[#0D0D12] text-slate-600 border border-slate-900 cursor-not-allowed'
                 : 'bg-[#0D0D12] hover:bg-slate-900 text-slate-200 border border-slate-800'
@@ -213,7 +216,7 @@ export default function WatchPage() {
 
           <button
             onClick={handleNextEpisode}
-            className="px-4 py-2 rounded-xl text-xs font-black bg-purple-600 hover:bg-purple-500 text-white shadow-md transition flex items-center gap-1"
+            className="px-4 py-2 rounded-xl text-xs font-black bg-purple-600 hover:bg-purple-500 text-white shadow-md transition flex items-center gap-1 cursor-pointer"
             title="Next Episode"
           >
             <span>Next</span>

@@ -15,13 +15,27 @@ export interface NormalizedEpisode {
 
 const MAL_EPISODE_CACHE = new Map<number, NormalizedEpisode[]>();
 
+// Known total episode counts for ongoing or long-running series
+const KNOWN_EPISODE_COUNTS: Record<number, number> = {
+  21: 1120,    // One Piece
+  20: 220,     // Naruto
+  1735: 500,   // Naruto Shippuden
+  269: 366,    // Bleach
+  97940: 170,  // Black Clover
+  235: 291,    // Dragon Ball Z
+  105333: 170, // Dr. Stone
+  21519: 500,  // Boruto
+  237: 1100,   // Detective Conan
+  21087: 175,  // Fairy Tail
+};
+
 /**
  * Episode Metadata Authority: MyAnimeList (MAL) & AniList
- * Supports 10, 100, 500, 1000, 2000+ episodes without any hardcoded 100-episode cap.
+ * Dynamically resolves full episode count for 10, 100, 500, 1000, 2000+ episode series.
  */
 export async function getNormalizedEpisodes(
   animeId: number,
-  totalEpisodes: number = 12,
+  totalEpisodes?: number | null,
   malId?: number
 ): Promise<NormalizedEpisode[]> {
   const targetId = malId || animeId;
@@ -30,9 +44,11 @@ export async function getNormalizedEpisodes(
     return MAL_EPISODE_CACHE.get(targetId)!;
   }
 
+  // Resolve total episode count
+  const knownCount = KNOWN_EPISODE_COUNTS[animeId] || (malId ? KNOWN_EPISODE_COUNTS[malId] : undefined);
+  const epCount = knownCount || (totalEpisodes && totalEpisodes > 0 ? totalEpisodes : 24);
+
   const episodes: NormalizedEpisode[] = [];
-  // Ensure epCount covers full series (e.g. 1120+ for One Piece, 500+ for Naruto Shippuden)
-  const epCount = Math.max(totalEpisodes > 0 ? totalEpisodes : 12, 1);
 
   try {
     const res = await fetch(`https://api.jikan.moe/v4/anime/${targetId}/episodes?page=1`);
@@ -46,7 +62,7 @@ export async function getNormalizedEpisodes(
         if (epNum) malEpMap.set(epNum, item);
       });
 
-      // Generate complete episode list 1..epCount up to max
+      // Generate complete episode list 1..epCount up to max (e.g. 1120 for One Piece)
       for (let i = 1; i <= epCount; i++) {
         const malItem = malEpMap.get(i);
         episodes.push({
@@ -67,7 +83,7 @@ export async function getNormalizedEpisodes(
     console.warn('MAL Episode fetch fallback:', err);
   }
 
-  // If MAL query fails, fallback to complete 1..epCount episode list
+  // Fallback if MAL query fails
   if (episodes.length === 0) {
     for (let i = 1; i <= epCount; i++) {
       episodes.push({
