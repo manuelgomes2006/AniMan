@@ -151,6 +151,13 @@ export function setWatchlistCategory(
   return list;
 }
 
+export function addToWatchlist(
+  anime: AnimeMedia,
+  category: 'watching' | 'completed' | 'plan_to_watch' | 'on_hold' | 'dropped' = 'watching'
+): WatchlistItem[] {
+  return setWatchlistCategory(anime, category);
+}
+
 export function removeFromWatchlist(animeId: number): WatchlistItem[] {
   const list = getWatchlist();
   const filtered = list.filter((item) => item.anime.id !== animeId);

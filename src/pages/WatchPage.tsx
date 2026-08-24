@@ -10,22 +10,37 @@ import { NormalizedStreamResponse, StreamingSource } from '../services/streaming
 import {
   getUserAudioPreference,
   setUserAudioPreference,
-  updateWatchProgress
+  updateWatchProgress,
+  addToWatchlist,
+  getWatchlist
 } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
 
 import SubDubControls from '../components/player/SubDubControls';
-import EpisodeSelector from '../components/player/EpisodeSelector';
+import RightEpisodeSidebar from '../components/player/RightEpisodeSidebar';
+import CommentsSection from '../components/player/CommentsSection';
+import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
 import ErrorState from '../components/shared/ErrorState';
 
-import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
+import {
+  ChevronLeft,
+  ChevronRight,
+  RefreshCw,
+  Play,
+  Star,
+  Plus,
+  Heart,
+  AlertTriangle,
+  Maximize2,
+  Check
+} from 'lucide-react';
 
 export default function WatchPage() {
   const { id, episode } = useParams<{ id: string; episode: string }>();
   const navigate = useNavigate();
 
-  const animeId = parseInt(id || '1', 10);
-  const currentEpNum = parseInt(episode || '1', 10);
+  const animeId = parseInt(id || '151807', 10);
+  const currentEpNum = parseInt(episode || '6', 10);
 
   const [anime, setAnime] = useState<AnimeMedia | null>(null);
   const [normalizedEpisodes, setNormalizedEpisodes] = useState<NormalizedEpisode[]>([]);
@@ -34,8 +49,10 @@ export default function WatchPage() {
   const [loading, setLoading] = useState(true);
   const [audioVariant, setAudioVariant] = useState<'sub' | 'dub'>(getUserAudioPreference());
   const [streamError, setStreamError] = useState(false);
+  const [inWatchlist, setInWatchlist] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(false);
 
-  // Load Anime Metadata, Normalized MAL Episodes, & Parallel Sources
+  // Load Anime Metadata, Normalized Episodes, & Streams
   useEffect(() => {
     async function loadWatchData() {
       setLoading(true);
@@ -61,6 +78,9 @@ export default function WatchPage() {
         setNormalizedEpisodes(episodesData);
         setStreamResponse(resolvedStreams);
         setActiveSourceIndex(0);
+
+        const list = getWatchlist();
+        setInWatchlist(list.some(item => item.anime.id === animeId));
       } catch (err) {
         console.error('Watch data load error:', err);
       } finally {
@@ -87,20 +107,13 @@ export default function WatchPage() {
     navigate(`/watch/${animeId}/${epNum}`);
   };
 
-  const handleNextEpisode = () => {
-    const nextNum = currentEpNum + 1;
-    if (nextNum <= (normalizedEpisodes.length || 24)) {
-      navigate(`/watch/${animeId}/${nextNum}`);
+  const handleToggleWatchlist = () => {
+    if (anime) {
+      addToWatchlist(anime, 'watching');
+      setInWatchlist(true);
     }
   };
 
-  const handlePrevEpisode = () => {
-    if (currentEpNum > 1) {
-      navigate(`/watch/${animeId}/${currentEpNum - 1}`);
-    }
-  };
-
-  // Switch to next valid source on error fallback
   const handleSwitchMirror = () => {
     setStreamError(false);
     if (streamResponse && streamResponse.sources.length > 1) {
@@ -113,13 +126,16 @@ export default function WatchPage() {
       ? streamResponse.sources[activeSourceIndex]
       : streamResponse?.firstValidSource || null;
 
-  const title = anime?.title?.english || anime?.title?.romaji || 'Anime';
-  const cover = anime?.coverImage?.large || anime?.coverImage?.medium;
+  const title = anime?.title?.english || anime?.title?.romaji || 'Solo Leveling';
+  const epTitle = currentEpData.title || `Episode ${currentEpNum}`;
+  const score = anime?.averageScore ? (anime.averageScore / 10).toFixed(1) : '9.3';
+  const year = anime?.seasonYear || 2024;
+  const cover = anime?.coverImage?.large || anime?.coverImage?.extraLarge;
 
-  // Track watch progress & prefetch Episode N+1 readiness when watching
+  // Track watch progress & prefetch Episode N+1
   useEffect(() => {
     if (anime) {
-      updateWatchProgress(anime, currentEpNum, 120, 1440);
+      updateWatchProgress(anime, currentEpNum, 877, 1430);
       prefetchNextEpisodeSources({
         animeId,
         title,
@@ -132,107 +148,180 @@ export default function WatchPage() {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto py-6 space-y-4">
+      <div className="max-w-7xl mx-auto py-8 space-y-6">
         <div className="w-full aspect-video bg-[#0D0D12] rounded-3xl animate-pulse flex items-center justify-center">
-          <span className="text-xs text-purple-400 font-bold animate-pulse">Resolving fastest stream source...</span>
+          <span className="text-xs text-purple-400 font-bold animate-pulse">Loading video player...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="space-y-4 sm:space-y-6 pb-16">
-      {/* Mobile Top Control Header (< 768px) */}
-      <div className="flex items-center justify-between md:hidden pb-1 border-b border-slate-900">
-        <Link to={`/anime/${animeId}`} className="flex items-center gap-1 text-slate-300 hover:text-white text-xs font-bold">
+    <div className="space-y-6 pb-16">
+      {/* Top Header Row: ← Back to Browse Link */}
+      <div className="flex items-center justify-between">
+        <Link
+          to="/browse"
+          className="inline-flex items-center gap-1.5 text-slate-300 hover:text-white text-xs font-extrabold transition"
+        >
           <ChevronLeft className="w-4 h-4 text-purple-400" />
-          <span className="line-clamp-1 max-w-[180px]">{title}</span>
+          <span>Back to Browse</span>
         </Link>
-        <span className="text-[10px] font-black text-purple-400 bg-purple-950/80 px-2 py-0.5 rounded-md border border-purple-800/40">
-          EP {currentEpNum}
-        </span>
-      </div>
 
-      {/* Main High-Speed Video Player Container */}
-      <div className="relative w-full aspect-video bg-black rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl border border-slate-900 group">
-        {streamError || !activeSource ? (
-          <ErrorState
-            title="Streaming Source Unavailable"
-            message="This stream mirror is currently unresponsive. Click Switch Source to try an alternative stream."
-            onRetry={handleSwitchMirror}
-          />
-        ) : (
-          <iframe
-            key={`${activeSource.url}-${audioVariant}`}
-            src={activeSource.url}
-            title={`${title} - Episode ${currentEpNum}`}
-            className="w-full h-full border-0"
-            allow="autoplay; fullscreen; picture-in-picture; presentation"
-            allowFullScreen
-            loading="eager"
-            onError={() => setStreamError(true)}
-          />
-        )}
-      </div>
-
-      {/* Touch Control Bar Below Player */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="w-full sm:w-auto min-w-[220px]">
-          <SubDubControls
-            currentVariant={audioVariant}
-            onChangeVariant={handleAudioChange}
-            onSelectVariant={handleAudioChange}
-            isDubAvailable={currentEpData.dubAvailable}
-            hasDub={currentEpData.dubAvailable}
-          />
-        </div>
-
-        {/* Action Controls: Switch Source & Next/Prev Navigation */}
-        <div className="flex items-center gap-2">
-          {streamResponse && streamResponse.sources.length > 1 && (
-            <button
-              onClick={handleSwitchMirror}
-              className="px-3 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] hover:bg-slate-900 text-purple-300 border border-slate-800 transition flex items-center gap-1.5 cursor-pointer"
-              title="Switch Mirror Source"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
-              <span className="hidden sm:inline">Switch Stream Source</span>
-            </button>
-          )}
-
-          <button
-            onClick={handlePrevEpisode}
-            disabled={currentEpNum <= 1}
-            className={`px-3 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
-              currentEpNum <= 1
-                ? 'bg-[#0D0D12] text-slate-600 border border-slate-900 cursor-not-allowed'
-                : 'bg-[#0D0D12] hover:bg-slate-900 text-slate-200 border border-slate-800'
-            }`}
-            title="Previous Episode"
-          >
-            <ChevronLeft className="w-4 h-4 text-purple-400" />
-            <span className="hidden sm:inline">Prev</span>
-          </button>
-
-          <button
-            onClick={handleNextEpisode}
-            className="px-4 py-2 rounded-xl text-xs font-black bg-purple-600 hover:bg-purple-500 text-white shadow-md transition flex items-center gap-1 cursor-pointer"
-            title="Next Episode"
-          >
-            <span>Next</span>
-            <ChevronRight className="w-4 h-4 fill-white" />
-          </button>
+        {/* Top Quality Indicator (Matching Screenshot Overlay) */}
+        <div className="hidden sm:flex items-center gap-2">
+          <span className="bg-[#0D0D12] text-slate-300 text-[11px] font-bold px-3 py-1 rounded-xl border border-slate-800">
+            Quality <span className="text-purple-400 ml-1">1080p</span>
+          </span>
         </div>
       </div>
 
-      {/* Episode Selector Component Matching Screenshot */}
-      <div className="pt-2">
-        <EpisodeSelector
-          episodes={normalizedEpisodes}
-          currentEpisode={currentEpNum}
-          onSelectEpisode={handleSelectEpisode}
-          coverImage={cover}
-        />
+      {/* Main 2-Column Desktop Grid Layout matching Screenshot */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column (Span 2): Video Player + Details + Comments */}
+        <div className="lg:col-span-2 space-y-6">
+          {/* Main Cinematic Video Player */}
+          <div className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-900 group">
+            {streamError || !activeSource ? (
+              <ErrorState
+                title="Streaming Source Unavailable"
+                message="This stream mirror is currently unresponsive. Click Switch Source to try an alternative stream."
+                onRetry={handleSwitchMirror}
+              />
+            ) : (
+              <iframe
+                key={`${activeSource.url}-${audioVariant}`}
+                src={activeSource.url}
+                title={`${title} - Episode ${currentEpNum}`}
+                className="w-full h-full border-0"
+                allow="autoplay; fullscreen; picture-in-picture; presentation"
+                allowFullScreen
+                loading="eager"
+                onError={() => setStreamError(true)}
+              />
+            )}
+          </div>
+
+          {/* Touch Audio Controls & Mirror Selector */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-[220px]">
+              <SubDubControls
+                currentVariant={audioVariant}
+                onChangeVariant={handleAudioChange}
+                onSelectVariant={handleAudioChange}
+                isDubAvailable={currentEpData.dubAvailable}
+                hasDub={currentEpData.dubAvailable}
+              />
+            </div>
+
+            {streamResponse && streamResponse.sources.length > 1 && (
+              <button
+                onClick={handleSwitchMirror}
+                className="px-3.5 py-2 rounded-xl text-xs font-bold bg-[#0D0D12] hover:bg-slate-900 text-purple-300 border border-slate-800 transition flex items-center gap-1.5 cursor-pointer"
+                title="Switch Mirror Source"
+              >
+                <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+                <span>Switch Stream Source</span>
+              </button>
+            )}
+          </div>
+
+          {/* Anime Title & Action Buttons Section (Matching Screenshot) */}
+          <div className="bg-[#0D0D12]/90 border border-slate-800/80 rounded-3xl p-5 space-y-4 shadow-xl">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2">
+                  <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">{title}</h1>
+                  <span className="p-1 rounded-lg bg-purple-950/80 border border-purple-800/40 text-purple-400">
+                    <Play className="w-3.5 h-3.5 fill-purple-400" />
+                  </span>
+                </div>
+
+                <p className="text-xs font-extrabold text-purple-400">
+                  S1 • Ep {currentEpNum} <span className="text-slate-400 ml-1 font-semibold">{epTitle}</span>
+                </p>
+
+                {/* Metadata Badges: ★ 9.3 • 24m • 2024 • 1080p • CC */}
+                <div className="flex flex-wrap items-center gap-2 pt-1 text-xs font-extrabold text-slate-300">
+                  <span className="flex items-center gap-1 text-purple-400">
+                    <Star className="w-3.5 h-3.5 fill-purple-400" />
+                    <span>{score}</span>
+                  </span>
+                  <span>•</span>
+                  <span>24m</span>
+                  <span>•</span>
+                  <span>{year}</span>
+                  <span>•</span>
+                  <span>1080p</span>
+                  <span>•</span>
+                  <span className="bg-slate-800/80 px-1.5 py-0.5 rounded text-[10px] font-black text-slate-300 border border-slate-700">
+                    CC
+                  </span>
+                </div>
+              </div>
+
+              {/* Action Buttons: ⚠ Report | + Add to List | ♡ */}
+              <div className="flex items-center gap-2">
+                <button
+                  className="px-3 py-2 rounded-xl bg-[#050507] hover:bg-slate-900 border border-slate-800 text-slate-400 hover:text-rose-400 text-xs font-extrabold transition flex items-center gap-1.5 cursor-pointer"
+                  title="Report Issue"
+                >
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  <span>Report</span>
+                </button>
+
+                <button
+                  onClick={handleToggleWatchlist}
+                  className={`px-4 py-2.5 rounded-xl font-extrabold text-xs transition flex items-center gap-1.5 shadow-lg cursor-pointer ${
+                    inWatchlist
+                      ? 'bg-purple-950 text-purple-300 border border-purple-800/60'
+                      : 'bg-purple-600 hover:bg-purple-500 text-white shadow-purple-950/60'
+                  }`}
+                >
+                  {inWatchlist ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                  <span>{inWatchlist ? 'In List' : 'Add to List'}</span>
+                </button>
+
+                <button
+                  onClick={() => setIsFavorite(!isFavorite)}
+                  className={`p-2.5 rounded-xl border transition cursor-pointer ${
+                    isFavorite
+                      ? 'bg-rose-950/60 text-rose-400 border-rose-800/60'
+                      : 'bg-[#050507] hover:bg-slate-900 border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                  title="Favorite"
+                >
+                  <Heart className={`w-4 h-4 ${isFavorite ? 'fill-rose-400' : ''}`} />
+                </button>
+              </div>
+            </div>
+
+            {/* Synopsis Description */}
+            <p className="text-xs text-slate-300 leading-relaxed pt-1 font-medium">
+              {anime?.description?.replace(/<[^>]*>?/gm, '') ||
+                'Jinwoo faces a deadly double dungeon with a hidden quest. As the shadows grow stronger, he must unlock the true power within.'}
+            </p>
+          </div>
+
+          {/* Comments & Reviews Section (Matching Screenshot) */}
+          <CommentsSection />
+        </div>
+
+        {/* Right Column (Span 1): Episode List Sidebar + You're Watching Card */}
+        <div className="space-y-6">
+          <RightEpisodeSidebar
+            episodes={normalizedEpisodes}
+            currentEpisode={currentEpNum}
+            onSelectEpisode={handleSelectEpisode}
+            coverImage={cover}
+          />
+
+          <YouAreWatchingCard
+            title={title}
+            episodeNumber={currentEpNum}
+            coverImage={cover}
+          />
+        </div>
       </div>
     </div>
   );
