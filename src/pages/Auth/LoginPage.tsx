@@ -36,10 +36,11 @@ export default function LoginPage() {
       });
 
       if (authError) {
-        // Fallback for seamless dev testing if Supabase project hasn't been set up yet
-        const username = email.split('@')[0] || 'Member';
-        setGuestSession(email, username);
-        navigate(redirectUrl, { replace: true });
+        if (authError.message.toLowerCase().includes('email not confirmed')) {
+          setError('Please confirm your email address before signing in.');
+        } else {
+          setError('Invalid email or password. If you do not have an account, please Sign Up first.');
+        }
         return;
       }
 
@@ -47,9 +48,7 @@ export default function LoginPage() {
         navigate(redirectUrl, { replace: true });
       }
     } catch (err: any) {
-      const username = email.split('@')[0] || 'Member';
-      setGuestSession(email, username);
-      navigate(redirectUrl, { replace: true });
+      setError('Unable to sign in. Please check your credentials or create a new account.');
     } finally {
       setLoading(false);
     }
@@ -68,7 +67,7 @@ export default function LoginPage() {
         </div>
 
         {error && (
-          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center">
+          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center leading-relaxed">
             {error}
           </div>
         )}
