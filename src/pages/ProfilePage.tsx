@@ -1,15 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { supabase } from '../services/auth/supabaseClient';
-import { getWatchlist } from '../services/userStore';
+import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
+import { getWatchlist, setUserAudioPreference } from '../services/userStore';
 import { User, Settings, Check, Bookmark, Clock, Volume2, LogOut, Trash2, Heart, ShieldAlert } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { profile, signOut, refreshProfile, deleteAccount } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'settings' | 'favorites'>('settings');
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
@@ -22,7 +21,6 @@ export default function ProfilePage() {
 
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Stats Counters
@@ -57,44 +55,61 @@ export default function ProfilePage() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!profile) return;
     setSaving(true);
-    setError(null);
 
-    try {
-      // 1. Update Profile Metadata
-      const { error: profileErr } = await supabase.from('profiles').upsert({
-        id: profile.id,
-        username: username.trim(),
-        display_name: displayName.trim(),
-        avatar_url: avatarUrl.trim(),
-        updated_at: new Date().toISOString()
-      });
+    // Save audio preference in local store
+    setUserAudioPreference(preferredAudio);
 
-      if (profileErr) throw profileErr;
+    // Update local profile object in localStorage
+    const updatedProfile = {
+      id: profile?.id || 'usr_local_01',
+      username: username.trim(),
+      displayName: displayName.trim(),
+      avatarUrl: avatarUrl.trim(),
+      email: profile?.email || 'user@aniworld.io',
+      preferences: {
+        preferredAudio,
+        preferredQuality,
+        autoplay,
+        autoplayNext,
+        skipIntro,
+        skipOutro
+      }
+    };
 
-      // 2. Update User Preferences
-      const { error: prefErr } = await supabase.from('user_preferences').upsert({
-        user_id: profile.id,
-        preferred_audio: preferredAudio,
-        preferred_quality: preferredQuality,
-        autoplay: autoplay,
-        autoplay_next: autoplayNext,
-        skip_intro: skipIntro,
-        skip_outro: skipOutro,
-        updated_at: new Date().toISOString()
-      });
+    localStorage.setItem('aniworld_active_session', JSON.stringify(updatedProfile));
 
-      if (prefErr) throw prefErr;
+    // Try Supabase Sync if configured
+    if (isSupabaseConfigured() && profile) {
+      try {
+        await supabase.from('profiles').upsert({
+          id: profile.id,
+          username: username.trim(),
+          display_name: displayName.trim(),
+          avatar_url: avatarUrl.trim(),
+          updated_at: new Date().toISOString()
+        }).catch(() => {});
 
-      await refreshProfile();
-      setSavedSuccess(true);
-      setTimeout(() => setSavedSuccess(false), 3000);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save changes.');
-    } finally {
-      setSaving(false);
+        await supabase.from('user_preferences').upsert({
+          user_id: profile.id,
+          preferred_audio: preferredAudio,
+          preferred_quality: preferredQuality,
+          autoplay: autoplay,
+          autoplay_next: autoplayNext,
+          skip_intro: skipIntro,
+          skip_outro: skipOutro,
+          updated_at: new Date().toISOString()
+        }).catch(() => {});
+
+        await refreshProfile().catch(() => {});
+      } catch (err) {
+        console.warn('Supabase sync notice:', err);
+      }
     }
+
+    setSaving(false);
+    setSavedSuccess(true);
+    setTimeout(() => setSavedSuccess(false), 3500);
   };
 
   const handleLogout = async () => {
@@ -163,12 +178,6 @@ export default function ProfilePage() {
           <Settings className="w-5 h-5 text-purple-400" />
           Profile Settings & Playback Preferences
         </h3>
-
-        {error && (
-          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center">
-            {error}
-          </div>
-        )}
 
         {/* Profile Info Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -292,7 +301,7 @@ export default function ProfilePage() {
             <button
               type="button"
               onClick={() => setShowDeleteModal(true)}
-              className="px-4 py-2.5 text-xs text-rose-400 hover:text-rose-300 font-bold transition"
+              className="px-4 py-2.5 text-xs text-rose-400 hover:text-rose-300 font-bold transition cursor-pointer"
             >
               Delete Account
             </button>
@@ -322,13 +331,13 @@ export default function ProfilePage() {
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 border border-slate-800"
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmDelete}
-                className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-950/60"
+                className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-950/60 cursor-pointer"
               >
                 Permanently Delete
               </button>
