@@ -18,7 +18,7 @@ import SubDubControls from '../components/player/SubDubControls';
 import EpisodeSelector from '../components/player/EpisodeSelector';
 import ErrorState from '../components/shared/ErrorState';
 
-import { ChevronLeft, ChevronRight, Play, RefreshCw } from 'lucide-react';
+import { ChevronLeft, ChevronRight, RefreshCw } from 'lucide-react';
 
 export default function WatchPage() {
   const { id, episode } = useParams<{ id: string; episode: string }>();
@@ -117,7 +117,6 @@ export default function WatchPage() {
   useEffect(() => {
     if (anime) {
       updateWatchProgress(anime, currentEpNum, 120, 1440);
-      // Prefetch Episode N+1 source readiness
       prefetchNextEpisodeSources({
         animeId,
         title,
@@ -175,10 +174,12 @@ export default function WatchPage() {
 
       {/* Touch Control Bar Below Player */}
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="w-full sm:w-auto min-w-[200px]">
+        <div className="w-full sm:w-auto min-w-[220px]">
           <SubDubControls
             currentVariant={audioVariant}
+            onChangeVariant={handleAudioChange}
             onSelectVariant={handleAudioChange}
+            isDubAvailable={currentEpData.dubAvailable}
             hasDub={currentEpData.dubAvailable}
           />
         </div>
