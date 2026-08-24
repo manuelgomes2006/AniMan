@@ -235,17 +235,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  // Complete multi-table data deletion
   const deleteAccount = async () => {
     if (user && isSupabaseConfigured()) {
       try {
-        await supabase.from('profiles').delete().eq('id', user.id).catch(() => {});
-        await supabase.from('user_preferences').delete().eq('user_id', user.id).catch(() => {});
-        await supabase.from('watchlist').delete().eq('user_id', user.id).catch(() => {});
-        await supabase.from('watch_history').delete().eq('user_id', user.id).catch(() => {});
-        await supabase.from('favorites').delete().eq('user_id', user.id).catch(() => {});
-        await supabase.from('search_history').delete().eq('user_id', user.id).catch(() => {});
+        await Promise.allSettled([
+          supabase.from('profiles').delete().eq('id', user.id),
+          supabase.from('user_preferences').delete().eq('user_id', user.id),
+          supabase.from('watchlist').delete().eq('user_id', user.id),
+          supabase.from('watch_history').delete().eq('user_id', user.id),
+          supabase.from('favorites').delete().eq('user_id', user.id),
+          supabase.from('search_history').delete().eq('user_id', user.id)
+        ]);
       } catch (err) {
-        console.warn('Delete account error:', err);
+        console.warn('Database deletion notice:', err);
       }
     }
     await signOut();
