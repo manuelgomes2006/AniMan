@@ -1,24 +1,30 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Play, BarChart2, ChevronDown } from 'lucide-react';
 import { NormalizedEpisode } from '../../services/episodes/episodes';
 
 interface RightEpisodeSidebarProps {
   episodes: NormalizedEpisode[];
-  currentEpisode: number;
+  currentEpisode?: number;
+  currentEpNum?: number;
   onSelectEpisode: (epNum: number) => void;
   coverImage?: string;
+  totalEpisodes?: number;
 }
 
 export default function RightEpisodeSidebar({
   episodes,
   currentEpisode,
+  currentEpNum,
   onSelectEpisode,
-  coverImage
+  coverImage,
+  totalEpisodes
 }: RightEpisodeSidebarProps) {
+  const activeEp = currentEpisode || currentEpNum || 1;
   const [activeTab, setActiveTab] = useState<'episodes' | 'related'>('episodes');
   const [rangeIndex, setRangeIndex] = useState(0);
+  const activeEpRef = useRef<HTMLButtonElement | null>(null);
 
-  const totalCount = Math.max(episodes.length, currentEpisode, 12);
+  const totalCount = Math.max(episodes.length, totalEpisodes || 0, activeEp, 12);
   const RANGE_SIZE = 100;
 
   // 100-episode ranges for long-running series
@@ -31,6 +37,14 @@ export default function RightEpisodeSidebar({
     }
     return r;
   }, [totalCount]);
+
+  // Auto-switch to range containing current active episode
+  useEffect(() => {
+    const targetIdx = ranges.findIndex(r => activeEp >= r.start && activeEp <= r.end);
+    if (targetIdx >= 0 && targetIdx !== rangeIndex) {
+      setRangeIndex(targetIdx);
+    }
+  }, [activeEp, ranges]);
 
   const currentRange = ranges[rangeIndex] || { start: 1, end: totalCount };
 
@@ -45,6 +59,7 @@ export default function RightEpisodeSidebar({
           dubAvailable: true,
           playable: true
         }));
+
     return list.length > 0 ? list : Array.from({ length: 12 }, (_, i) => ({
       number: i + 1,
       title: `Episode ${i + 1}`,
@@ -55,11 +70,19 @@ export default function RightEpisodeSidebar({
     }));
   }, [episodes, currentRange]);
 
+  // Auto scroll active episode into view
+  useEffect(() => {
+    if (activeEpRef.current) {
+      activeEpRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }, [activeEp, rangeIndex]);
+
   return (
     <div className="bg-[#0D0D12]/90 border border-slate-800/80 rounded-3xl p-4 space-y-4 shadow-xl">
       {/* Top Tabs: Episodes | Related */}
       <div className="flex items-center border-b border-slate-800/80 pb-2">
         <button
+          type="button"
           onClick={() => setActiveTab('episodes')}
           className={`pb-2 text-sm font-extrabold transition relative mr-6 cursor-pointer ${
             activeTab === 'episodes' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
@@ -72,6 +95,7 @@ export default function RightEpisodeSidebar({
         </button>
 
         <button
+          type="button"
           onClick={() => setActiveTab('related')}
           className={`pb-2 text-sm font-extrabold transition relative cursor-pointer ${
             activeTab === 'related' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
@@ -110,13 +134,15 @@ export default function RightEpisodeSidebar({
             <span className="text-slate-400 text-xs font-semibold">{totalCount} Episodes</span>
           </div>
 
-          {/* Vertical Scrollable Episode List Matching Screenshot */}
+          {/* Vertical Scrollable Episode List */}
           <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
             {displayedEpisodes.map((ep) => {
-              const isCurrent = ep.number === currentEpisode;
+              const isCurrent = ep.number === activeEp;
               return (
                 <button
                   key={ep.number}
+                  ref={isCurrent ? activeEpRef : null}
+                  type="button"
                   onClick={() => onSelectEpisode(ep.number)}
                   className={`w-full text-left rounded-2xl p-2 transition flex items-center gap-3 border cursor-pointer ${
                     isCurrent
