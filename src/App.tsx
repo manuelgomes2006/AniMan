@@ -8,7 +8,7 @@ import ProtectedRoute from './components/shared/ProtectedRoute';
 import LoginPage from './pages/Auth/LoginPage';
 import SignupPage from './pages/Auth/SignupPage';
 
-// Code-split pages for max performance
+// Code-split pages for instant loading
 const HomePage = lazy(() => import('./pages/HomePage'));
 const BrowsePage = lazy(() => import('./pages/BrowsePage'));
 const DetailsPage = lazy(() => import('./pages/DetailsPage'));
@@ -28,18 +28,20 @@ export default function App() {
           </div>
         }>
           <Routes>
-            {/* Public Authentication Routes */}
+            {/* Instant Access Public Routes */}
+            <Route path="/" element={<HomePage />} />
+            <Route path="/browse" element={<BrowsePage />} />
+            <Route path="/anime/:id" element={<DetailsPage />} />
+            <Route path="/watch/:id/:episode" element={<WatchPage />} />
+            <Route path="/schedule" element={<SchedulePage />} />
+
+            {/* Authentication Pages */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignupPage />} />
 
-            {/* Protected Routes */}
-            <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-            <Route path="/browse" element={<ProtectedRoute><BrowsePage /></ProtectedRoute>} />
-            <Route path="/anime/:id" element={<ProtectedRoute><DetailsPage /></ProtectedRoute>} />
-            <Route path="/watch/:id/:episode" element={<ProtectedRoute><WatchPage /></ProtectedRoute>} />
-            <Route path="/watchlist" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
-            <Route path="/schedule" element={<ProtectedRoute><SchedulePage /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+            {/* User Personalization Routes */}
+            <Route path="/watchlist" element={<ProtectedRoute requireAuth={true}><WatchlistPage /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute requireAuth={true}><ProfilePage /></ProtectedRoute>} />
           </Routes>
         </Suspense>
       </MainLayout>
