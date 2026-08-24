@@ -4,8 +4,35 @@ import { normalizeTitle } from '../mapping/mapping';
 const ANILIST_ENDPOINT = 'https://graphql.anilist.co';
 const JIKAN_BASE_URL = 'https://api.jikan.moe/v4';
 
-const cache = new Map<string, { data: any; timestamp: number }>();
-const CACHE_TTL = 10 * 60 * 1000;
+const memoryCache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_TTL = 30 * 60 * 1000; // 30 minutes in-memory & local cache
+
+// High-speed persistent local storage cache helper
+function getCachedData<T>(key: string): T | null {
+  const mem = memoryCache.get(key);
+  if (mem && Date.now() - mem.timestamp < CACHE_TTL) {
+    return mem.data as T;
+  }
+  try {
+    const local = localStorage.getItem(`aniworld_cache_${key}`);
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (Date.now() - parsed.timestamp < CACHE_TTL) {
+        memoryCache.set(key, parsed);
+        return parsed.data as T;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function setCachedData<T>(key: string, data: T): void {
+  const item = { data, timestamp: Date.now() };
+  memoryCache.set(key, item);
+  try {
+    localStorage.setItem(`aniworld_cache_${key}`, JSON.stringify(item));
+  } catch {}
+}
 
 // High-quality fallback anime dataset guaranteeing zero blank screens
 const FALLBACK_ANIME_DATA: AnimeMedia[] = [
@@ -121,11 +148,8 @@ const FALLBACK_ANIME_DATA: AnimeMedia[] = [
 
 async function fetchAniList<T>(query: string, variables: Record<string, any> = {}): Promise<T> {
   const cacheKey = JSON.stringify({ query, variables });
-  const cached = cache.get(cacheKey);
-
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data as T;
-  }
+  const cached = getCachedData<T>(cacheKey);
+  if (cached) return cached;
 
   try {
     const response = await fetch(ANILIST_ENDPOINT, {
@@ -142,7 +166,7 @@ async function fetchAniList<T>(query: string, variables: Record<string, any> = {
       throw new Error(json.errors[0]?.message || 'AniList API Error');
     }
 
-    cache.set(cacheKey, { data: json.data, timestamp: Date.now() });
+    setCachedData(cacheKey, json.data);
     return json.data as T;
   } catch (error) {
     console.warn('AniList query failed:', error);
@@ -156,16 +180,13 @@ async function fetchJikan<T>(endpoint: string, params: Record<string, any> = {})
   ).toString();
 
   const url = `${JIKAN_BASE_URL}${endpoint}${queryStr ? `?${queryStr}` : ''}`;
-  const cached = cache.get(url);
-
-  if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
-    return cached.data as T;
-  }
+  const cached = getCachedData<T>(url);
+  if (cached) return cached;
 
   try {
     const response = await fetch(url);
     const json = await response.json();
-    cache.set(url, { data: json, timestamp: Date.now() });
+    setCachedData(url, json);
     return json as T;
   } catch (err) {
     console.error('Jikan Fetch Error:', err);
