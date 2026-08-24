@@ -228,6 +228,38 @@ export async function getAnimeDetails(id: number): Promise<AnimeMedia> {
   return data.Media;
 }
 
+export interface AiringScheduleItem {
+  id: number;
+  airingAt: number;
+  timeUntilAiring: number;
+  episode: number;
+  media: AnimeMedia;
+}
+
+export async function getAiringSchedule(startOfWeekTimestamp: number, endOfWeekTimestamp: number): Promise<AiringScheduleItem[]> {
+  const query = `
+    query ($airingAt_greater: Int, $airingAt_lesser: Int) {
+      Page (page: 1, perPage: 50) {
+        airingSchedules (airingAt_greater: $airingAt_greater, airingAt_lesser: $airingAt_lesser, sort: TIME) {
+          id
+          airingAt
+          timeUntilAiring
+          episode
+          media {
+            ${MEDIA_FRAGMENT}
+          }
+        }
+      }
+    }
+  `;
+
+  const data = await fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
+    airingAt_greater: startOfWeekTimestamp,
+    airingAt_lesser: endOfWeekTimestamp
+  });
+  return data.Page.airingSchedules || [];
+}
+
 export const ANIME_GENRES = [
   'Action', 'Adventure', 'Comedy', 'Drama', 'Fantasy', 'Horror',
   'Mahou Shoujo', 'Mecha', 'Music', 'Mystery', 'Psychological',

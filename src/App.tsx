@@ -6,6 +6,7 @@ import BrowsePage from './pages/BrowsePage';
 import DetailsPage from './pages/DetailsPage';
 import WatchPage from './pages/WatchPage';
 import WatchlistPage from './pages/WatchlistPage';
+import SchedulePage from './pages/SchedulePage';
 import ProfilePage from './pages/ProfilePage';
 
 export default function App() {
@@ -18,6 +19,7 @@ export default function App() {
           <Route path="/anime/:id" element={<DetailsPage />} />
           <Route path="/watch/:id/:episode" element={<WatchPage />} />
           <Route path="/watchlist" element={<WatchlistPage />} />
+          <Route path="/schedule" element={<SchedulePage />} />
           <Route path="/profile" element={<ProfilePage />} />
         </Routes>
       </MainLayout>
