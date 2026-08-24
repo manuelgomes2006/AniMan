@@ -22,18 +22,12 @@ import SubDubControls from '../components/player/SubDubControls';
 import RightEpisodeSidebar from '../components/player/RightEpisodeSidebar';
 import CommentsSection from '../components/player/CommentsSection';
 import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
-import ErrorState from '../components/shared/ErrorState';
 import MobileWatchPage from '../components/mobile/MobileWatchPage';
 import YomiVideoPlayer from '../components/player/YomiVideoPlayer';
 
 import {
   ChevronLeft,
-  RefreshCw,
-  Play,
-  Star,
-  Plus,
-  Heart,
-  RotateCcw
+  RefreshCw
 } from 'lucide-react';
 
 export default function WatchPage() {
@@ -93,10 +87,11 @@ export default function WatchPage() {
         // Check Resume History Timestamp
         const history = getWatchHistory();
         const past = history.find(h => h.animeId === animeId && h.episodeNumber === currentEpNum);
-        if (past && past.currentTime > 10) {
+        if (past && past.currentTime > 5) {
           setResumeTime(past.currentTime);
           setShowResumeBadge(true);
         } else {
+          setResumeTime(0);
           setShowResumeBadge(false);
         }
       } catch (err) {
@@ -156,10 +151,16 @@ export default function WatchPage() {
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Track watch progress & prefetch Episode N+1
+  // Real-time playback position update to Watch History
+  const handleTimeUpdate = (cur: number, dur: number) => {
+    if (anime && cur > 2) {
+      updateWatchProgress(anime, currentEpNum, cur, dur || 1430);
+    }
+  };
+
+  // Prefetch Episode N+1
   useEffect(() => {
     if (anime) {
-      updateWatchProgress(anime, currentEpNum, resumeTime || 877, 1430);
       prefetchNextEpisodeSources({
         animeId,
         title,
@@ -243,6 +244,7 @@ export default function WatchPage() {
               title={title}
               episodeNumber={currentEpNum}
               initialTime={resumeTime || 0}
+              onTimeUpdate={handleTimeUpdate}
               skipIntroEnabled={profile?.preferences?.skipIntro || false}
               skipOutroEnabled={profile?.preferences?.skipOutro || false}
               onSwitchMirror={handleSwitchMirror}
