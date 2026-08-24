@@ -69,9 +69,9 @@ export default function MobileWatchPage({
   };
 
   return (
-    <div className="relative w-full space-y-4 pb-24 text-white font-sans overflow-hidden">
-      {/* 1. Static Mobile Header Bar */}
-      <div className="relative w-full flex items-center justify-between py-1.5 px-1 border-b border-slate-900/80 bg-[#050507]">
+    <div className="space-y-4 pb-20 text-white font-sans">
+      {/* 1. Mobile Top Header Bar */}
+      <div className="flex items-center justify-between py-1 px-1 border-b border-slate-900/80">
         <div className="flex items-center gap-2 min-w-0">
           <button onClick={() => navigate(-1)} className="p-1 text-slate-300 hover:text-white cursor-pointer">
             <ChevronLeft className="w-5 h-5 text-white" />
@@ -89,7 +89,7 @@ export default function MobileWatchPage({
         </div>
       </div>
 
-      {/* 2. Static Video Player Box */}
+      {/* 2. Mobile Video Player Container */}
       <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-900">
         {streamError || !activeSource ? (
           <ErrorState
@@ -111,13 +111,13 @@ export default function MobileWatchPage({
         )}
       </div>
 
-      {/* 3. Anime Details & Action Row */}
-      <div className="relative w-full space-y-3 px-1">
+      {/* 3. Anime Details & Action Buttons */}
+      <div className="space-y-3 px-1">
         <div className="flex items-start justify-between gap-3">
-          <div className="space-y-0.5 min-w-0">
-            <h1 className="text-base font-black text-white line-clamp-1">{title}</h1>
+          <div className="space-y-0.5">
+            <h1 className="text-base font-black text-white">{title}</h1>
             <p className="text-xs font-bold text-slate-400">S1 • Episode {currentEpNum}</p>
-            <p className="text-xs font-bold text-purple-400 line-clamp-1">{epTitle}</p>
+            <p className="text-xs font-bold text-purple-400">{epTitle}</p>
           </div>
 
           <button
@@ -129,7 +129,7 @@ export default function MobileWatchPage({
           </button>
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Action Row: + Watchlist | 👍 Like | 🔗 Share */}
         <div className="flex items-center gap-5 pt-1 text-xs font-bold text-slate-300 border-b border-slate-900 pb-3">
           <button
             onClick={onToggleWatchlist}
@@ -151,10 +151,10 @@ export default function MobileWatchPage({
         </div>
       </div>
 
-      {/* 4. STATIC AUDIO & RESOLUTION CONTROL BAR */}
-      <div className="relative w-full bg-[#0D0D12] border border-slate-800/80 rounded-2xl p-3 space-y-2.5 shadow-md">
+      {/* 4. AUDIO Section */}
+      <div className="space-y-2 px-1">
         <div className="flex items-center justify-between text-xs">
-          <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[11px]">AUDIO & RESOLUTION</span>
+          <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[11px]">AUDIO</span>
           <div className="flex items-center gap-1.5 text-[11px]">
             <span className="text-slate-400">Prefer Sub</span>
             <Edit3 className="w-3 h-3 text-slate-400" />
@@ -167,36 +167,36 @@ export default function MobileWatchPage({
         <div className="grid grid-cols-2 gap-2.5">
           <button
             onClick={() => onAudioChange('sub')}
-            className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center ${
+            className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center ${
               audioVariant === 'sub'
                 ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-950/60 font-black'
-                : 'bg-[#050507] border-slate-800 text-slate-400 hover:text-white'
+                : 'bg-[#0D0D12] border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
             <span className="font-extrabold text-xs tracking-wide">SUB</span>
             <span className={`text-[9px] font-semibold uppercase mt-0.5 ${audioVariant === 'sub' ? 'text-purple-200' : 'text-slate-500'}`}>
-              Japanese • 1080p
+              Japanese
             </span>
           </button>
 
           <button
             onClick={() => onAudioChange('dub')}
-            className={`p-2.5 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center ${
+            className={`p-3 rounded-xl border text-center transition cursor-pointer flex flex-col items-center justify-center ${
               audioVariant === 'dub'
                 ? 'bg-purple-600 text-white border-purple-400 shadow-lg shadow-purple-950/60 font-black'
-                : 'bg-[#050507] border-slate-800 text-slate-400 hover:text-white'
+                : 'bg-[#0D0D12] border-slate-800 text-slate-400 hover:text-white'
             }`}
           >
             <span className="font-extrabold text-xs tracking-wide">DUB</span>
             <span className={`text-[9px] font-semibold uppercase mt-0.5 ${audioVariant === 'dub' ? 'text-purple-200' : 'text-slate-500'}`}>
-              English • 1080p
+              English
             </span>
           </button>
         </div>
       </div>
 
       {/* 5. EPISODES Section */}
-      <div className="relative w-full space-y-2.5 px-1 pt-1">
+      <div className="space-y-2.5 px-1 pt-2">
         <div className="flex items-center justify-between text-xs">
           <span className="font-extrabold text-slate-400 uppercase tracking-wider text-[11px]">EPISODES</span>
           <div className="flex items-center gap-1 text-slate-300 font-extrabold text-xs">

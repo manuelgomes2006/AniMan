@@ -14,20 +14,27 @@ export default function MobileBottomNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0D0D12]/95 backdrop-blur-xl border-t border-slate-800/80 px-4 py-2 flex items-center justify-around shadow-2xl">
+    <nav
+      aria-label="Mobile Navigation"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)' }}
+      className="md:hidden fixed bottom-0 left-0 right-0 z-[9999] w-full bg-[#0D0D12]/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 pt-2 flex items-center justify-around shadow-2xl pointer-events-auto transform-none"
+    >
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+        const isActive =
+          location.pathname === item.path ||
+          (item.path !== '/' && location.pathname.startsWith(item.path));
+
         return (
           <Link
             key={item.label}
             to={item.path}
-            className={`flex flex-col items-center gap-1 transition-all duration-200 py-1 px-3 rounded-xl ${
-              isActive ? 'text-purple-400 font-bold scale-105' : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center gap-1 transition-all duration-150 py-1 px-3 rounded-xl cursor-pointer ${
+              isActive ? 'text-purple-400 font-black scale-105' : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Icon className={`w-5 h-5 ${isActive ? 'text-purple-400' : ''}`} />
-            <span className="text-[10px] font-semibold tracking-tight">{item.label}</span>
+            <Icon className={`w-5 h-5 ${isActive ? 'text-purple-400 fill-purple-400/20' : ''}`} />
+            <span className="text-[10px] font-bold tracking-tight">{item.label}</span>
           </Link>
         );
       })}
