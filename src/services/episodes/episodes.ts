@@ -15,7 +15,14 @@ export interface NormalizedEpisode {
 
 const MAL_EPISODE_CACHE = new Map<number, NormalizedEpisode[]>();
 
-// Fetch 100% accurate episode list from MyAnimeList / AniList
+/**
+ * Episode Metadata Authority: MyAnimeList (MAL)
+ * Source Responsibility:
+ * - Episode numbers -> MAL
+ * - Episode titles -> MAL
+ * - Episode air dates -> MAL
+ * - Episode duration -> MAL
+ */
 export async function getNormalizedEpisodes(
   animeId: number,
   totalEpisodes: number = 12,
@@ -31,7 +38,7 @@ export async function getNormalizedEpisodes(
   const epCount = totalEpisodes > 0 ? totalEpisodes : 12;
 
   try {
-    const res = await fetch(`https://api.jikan.moe/v4/anime/${targetId}/episodes`);
+    const res = await fetch(`https://api.jikan.moe/v4/anime/${targetId}/episodes?page=1`);
     if (res.ok) {
       const json = await res.json();
       const malEpList = json.data || [];
@@ -43,7 +50,7 @@ export async function getNormalizedEpisodes(
             number: epNum,
             title: item.title || item.title_romanji || `Episode ${epNum}`,
             airDate: item.aired ? new Date(item.aired).toLocaleDateString() : undefined,
-            duration: 24,
+            duration: item.duration ? parseInt(item.duration, 10) : 24,
             malId: item.mal_id,
             isFiller: Boolean(item.filler),
             isRecap: Boolean(item.recap),
