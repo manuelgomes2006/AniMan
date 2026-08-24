@@ -16,12 +16,8 @@ export interface NormalizedEpisode {
 const MAL_EPISODE_CACHE = new Map<number, NormalizedEpisode[]>();
 
 /**
- * Episode Metadata Authority: MyAnimeList (MAL)
- * Source Responsibility:
- * - Episode numbers -> MAL
- * - Episode titles -> MAL
- * - Episode air dates -> MAL
- * - Episode duration -> MAL
+ * Episode Metadata Authority: MyAnimeList (MAL) & AniList
+ * Supports 10, 100, 500, 1000, 2000+ episodes without any hardcoded 100-episode cap.
  */
 export async function getNormalizedEpisodes(
   animeId: number,
@@ -35,29 +31,35 @@ export async function getNormalizedEpisodes(
   }
 
   const episodes: NormalizedEpisode[] = [];
-  const epCount = totalEpisodes > 0 ? totalEpisodes : 12;
+  // Ensure epCount covers full series (e.g. 1120+ for One Piece, 500+ for Naruto Shippuden)
+  const epCount = Math.max(totalEpisodes > 0 ? totalEpisodes : 12, 1);
 
   try {
     const res = await fetch(`https://api.jikan.moe/v4/anime/${targetId}/episodes?page=1`);
     if (res.ok) {
       const json = await res.json();
       const malEpList = json.data || [];
+      const malEpMap = new Map<number, any>();
 
-      if (malEpList.length > 0) {
-        malEpList.forEach((item: any, idx: number) => {
-          const epNum = item.mal_id || item.episode || idx + 1;
-          episodes.push({
-            number: epNum,
-            title: item.title || item.title_romanji || `Episode ${epNum}`,
-            airDate: item.aired ? new Date(item.aired).toLocaleDateString() : undefined,
-            duration: item.duration ? parseInt(item.duration, 10) : 24,
-            malId: item.mal_id,
-            isFiller: Boolean(item.filler),
-            isRecap: Boolean(item.recap),
-            subAvailable: true,
-            dubAvailable: true,
-            playable: true,
-          });
+      malEpList.forEach((item: any) => {
+        const epNum = item.mal_id || item.episode;
+        if (epNum) malEpMap.set(epNum, item);
+      });
+
+      // Generate complete episode list 1..epCount up to max
+      for (let i = 1; i <= epCount; i++) {
+        const malItem = malEpMap.get(i);
+        episodes.push({
+          number: i,
+          title: malItem?.title || malItem?.title_romanji || `Episode ${i}`,
+          airDate: malItem?.aired ? new Date(malItem.aired).toLocaleDateString() : undefined,
+          duration: 24,
+          malId: malItem?.mal_id,
+          isFiller: Boolean(malItem?.filler),
+          isRecap: Boolean(malItem?.recap),
+          subAvailable: true,
+          dubAvailable: true,
+          playable: true,
         });
       }
     }
@@ -65,7 +67,7 @@ export async function getNormalizedEpisodes(
     console.warn('MAL Episode fetch fallback:', err);
   }
 
-  // If MAL returned empty or errored, generate exact 1..epCount episode list
+  // If MAL query fails, fallback to complete 1..epCount episode list
   if (episodes.length === 0) {
     for (let i = 1; i <= epCount; i++) {
       episodes.push({
