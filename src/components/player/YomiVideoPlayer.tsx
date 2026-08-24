@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, FastForward, Settings } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, Settings } from 'lucide-react';
 import { StreamingSource } from '../../services/streaming/providerTypes';
 
 interface AniworldVideoPlayerProps {
@@ -23,7 +23,6 @@ export default function YomiVideoPlayer({
   onTimeUpdate,
   initialTime = 0,
   skipIntroEnabled = false,
-  skipOutroEnabled = false,
   onSwitchMirror
 }: AniworldVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -115,12 +114,6 @@ export default function YomiVideoPlayer({
     }
   };
 
-  const handleSkipIntroClick = () => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = Math.min(duration, currentTime + 90);
-    }
-  };
-
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = parseFloat(e.target.value);
     setCurrentTime(val);
@@ -202,18 +195,7 @@ export default function YomiVideoPlayer({
         />
       )}
 
-      {/* 2. Skip Intro Overlay Button */}
-      <div className="absolute bottom-16 left-4 z-30 flex items-center gap-2">
-        <button
-          onClick={handleSkipIntroClick}
-          className="bg-purple-600/90 hover:bg-purple-500 text-white font-extrabold text-xs px-3.5 py-2 rounded-xl shadow-lg backdrop-blur-md transition flex items-center gap-1.5 cursor-pointer border border-purple-400/40"
-        >
-          <FastForward className="w-4 h-4" />
-          <span>Skip Intro (+90s)</span>
-        </button>
-      </div>
-
-      {/* 3. Custom AniWorld Player Controls Overlay */}
+      {/* 2. Custom AniWorld Player Controls Overlay */}
       {isHlsSource && (
         <div
           className={`absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent transition-opacity duration-300 flex flex-col justify-between p-4 z-20 ${
