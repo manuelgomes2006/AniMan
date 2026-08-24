@@ -4,6 +4,7 @@ import { NormalizedEpisode } from '../../services/episodes/episodes';
 import { NormalizedStreamResponse, StreamingSource } from '../../services/streaming/providerTypes';
 import { AnimeMedia } from '../../types/anime';
 import ErrorState from '../shared/ErrorState';
+import YomiVideoPlayer from '../player/YomiVideoPlayer';
 
 import {
   ChevronLeft,
@@ -63,7 +64,7 @@ export default function MobileWatchPage({
   };
 
   const epTitle = currentEpData.title || `Episode ${currentEpNum}`;
-  const cover = anime?.coverImage?.large || anime?.coverImage?.medium;
+  const cover = anime?.coverImage?.extraLarge || anime?.coverImage?.large || anime?.coverImage?.medium;
 
   const handleNextEpisode = () => {
     onSelectEpisode(currentEpNum + 1);
@@ -94,7 +95,7 @@ export default function MobileWatchPage({
       </div>
 
       {/* 2. Mobile Video Player Container */}
-      <div className="relative w-full aspect-video bg-black rounded-2xl overflow-hidden shadow-2xl border border-slate-900">
+      <div className="w-full">
         {streamError || !activeSource ? (
           <ErrorState
             title="Streaming Source Unavailable"
@@ -102,16 +103,12 @@ export default function MobileWatchPage({
             onRetry={onRetryStream}
           />
         ) : (
-          <iframe
-            key={`${activeSource.url}-${audioVariant}`}
-            src={activeSource.url}
-            title={`${title} - Episode ${currentEpNum}`}
-            className="w-full h-full border-0"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
-            allowFullScreen
-            referrerPolicy="origin"
-            loading="eager"
-            onError={onRetryStream}
+          <YomiVideoPlayer
+            source={activeSource}
+            title={title}
+            episodeNumber={currentEpNum}
+            onSwitchMirror={onSwitchMirror}
+            onEnded={handleNextEpisode}
           />
         )}
       </div>
@@ -222,6 +219,7 @@ export default function MobileWatchPage({
         <div className="space-y-2">
           {episodes.map((ep) => {
             const isCurrent = ep.number === currentEpNum;
+            const thumbSrc = ep.thumbnail || cover || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80';
             return (
               <div
                 key={ep.number}
@@ -234,7 +232,14 @@ export default function MobileWatchPage({
               >
                 <div className="flex items-center gap-3">
                   <div className="relative w-20 aspect-video rounded-xl overflow-hidden shrink-0 bg-slate-950">
-                    <img src={cover || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80'} alt={ep.title} className="w-full h-full object-cover" />
+                    <img
+                      src={thumbSrc}
+                      alt={ep.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = cover || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80';
+                      }}
+                    />
                     {isCurrent ? (
                       <div className="absolute inset-0 bg-purple-900/70 backdrop-blur-[1px] flex items-center justify-center">
                         <Pause className="w-4 h-4 text-white fill-white" />
@@ -259,16 +264,6 @@ export default function MobileWatchPage({
                     <MoreVertical className="w-4 h-4 hover:text-white" />
                   </div>
                 </div>
-
-                {/* Progress Bar for Active Playing Episode */}
-                {isCurrent && (
-                  <div className="space-y-1 pt-1 border-t border-purple-800/30">
-                    <div className="w-full bg-slate-800 h-1 rounded-full overflow-hidden">
-                      <div className="bg-purple-500 h-full w-[62%] rounded-full" />
-                    </div>
-                    <p className="text-[9px] text-purple-400 font-semibold text-right">14:37 / 23:50</p>
-                  </div>
-                )}
               </div>
             );
           })}
