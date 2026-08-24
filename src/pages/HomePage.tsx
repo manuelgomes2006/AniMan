@@ -11,10 +11,11 @@ import { AnimeMedia } from '../types/anime';
 import { WatchProgress } from '../types/user';
 
 import HeroCarousel from '../components/common/HeroCarousel';
+import CarouselRow from '../components/common/CarouselRow';
 import SkeletonLoader from '../components/shared/SkeletonLoader';
 import AnimeCard from '../components/common/AnimeCard';
 
-import { Play, TrendingUp, Sparkles, Flame, Clock } from 'lucide-react';
+import { TrendingUp, Sparkles, Flame, Clock } from 'lucide-react';
 
 export default function HomePage() {
   const [trending, setTrending] = useState<AnimeMedia[]>([]);
@@ -33,10 +34,10 @@ export default function HomePage() {
       setWatchHistory(historyData);
 
       const results = await Promise.allSettled([
-        getTrendingAnime(1, 12),
-        getPopularAnime(1, 12),
-        getTopRatedAnime(1, 12),
-        getCurrentlyAiringAnime(1, 12),
+        getTrendingAnime(1, 24),
+        getPopularAnime(1, 24),
+        getTopRatedAnime(1, 24),
+        getCurrentlyAiringAnime(1, 24),
       ]);
 
       if (results[0].status === 'fulfilled') setTrending(results[0].value);
@@ -95,85 +96,39 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* 3. Trending Now Row */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Flame className="w-4 h-4 text-purple-400 fill-purple-400" />
-            <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
-              Trending Now
-            </h2>
-          </div>
-        </div>
+      {/* 3. Trending Now Horizontally Scrollable Carousel */}
+      <CarouselRow
+        title="Trending Now"
+        items={trending}
+        icon={<Flame className="w-4 h-4 text-purple-400 fill-purple-400" />}
+      />
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-          {trending.map((item) => (
-            <AnimeCard key={item.id} anime={item} />
-          ))}
-        </div>
-      </section>
-
-      {/* 4. Latest Episodes Row */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
-              Latest Episodes
-            </h2>
-          </div>
-          <Link to="/browse" className="text-xs font-extrabold text-purple-400 hover:underline">
+      {/* 4. Latest Episodes Horizontally Scrollable Carousel */}
+      <CarouselRow
+        title="Latest Episodes"
+        items={airing}
+        variant="latest"
+        icon={<Sparkles className="w-4 h-4 text-purple-400" />}
+        actionLink={
+          <Link to="/browse" className="text-xs font-extrabold text-purple-400 hover:underline mr-2">
             View All →
           </Link>
-        </div>
+        }
+      />
 
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-          {airing.slice(0, 12).map((item) => (
-            <AnimeCard
-              key={item.id}
-              anime={item}
-              variant="latest"
-              episodeNumber={item.nextAiringEpisode?.episode ? item.nextAiringEpisode.episode - 1 : 12}
-            />
-          ))}
-        </div>
-      </section>
+      {/* 5. Most Popular Horizontally Scrollable Carousel */}
+      <CarouselRow
+        title="Most Popular"
+        items={popular}
+        icon={<TrendingUp className="w-4 h-4 text-purple-400" />}
+      />
 
-      {/* 5. Most Popular Row */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-4 h-4 text-purple-400" />
-            <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
-              Most Popular
-            </h2>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-          {popular.map((item) => (
-            <AnimeCard key={item.id} anime={item} />
-          ))}
-        </div>
-      </section>
-
-      {/* 6. Top Rated Row */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-4 h-4 text-purple-400" />
-            <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider">
-              Top Rated Anime
-            </h2>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 gap-3">
-          {topRated.map((item) => (
-            <AnimeCard key={item.id} anime={item} />
-          ))}
-        </div>
-      </section>
+      {/* 6. Top Rated Horizontally Scrollable Carousel */}
+      <CarouselRow
+        title="Top Rated Anime"
+        items={topRated}
+        icon={<Sparkles className="w-4 h-4 text-purple-400" />}
+      />
     </div>
   );
 }
