@@ -71,7 +71,8 @@ export default function WatchPage() {
         const episodesData = await getNormalizedEpisodes(
           animeId,
           animeData.episodes,
-          animeData.idMal
+          animeData.idMal,
+          animeData.streamingEpisodes
         );
 
         const resolvedStreams = await resolveParallelSources({
@@ -147,6 +148,7 @@ export default function WatchPage() {
   const epTitle = currentEpData.title || `Episode ${currentEpNum}`;
   const score = anime?.averageScore ? (anime.averageScore / 10).toFixed(1) : '9.3';
   const year = anime?.seasonYear || 2024;
+  const cover = anime?.coverImage?.extraLarge || anime?.coverImage?.large || anime?.coverImage?.medium;
 
   const formatTime = (secs: number) => {
     const m = Math.floor(secs / 60);
@@ -275,6 +277,7 @@ export default function WatchPage() {
               episodes={normalizedEpisodes}
               currentEpNum={currentEpNum}
               onSelectEpisode={handleSelectEpisode}
+              coverImage={cover}
               totalEpisodes={anime?.episodes || normalizedEpisodes.length}
             />
           </div>

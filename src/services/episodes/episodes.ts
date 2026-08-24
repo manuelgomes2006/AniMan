@@ -31,17 +31,28 @@ const KNOWN_EPISODE_COUNTS: Record<number, number> = {
 
 /**
  * Episode Metadata Authority: MyAnimeList (MAL) & AniList
- * Dynamically resolves full episode count for 10, 100, 500, 1000, 2000+ episode series.
+ * Dynamically resolves full episode count and thumbnails for 10, 100, 500, 1000, 2000+ episode series.
  */
 export async function getNormalizedEpisodes(
   animeId: number,
   totalEpisodes?: number | null,
-  malId?: number
+  malId?: number,
+  streamingEpisodes?: Array<{ title?: string; thumbnail?: string; url?: string }>
 ): Promise<NormalizedEpisode[]> {
   const targetId = malId || animeId;
 
   if (MAL_EPISODE_CACHE.has(targetId)) {
     return MAL_EPISODE_CACHE.get(targetId)!;
+  }
+
+  // Map AniList streaming episode thumbnails
+  const streamingThumbnailMap = new Map<number, string>();
+  if (streamingEpisodes && streamingEpisodes.length > 0) {
+    streamingEpisodes.forEach((se, idx) => {
+      if (se.thumbnail) {
+        streamingThumbnailMap.set(idx + 1, se.thumbnail);
+      }
+    });
   }
 
   // Resolve total episode count
@@ -62,9 +73,10 @@ export async function getNormalizedEpisodes(
         if (epNum) malEpMap.set(epNum, item);
       });
 
-      // Generate complete episode list 1..epCount up to max (e.g. 1120 for One Piece)
+      // Generate complete episode list 1..epCount
       for (let i = 1; i <= epCount; i++) {
         const malItem = malEpMap.get(i);
+        const thumb = streamingThumbnailMap.get(i);
         episodes.push({
           number: i,
           title: malItem?.title || malItem?.title_romanji || `Episode ${i}`,
@@ -76,6 +88,7 @@ export async function getNormalizedEpisodes(
           subAvailable: true,
           dubAvailable: true,
           playable: true,
+          thumbnail: thumb
         });
       }
     }
@@ -86,12 +99,14 @@ export async function getNormalizedEpisodes(
   // Fallback if MAL query fails
   if (episodes.length === 0) {
     for (let i = 1; i <= epCount; i++) {
+      const thumb = streamingThumbnailMap.get(i);
       episodes.push({
         number: i,
         title: `Episode ${i}`,
         subAvailable: true,
         dubAvailable: true,
         playable: true,
+        thumbnail: thumb
       });
     }
   }

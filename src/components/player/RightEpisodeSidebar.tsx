@@ -77,6 +77,8 @@ export default function RightEpisodeSidebar({
     }
   }, [activeEp, rangeIndex]);
 
+  const defaultCover = coverImage || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=400&q=80';
+
   return (
     <div className="bg-[#0D0D12]/90 border border-slate-800/80 rounded-3xl p-4 space-y-4 shadow-xl">
       {/* Top Tabs: Episodes | Related */}
@@ -138,6 +140,7 @@ export default function RightEpisodeSidebar({
           <div className="space-y-2.5 max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
             {displayedEpisodes.map((ep) => {
               const isCurrent = ep.number === activeEp;
+              const thumbSrc = ep.thumbnail || defaultCover;
               return (
                 <button
                   key={ep.number}
@@ -153,9 +156,12 @@ export default function RightEpisodeSidebar({
                   {/* Episode Thumbnail */}
                   <div className="relative w-24 aspect-video rounded-xl overflow-hidden shrink-0 bg-slate-900">
                     <img
-                      src={coverImage || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=400&q=80'}
+                      src={thumbSrc}
                       alt={ep.title}
                       className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = defaultCover;
+                      }}
                     />
                     {isCurrent && (
                       <div className="absolute inset-0 bg-purple-950/70 backdrop-blur-[1px] flex items-center justify-center">
