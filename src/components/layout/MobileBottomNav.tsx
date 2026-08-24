@@ -1,4 +1,5 @@
 import React from 'react';
+import ReactDOM from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, Compass, Calendar, Bookmark, User } from 'lucide-react';
 
@@ -13,11 +14,11 @@ export default function MobileBottomNav() {
     { label: 'Profile', path: '/profile', icon: User },
   ];
 
-  return (
+  const content = (
     <nav
       aria-label="Mobile Navigation"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 6px)' }}
-      className="md:hidden fixed bottom-0 left-0 right-0 z-[9999] w-full bg-[#0D0D12]/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 pt-2 flex items-center justify-around shadow-2xl pointer-events-auto transform-none"
+      className="md:hidden mobile-fixed-bottom bg-[#0D0D12]/95 backdrop-blur-2xl border-t border-slate-800/80 px-2 pt-2 flex items-center justify-around shadow-2xl pointer-events-auto"
     >
       {navItems.map((item) => {
         const Icon = item.icon;
@@ -40,4 +41,11 @@ export default function MobileBottomNav() {
       })}
     </nav>
   );
+
+  // Render directly at body root using React Portal to prevent any parent container transform interference
+  if (typeof document !== 'undefined' && document.body) {
+    return ReactDOM.createPortal(content, document.body);
+  }
+
+  return content;
 }
