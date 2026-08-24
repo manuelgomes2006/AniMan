@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { Mail, Lock, User, UserPlus } from 'lucide-react';
+import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw } from 'lucide-react';
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -14,6 +14,11 @@ export default function SignupPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Email verification state
+  const [verificationSent, setVerificationSent] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resendSuccess, setResendSuccess] = useState(false);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -39,6 +44,7 @@ export default function SignupPage() {
         email,
         password,
         options: {
+          emailRedirectTo: `${window.location.origin}/login?verified=true`,
           data: {
             username: cleanUsername,
             display_name: cleanUsername,
@@ -51,34 +57,15 @@ export default function SignupPage() {
           setError('An account with this email already exists.');
           return;
         }
-        // Fallback for dev / unconfigured Supabase database setup
         setGuestSession(email, cleanUsername);
         navigate('/', { replace: true });
         return;
       }
 
-      if (data.user) {
-        // Initialize profile row directly if trigger hasn't completed
-        await supabase.from('profiles').upsert({
-          id: data.user.id,
-          username: cleanUsername,
-          display_name: cleanUsername,
-          avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'
-        }, { onConflict: 'id' }).catch(() => {});
-
-        await supabase.from('user_preferences').upsert({
-          user_id: data.user.id,
-          preferred_audio: 'sub',
-          preferred_quality: 'auto',
-          autoplay: true,
-          autoplay_next: true,
-          skip_intro: false,
-          skip_outro: false
-        }, { onConflict: 'user_id' }).catch(() => {});
-
-        navigate('/', { replace: true });
+      // If user requires email confirmation
+      if (data.user && !data.session) {
+        setVerificationSent(true);
       } else {
-        setGuestSession(email, cleanUsername);
         navigate('/', { replace: true });
       }
     } catch (err: any) {
@@ -89,6 +76,70 @@ export default function SignupPage() {
       setLoading(false);
     }
   };
+
+  const handleResendVerification = async () => {
+    if (!email) return;
+    setResending(true);
+    try {
+      await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/login?verified=true`
+        }
+      });
+      setResendSuccess(true);
+      setTimeout(() => setResendSuccess(false), 4000);
+    } catch (err) {
+      console.warn('Resend error:', err);
+    } finally {
+      setResending(false);
+    }
+  };
+
+  // If email verification link was sent
+  if (verificationSent) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+        <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl text-center">
+          <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/40 rounded-full flex items-center justify-center mx-auto text-purple-400">
+            <Mail className="w-8 h-8" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-black text-white">Verify Your Email Address 📧</h2>
+            <p className="text-xs text-slate-300 leading-relaxed">
+              We've sent a verification link to <span className="font-bold text-purple-400">{email}</span>. Please check your inbox and click the verification link to activate your account.
+            </p>
+          </div>
+
+          {resendSuccess && (
+            <div className="bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs p-3 rounded-xl flex items-center justify-center gap-1.5">
+              <CheckCircle className="w-4 h-4" /> Verification email resent successfully!
+            </div>
+          )}
+
+          <div className="space-y-3 pt-2">
+            <button
+              onClick={handleResendVerification}
+              disabled={resending}
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
+              {resending ? 'Resending Link...' : 'Resend Verification Email'}
+            </button>
+
+            <Link
+              to="/login"
+              className="block w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition"
+            >
+              Back to Sign In
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
