@@ -196,3 +196,36 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ====================================================================
+-- 🧹 AUTOMATIC 6-MONTH INACTIVE USER ACCOUNT DELETION PROCEDURE
+-- ====================================================================
+
+CREATE OR REPLACE FUNCTION public.delete_inactive_users_6_months()
+RETURNS INTEGER AS $$
+DECLARE
+  deleted_count INTEGER := 0;
+BEGIN
+  -- Delete users from auth.users who have been inactive for more than 6 months (180 days)
+  -- ON DELETE CASCADE automatically purges profiles, watchlist, history, favorites, preferences, search_history
+  WITH inactive_users AS (
+    SELECT id FROM auth.users
+    WHERE COALESCE(last_sign_in_at, created_at) < (NOW() - INTERVAL '6 months')
+  )
+  DELETE FROM auth.users
+  WHERE id IN (SELECT id FROM inactive_users);
+
+  GET DIAGNOSTICS deleted_count = ROW_COUNT;
+  RETURN deleted_count;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Enable pg_cron extension if supported on Supabase project and schedule daily cleanup at 3:00 AM UTC
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'pg_cron') THEN
+    PERFORM cron.schedule('delete_inactive_users_daily', '0 3 * * *', 'SELECT public.delete_inactive_users_6_months()');
+  END IF;
+EXCEPTION
+  WHEN OTHERS THEN NULL;
+END $$;
