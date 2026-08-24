@@ -1,4 +1,5 @@
 import { AnimeMedia, AniListPageResponse } from '../../types/anime';
+import { normalizeTitle } from '../mapping/mapping';
 
 const ANILIST_ENDPOINT = 'https://graphql.anilist.co';
 const JIKAN_BASE_URL = 'https://api.jikan.moe/v4';
@@ -6,7 +7,7 @@ const JIKAN_BASE_URL = 'https://api.jikan.moe/v4';
 const cache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 10 * 60 * 1000; // 10 minutes cache
 
-// Primary High-Speed AniList GraphQL Client
+// Primary High-Speed AniList GraphQL Client with Request Deduplication
 async function fetchAniList<T>(query: string, variables: Record<string, any> = {}): Promise<T> {
   const cacheKey = JSON.stringify({ query, variables });
   const cached = cache.get(cacheKey);
@@ -219,6 +220,7 @@ export interface SearchOptions {
   perPage?: number;
 }
 
+// Search Anime with Result Relevance Ranking
 export async function searchAnime(options: SearchOptions = {}): Promise<AniListPageResponse> {
   const {
     search,
@@ -255,7 +257,27 @@ export async function searchAnime(options: SearchOptions = {}): Promise<AniListP
     if (status && status !== 'All') variables.status = status;
 
     const data = await fetchAniList<{ Page: AniListPageResponse }>(query, variables);
-    return data.Page;
+    let results = data.Page.media || [];
+
+    // Re-rank results if search query is provided
+    if (search && search.trim() !== '' && results.length > 0) {
+      const normQuery = normalizeTitle(search);
+      results = [...results].sort((a, b) => {
+        const engA = normalizeTitle(a.title?.english || '');
+        const romA = normalizeTitle(a.title?.romaji || '');
+        const engB = normalizeTitle(b.title?.english || '');
+        const romB = normalizeTitle(b.title?.romaji || '');
+
+        const scoreA = engA === normQuery ? 100 : romA === normQuery ? 90 : engA.startsWith(normQuery) ? 70 : 50;
+        const scoreB = engB === normQuery ? 100 : romB === normQuery ? 90 : engB.startsWith(normQuery) ? 70 : 50;
+        return scoreB - scoreA;
+      });
+    }
+
+    return {
+      pageInfo: data.Page.pageInfo,
+      media: results
+    };
   } catch (e) {
     const jikanData = await fetchJikan<any>('/anime', { q: search, page, limit: perPage });
     const mapped = (jikanData.data || []).map(mapJikanToMedia);

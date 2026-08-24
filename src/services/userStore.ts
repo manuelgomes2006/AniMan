@@ -1,167 +1,159 @@
-import { WatchProgress, WatchlistItem, WatchlistCategory, UserProfile } from '../types/user';
-import { AudioVariant } from '../types/stream';
+import { WatchProgress, UserProfile } from '../types/user';
 import { AnimeMedia } from '../types/anime';
 
-const HISTORY_KEY = 'aniworld_watch_history';
-const WATCHLIST_KEY = 'aniworld_watchlist';
-const AUDIO_PREF_KEY = 'aniworld_audio_pref';
-const PROFILE_KEY = 'aniworld_user_profile';
+const STORAGE_KEYS = {
+  USER: 'aniworld_user',
+  WATCH_HISTORY: 'aniworld_watch_history',
+  WATCHLIST: 'aniworld_watchlist',
+  PREFERRED_AUDIO: 'aniworld_preferred_audio',
+};
 
-function load<T>(key: string, fallback: T): T {
-  try {
-    const raw = localStorage.getItem(key);
-    return raw ? JSON.parse(raw) : fallback;
-  } catch (err) {
-    console.error(`Error loading key ${key}:`, err);
-    return fallback;
-  }
-}
-
-function save<T>(key: string, data: T): void {
-  try {
-    localStorage.setItem(key, JSON.stringify(data));
-  } catch (err) {
-    console.error(`Error saving key ${key}:`, err);
-  }
-}
-
-// --- AUDIO PREFERENCE ('sub' | 'dub') ---
-export function getPreferredAudio(): AudioVariant {
-  return (localStorage.getItem(AUDIO_PREF_KEY) as AudioVariant) || 'sub';
-}
-
-export function setPreferredAudio(variant: AudioVariant): void {
-  localStorage.setItem(AUDIO_PREF_KEY, variant);
-}
-
-// --- WATCH HISTORY & TIMESTAMP PROGRESS ---
-export function getWatchHistory(): WatchProgress[] {
-  return load<WatchProgress[]>(HISTORY_KEY, []);
-}
-
-export function saveWatchProgress(
-  animeId: number,
-  episodeNumber: number,
-  currentTime: number,
-  duration: number,
-  title: string,
-  coverImage?: string
-): void {
-  if (!animeId || !episodeNumber) return;
-
-  const history = getWatchHistory();
-  const percentage = duration > 0 ? Math.min(100, Math.round((currentTime / duration) * 100)) : 0;
-
-  const record: WatchProgress = {
-    animeId,
-    episodeNumber,
-    currentTime: Math.floor(currentTime),
-    duration: Math.floor(duration),
-    percentage,
-    title,
-    coverImage,
-    updatedAt: new Date().toISOString()
-  };
-
-  const existingIdx = history.findIndex(
-    item => item.animeId === animeId && item.episodeNumber === episodeNumber
-  );
-
-  let updated: WatchProgress[];
-  if (existingIdx >= 0) {
-    updated = [...history];
-    updated[existingIdx] = record;
-  } else {
-    updated = [record, ...history];
-  }
-
-  save(HISTORY_KEY, updated.slice(0, 60));
-}
-
-export function getWatchProgress(animeId: number, episodeNumber: number): WatchProgress | undefined {
-  const history = getWatchHistory();
-  return history.find(item => item.animeId === animeId && item.episodeNumber === episodeNumber);
-}
-
-export function getLastWatched(animeId: number): WatchProgress | undefined {
-  const history = getWatchHistory();
-  return history.find(item => item.animeId === animeId);
-}
-
-// --- CATEGORIZED WATCHLIST ---
-export function getWatchlist(): WatchlistItem[] {
-  return load<WatchlistItem[]>(WATCHLIST_KEY, []);
-}
-
-export function getWatchlistByCategory(category: WatchlistCategory): WatchlistItem[] {
-  return getWatchlist().filter(item => item.category === category);
-}
-
-export function getWatchlistItem(animeId: number): WatchlistItem | undefined {
-  return getWatchlist().find(item => item.animeId === animeId);
-}
-
-export function setWatchlistCategory(anime: AnimeMedia, category: WatchlistCategory): WatchlistCategory | null {
-  const watchlist = getWatchlist();
-  const title = anime.title?.english || anime.title?.romaji || 'Anime';
-  const coverImage = anime.coverImage?.extraLarge || anime.coverImage?.large;
-  const bannerImage = anime.bannerImage;
-
-  const existingIdx = watchlist.findIndex(item => item.animeId === anime.id);
-
-  let updated: WatchlistItem[];
-  if (existingIdx >= 0) {
-    if (watchlist[existingIdx].category === category) {
-      // Toggle off / remove
-      updated = watchlist.filter(item => item.animeId !== anime.id);
-      save(WATCHLIST_KEY, updated);
-      return null;
-    }
-    updated = [...watchlist];
-    updated[existingIdx].category = category;
-  } else {
-    updated = [
-      {
-        animeId: anime.id,
-        title,
-        coverImage,
-        bannerImage,
-        averageScore: anime.averageScore,
-        format: anime.format,
-        episodes: anime.episodes,
-        category,
-        addedAt: new Date().toISOString()
-      },
-      ...watchlist
-    ];
-  }
-
-  save(WATCHLIST_KEY, updated);
-  return category;
-}
-
-export function removeFromWatchlist(animeId: number): void {
-  const updated = getWatchlist().filter(item => item.animeId !== animeId);
-  save(WATCHLIST_KEY, updated);
-}
-
-// --- USER PROFILE ---
+// Default Guest User Profile
 const DEFAULT_USER: UserProfile = {
-  id: 'usr_001',
-  username: 'JinWoo',
+  id: 'usr_guest_01',
+  username: 'Shadow',
   email: 'shadow@aniworld.io',
-  avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
-  preferredAudio: 'sub',
-  customTheme: 'purple'
+  avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
+  createdAt: new Date().toISOString(),
+  preferences: {
+    autoPlayNext: true,
+    defaultQuality: '1080p',
+    subOrDub: 'sub',
+  },
 };
 
 export function getUserProfile(): UserProfile {
-  return load<UserProfile>(PROFILE_KEY, DEFAULT_USER);
+  const data = localStorage.getItem(STORAGE_KEYS.USER);
+  if (!data) {
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(DEFAULT_USER));
+    return DEFAULT_USER;
+  }
+  try {
+    return JSON.parse(data);
+  } catch {
+    return DEFAULT_USER;
+  }
 }
 
-export function updateUserProfile(data: Partial<UserProfile>): UserProfile {
+export function updateUserProfile(partial: Partial<UserProfile>): UserProfile {
   const current = getUserProfile();
-  const updated = { ...current, ...data };
-  save(PROFILE_KEY, updated);
+  const updated = {
+    ...current,
+    ...partial,
+    preferences: {
+      ...current.preferences,
+      ...(partial.preferences || {}),
+    },
+  };
+  localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(updated));
   return updated;
+}
+
+export function getUserAudioPreference(): 'sub' | 'dub' {
+  const saved = localStorage.getItem(STORAGE_KEYS.PREFERRED_AUDIO);
+  return (saved === 'dub' ? 'dub' : 'sub');
+}
+
+export function setUserAudioPreference(preference: 'sub' | 'dub'): void {
+  localStorage.setItem(STORAGE_KEYS.PREFERRED_AUDIO, preference);
+}
+
+let historySaveTimeout: any = null;
+
+export function updateWatchProgress(
+  anime: AnimeMedia,
+  episodeNumber: number,
+  currentTime: number,
+  duration: number
+): void {
+  if (!anime || !anime.id) return;
+
+  const history = getWatchHistory();
+  const existingIdx = history.findIndex(
+    (item) => item.animeId === anime.id && item.episodeNumber === episodeNumber
+  );
+
+  const title = anime.title?.english || anime.title?.romaji || 'Untitled Anime';
+  const coverImage = anime.coverImage?.large || anime.coverImage?.medium || '';
+
+  const progressItem: WatchProgress = {
+    animeId: anime.id,
+    title,
+    coverImage,
+    episodeNumber,
+    currentTime,
+    duration,
+    lastWatched: new Date().toISOString(),
+  };
+
+  if (existingIdx >= 0) {
+    history[existingIdx] = progressItem;
+  } else {
+    history.unshift(progressItem);
+  }
+
+  // Debounced write to storage to prevent frequent sync writes during video playback
+  clearTimeout(historySaveTimeout);
+  historySaveTimeout = setTimeout(() => {
+    localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(history.slice(0, 50)));
+  }, 2000);
+}
+
+export function getWatchHistory(): WatchProgress[] {
+  const data = localStorage.getItem(STORAGE_KEYS.WATCH_HISTORY);
+  if (!data) return [];
+  try {
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+export interface WatchlistItem {
+  anime: AnimeMedia;
+  category: 'watching' | 'completed' | 'plan_to_watch' | 'on_hold' | 'dropped';
+  addedAt: string;
+}
+
+export function getWatchlist(): WatchlistItem[] {
+  const data = localStorage.getItem(STORAGE_KEYS.WATCHLIST);
+  if (!data) return [];
+  try {
+    return JSON.parse(data);
+  } catch {
+    return [];
+  }
+}
+
+export function getWatchlistItem(animeId: number): WatchlistItem | undefined {
+  const list = getWatchlist();
+  return list.find((item) => item.anime.id === animeId);
+}
+
+export function setWatchlistCategory(
+  anime: AnimeMedia,
+  category: 'watching' | 'completed' | 'plan_to_watch' | 'on_hold' | 'dropped'
+): WatchlistItem[] {
+  const list = getWatchlist();
+  const idx = list.findIndex((item) => item.anime.id === anime.id);
+
+  if (idx >= 0) {
+    list[idx].category = category;
+  } else {
+    list.unshift({
+      anime,
+      category,
+      addedAt: new Date().toISOString(),
+    });
+  }
+
+  localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(list));
+  return list;
+}
+
+export function removeFromWatchlist(animeId: number): WatchlistItem[] {
+  const list = getWatchlist();
+  const filtered = list.filter((item) => item.anime.id !== animeId);
+  localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(filtered));
+  return filtered;
 }

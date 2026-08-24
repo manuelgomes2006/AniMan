@@ -1,6 +1,26 @@
 import { BaseStreamingProvider } from './provider';
 import { StreamingResult, AudioVariant, ServerOption } from '../../types/stream';
 
+export function getAniLinkStreamUrl(options: {
+  animeId: number;
+  episode: number;
+  variant?: 'sub' | 'dub';
+  server?: string;
+}): string {
+  const { animeId, episode, variant = 'sub', server = 'server-1' } = options;
+  const ep = Math.max(1, episode);
+  const targetId = animeId || 11061;
+
+  if (server === 'server-2') {
+    return `https://anilink.cc/e/${targetId}-ep-${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1`;
+  }
+  if (server === 'server-3') {
+    return `https://2embed.cc/embed/anime/${targetId}/${ep}`;
+  }
+
+  return `https://anilink.cc/watch/${targetId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
+}
+
 export class AniLinkProvider extends BaseStreamingProvider {
   name = 'AniLink';
 
@@ -15,7 +35,7 @@ export class AniLinkProvider extends BaseStreamingProvider {
     const targetId = animeId || 11061;
 
     // Exact AniLink Embed Spec with autoplay, autoskipIntro, autoskipOutro, & brand colors
-    const primaryEmbedUrl = `https://anilink.cc/watch/${targetId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
+    const primaryEmbedUrl = getAniLinkStreamUrl({ animeId: targetId, episode: ep, variant });
 
     // Dynamic Server Options
     const servers: ServerOption[] = [
