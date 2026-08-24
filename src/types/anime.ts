@@ -57,6 +57,8 @@ export interface AnimeMedia {
   season?: string;
   genres?: string[];
   averageScore?: number;
+  malScore?: number;
+  aniListScore?: number;
   popularity?: number;
   nextAiringEpisode?: {
     airingAt: number;

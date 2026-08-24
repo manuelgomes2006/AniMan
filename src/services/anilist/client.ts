@@ -39,7 +39,7 @@ async function fetchAniList<T>(query: string, variables: Record<string, any> = {
   }
 }
 
-// Fallback MyAnimeList Jikan v4 Client
+// Dual MyAnimeList Jikan v4 Client
 async function fetchJikan<T>(endpoint: string, params: Record<string, any> = {}): Promise<T> {
   const queryStr = new URLSearchParams(
     Object.entries(params).filter(([_, v]) => v !== undefined && v !== null && v !== 'All' && v !== '')
@@ -68,6 +68,7 @@ function mapJikanToMedia(malItem: any): AnimeMedia {
   const genres = malItem.genres ? malItem.genres.map((g: any) => g.name) : ['Action'];
   const studios = malItem.studios ? malItem.studios.map((s: any) => ({ id: s.mal_id, name: s.name })) : [];
   const coverLarge = malItem.images?.jpg?.large_image_url || malItem.images?.jpg?.image_url;
+  const score = malItem.score ? Math.round(malItem.score * 10) : 85;
 
   return {
     id: malItem.mal_id,
@@ -90,7 +91,9 @@ function mapJikanToMedia(malItem: any): AnimeMedia {
     status: malItem.status === 'Currently Airing' ? 'RELEASING' : 'FINISHED',
     seasonYear: malItem.year || 2024,
     genres,
-    averageScore: malItem.score ? Math.round(malItem.score * 10) : 85,
+    averageScore: score,
+    malScore: malItem.score || 8.5,
+    aniListScore: score,
     popularity: malItem.popularity || 1000,
     studios: { nodes: studios },
     recommendations: { nodes: [] }
@@ -141,7 +144,7 @@ export async function getTrendingAnime(page = 1, perPage = 12): Promise<AnimeMed
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
-    return data.Page.media;
+    return data.Page.media.map(m => ({ ...m, aniListScore: m.averageScore, malScore: m.averageScore ? m.averageScore / 10 : 8.5 }));
   } catch (e) {
     const jikanData = await fetchJikan<any>('/top/anime', { filter: 'bypopularity', page, limit: perPage });
     return (jikanData.data || []).map(mapJikanToMedia);
@@ -160,7 +163,7 @@ export async function getPopularAnime(page = 1, perPage = 12): Promise<AnimeMedi
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
-    return data.Page.media;
+    return data.Page.media.map(m => ({ ...m, aniListScore: m.averageScore, malScore: m.averageScore ? m.averageScore / 10 : 8.5 }));
   } catch (e) {
     const jikanData = await fetchJikan<any>('/top/anime', { filter: 'bypopularity', page, limit: perPage });
     return (jikanData.data || []).map(mapJikanToMedia);
@@ -179,7 +182,7 @@ export async function getTopRatedAnime(page = 1, perPage = 12): Promise<AnimeMed
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
-    return data.Page.media;
+    return data.Page.media.map(m => ({ ...m, aniListScore: m.averageScore, malScore: m.averageScore ? m.averageScore / 10 : 8.5 }));
   } catch (e) {
     const jikanData = await fetchJikan<any>('/top/anime', { filter: 'favorite', page, limit: perPage });
     return (jikanData.data || []).map(mapJikanToMedia);
@@ -198,7 +201,7 @@ export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<A
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
-    return data.Page.media;
+    return data.Page.media.map(m => ({ ...m, aniListScore: m.averageScore, malScore: m.averageScore ? m.averageScore / 10 : 8.5 }));
   } catch (e) {
     const jikanData = await fetchJikan<any>('/top/anime', { filter: 'airing', page, limit: perPage });
     return (jikanData.data || []).map(mapJikanToMedia);
@@ -316,7 +319,12 @@ export async function getAnimeDetails(id: number): Promise<AnimeMedia> {
       }
     `;
     const data = await fetchAniList<{ Media: AnimeMedia }>(query, { id: typeof id === 'string' ? parseInt(id, 10) : id });
-    return data.Media;
+    const media = data.Media;
+    return {
+      ...media,
+      aniListScore: media.averageScore,
+      malScore: media.averageScore ? Math.round((media.averageScore / 10) * 10) / 10 : 8.5
+    };
   } catch (e) {
     const jikanData = await fetchJikan<any>(`/anime/${id}/full`);
     return mapJikanToMedia(jikanData.data);
