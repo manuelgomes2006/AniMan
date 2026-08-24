@@ -6,7 +6,9 @@ import { setWatchlistCategory, getWatchlistItem } from '../../services/userStore
 
 interface AnimeCardProps {
   anime?: AnimeMedia;
-  variant?: 'standard' | 'progress';
+  variant?: 'standard' | 'progress' | 'latest';
+  episodeNumber?: number;
+  hasDub?: boolean;
   progressData?: {
     episodeNumber: number;
     currentTime: number;
@@ -15,7 +17,7 @@ interface AnimeCardProps {
   };
 }
 
-export default function AnimeCard({ anime, variant = 'standard', progressData }: AnimeCardProps) {
+export default function AnimeCard({ anime, variant = 'standard', episodeNumber, hasDub = true, progressData }: AnimeCardProps) {
   if (!anime) return null;
 
   const title = anime.title?.english || anime.title?.romaji || anime.title?.native || 'Untitled Anime';
@@ -33,7 +35,65 @@ export default function AnimeCard({ anime, variant = 'standard', progressData }:
     setInWatchlist(Boolean(updated));
   };
 
-  // Continue Watching Card Variant (Matching Mockup 1 layout)
+  // HiAnime-Style Latest Episode Card Variant (with [SUB] [DUB] badges)
+  if (variant === 'latest') {
+    const epNum = episodeNumber || 1;
+    return (
+      <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-auto shrink-0">
+        <Link to={`/watch/${anime.id}/${epNum}`} className="relative aspect-[3/4] overflow-hidden bg-slate-950 block">
+          <img
+            src={cover}
+            alt={title}
+            loading="lazy"
+            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+          />
+
+          {/* Episode Number Badge Overlay */}
+          <div className="absolute top-1.5 left-1.5 z-10 bg-purple-600/90 backdrop-blur-md px-1.5 py-0.5 rounded-md text-[9px] font-black text-white uppercase shadow-md">
+            EP {epNum < 10 ? `0${epNum}` : epNum}
+          </div>
+
+          {/* Rating Badge */}
+          <div className="absolute bottom-1.5 right-1.5 z-10 bg-[#050507]/90 backdrop-blur-md px-1 py-0.5 rounded-md border border-slate-800 flex items-center gap-0.5">
+            <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
+            <span className="text-[9px] font-extrabold text-white">{score}</span>
+          </div>
+
+          {/* Quick Play Hover */}
+          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
+            <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center shadow-lg">
+              <Play className="w-4 h-4 fill-white ml-0.5" />
+            </div>
+          </div>
+        </Link>
+
+        {/* Card Info + SUB/DUB Indicators */}
+        <div className="p-2 flex-1 flex flex-col justify-between space-y-1">
+          <Link
+            to={`/watch/${anime.id}/${epNum}`}
+            className="font-bold text-[11px] text-slate-100 hover:text-purple-400 line-clamp-1 leading-tight"
+            title={title}
+          >
+            {title}
+          </Link>
+
+          {/* Glowing Purple SUB/DUB Badges */}
+          <div className="flex items-center gap-1 text-[8px] font-extrabold pt-0.5">
+            <span className="bg-purple-950 text-purple-300 border border-purple-700/60 px-1 py-0.2 rounded">
+              SUB
+            </span>
+            {hasDub && (
+              <span className="bg-purple-900/60 text-purple-200 border border-purple-600/40 px-1 py-0.2 rounded">
+                DUB
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Continue Watching Card Variant
   if (variant === 'progress' && progressData) {
     const percentage = progressData.duration > 0
       ? Math.min(100, Math.round((progressData.currentTime / progressData.duration) * 100))
@@ -42,10 +102,9 @@ export default function AnimeCard({ anime, variant = 'standard', progressData }:
     return (
       <Link
         to={`/watch/${anime.id}/${progressData.episodeNumber}`}
-        className="group bg-[#0D0D12] border border-slate-900/90 hover:border-purple-500/50 rounded-2xl p-3 flex items-center gap-3.5 transition-all duration-300 shadow-lg hover:shadow-purple-950/20"
+        className="group bg-[#0D0D12] border border-slate-900/90 hover:border-purple-500/50 rounded-2xl p-2.5 flex items-center gap-3 transition-all duration-300 shadow-md"
       >
-        {/* Left Thumbnail */}
-        <div className="relative w-24 sm:w-28 aspect-video rounded-xl overflow-hidden bg-slate-950 shrink-0">
+        <div className="relative w-20 sm:w-24 aspect-video rounded-xl overflow-hidden bg-slate-950 shrink-0">
           <img
             src={cover}
             alt={title}
@@ -53,18 +112,17 @@ export default function AnimeCard({ anime, variant = 'standard', progressData }:
           />
         </div>
 
-        {/* Info + Progress Bar */}
         <div className="flex-1 min-w-0">
-          <h4 className="font-extrabold text-xs sm:text-sm text-white line-clamp-1 group-hover:text-purple-400 transition">
+          <h4 className="font-extrabold text-xs text-white line-clamp-1 group-hover:text-purple-400 transition">
             {title}
           </h4>
-          <span className="text-[10px] sm:text-[11px] text-slate-400 font-medium block mt-0.5">
+          <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
             S1 • Ep {progressData.episodeNumber}
           </span>
           <span className="text-[10px] text-purple-400 font-semibold block mt-0.5">
             {progressData.timeLeft || '15m left'}
           </span>
-          <div className="w-full bg-slate-900 h-1.5 rounded-full mt-2 overflow-hidden">
+          <div className="w-full bg-slate-900 h-1 rounded-full mt-1.5 overflow-hidden">
             <div
               className="bg-purple-500 h-full rounded-full transition-all"
               style={{ width: `${percentage}%` }}
@@ -72,26 +130,16 @@ export default function AnimeCard({ anime, variant = 'standard', progressData }:
           </div>
         </div>
 
-        {/* Circular Play Button & Options (Matching Mockup 1) */}
-        <div className="flex items-center gap-1 shrink-0">
-          <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-            <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
-          </div>
-          <button
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); }}
-            className="p-1 text-slate-500 hover:text-white"
-          >
-            <MoreVertical className="w-4 h-4" />
-          </button>
+        <div className="w-7 h-7 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg shrink-0">
+          <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
         </div>
       </Link>
     );
   }
 
-  // Standard Poster Card (Matching Mockup 1 horizontal carousel & grid)
+  // Dense Standard Poster Card (110-130px width on mobile screens)
   return (
-    <div className="group relative bg-[#0D0D12] rounded-2xl overflow-hidden border border-slate-900/80 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-lg hover:shadow-purple-950/30">
-      {/* Poster Image Container */}
+    <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-auto shrink-0">
       <Link to={`/anime/${anime.id}`} className="relative aspect-[3/4] overflow-hidden bg-slate-950 block">
         <img
           src={cover}
@@ -100,42 +148,38 @@ export default function AnimeCard({ anime, variant = 'standard', progressData }:
           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
         />
 
-        {/* Overlay Shadow */}
-        <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D12] via-[#0D0D12]/20 to-transparent opacity-90 group-hover:opacity-70 transition-opacity" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D12] via-transparent to-transparent opacity-80" />
 
-        {/* Top Watchlist Toggle Button */}
+        {/* Watchlist Toggle */}
         <button
           onClick={handleToggleWatchlist}
-          className={`absolute top-2 right-2 z-20 p-1.5 rounded-full backdrop-blur-md transition-transform duration-200 active:scale-95 ${
+          className={`absolute top-1.5 right-1.5 z-20 p-1 rounded-full backdrop-blur-md transition-transform ${
             inWatchlist
-              ? 'bg-purple-600 text-white shadow-lg'
-              : 'bg-black/60 text-slate-300 hover:text-white hover:bg-black/80 border border-slate-700/60'
+              ? 'bg-purple-600 text-white shadow-md'
+              : 'bg-black/60 text-slate-300 hover:text-white border border-slate-700/60'
           }`}
           title={inWatchlist ? 'In Watchlist' : 'Add to List'}
         >
-          {inWatchlist ? <Check className="w-3 h-3" /> : <Plus className="w-3 h-3" />}
+          {inWatchlist ? <Check className="w-2.5 h-2.5" /> : <Plus className="w-2.5 h-2.5" />}
         </button>
 
-        {/* Rating Badge at bottom right of poster (Mockup 1 style) */}
-        <div className="absolute bottom-2 right-2 z-10 bg-[#050507]/90 backdrop-blur-md px-1.5 py-0.5 rounded-lg border border-slate-800 flex items-center gap-1">
-          <Star className="w-3 h-3 text-purple-400 fill-purple-400" />
-          <span className="text-[10px] font-extrabold text-white">{score}</span>
+        {/* Rating Badge */}
+        <div className="absolute bottom-1.5 right-1.5 z-10 bg-[#050507]/90 backdrop-blur-md px-1 py-0.5 rounded-md border border-slate-800 flex items-center gap-0.5">
+          <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
+          <span className="text-[9px] font-extrabold text-white">{score}</span>
         </div>
       </Link>
 
-      {/* Card Info Below Poster */}
-      <div className="p-2.5 flex-1 flex flex-col justify-between">
-        <div>
-          <Link
-            to={`/anime/${anime.id}`}
-            className="font-bold text-xs text-slate-100 hover:text-purple-400 line-clamp-1 transition leading-snug"
-            title={title}
-          >
-            {title}
-          </Link>
-          <div className="flex items-center gap-2 mt-0.5 text-[10px] text-slate-400 font-medium">
-            <span>S1 • {episodes}</span>
-          </div>
+      <div className="p-2 flex-1 flex flex-col justify-between space-y-0.5">
+        <Link
+          to={`/anime/${anime.id}`}
+          className="font-bold text-[11px] text-slate-100 hover:text-purple-400 line-clamp-1 leading-tight"
+          title={title}
+        >
+          {title}
+        </Link>
+        <div className="text-[9px] text-slate-400 font-medium">
+          {format} • {episodes}
         </div>
       </div>
     </div>

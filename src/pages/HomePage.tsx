@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, Link } from 'react-router-dom';
 import {
   getTrendingAnime, getPopularAnime, getTopRatedAnime,
   getCurrentlyAiringAnime, searchAnime, ANIME_GENRES
@@ -9,7 +9,7 @@ import { AnimeMedia } from '../types/anime';
 import { WatchProgress } from '../types/user';
 import HeroCarousel from '../components/common/HeroCarousel';
 import AnimeCard from '../components/common/AnimeCard';
-import { Flame, Sparkles, Trophy, Clock, Filter, Loader2, Play } from 'lucide-react';
+import { Flame, Sparkles, Trophy, Clock, Filter, Loader2, Play, ChevronRight } from 'lucide-react';
 
 export default function HomePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -84,26 +84,26 @@ export default function HomePage() {
   const isSearchOrFilterActive = Boolean(searchQuery || selectedGenre !== 'All');
 
   return (
-    <div className="space-y-8 sm:space-y-12 pb-16">
-      {/* Featured Spotlight Hero Banner (Mockup 1 style) */}
+    <div className="space-y-6 sm:space-y-10 pb-16">
+      {/* Spotlight Hero Banner */}
       {!isSearchOrFilterActive && !loading && trending.length > 0 && (
         <HeroCarousel items={trending} />
       )}
 
       {/* Genre Filter Scroll Bar */}
-      <div className="space-y-2 sm:space-y-3">
-        <div className="flex items-center gap-2 text-slate-300 font-bold text-xs sm:text-sm">
-          <Filter className="w-4 h-4 text-purple-400" />
+      <div className="space-y-2">
+        <div className="flex items-center gap-1.5 text-slate-300 font-bold text-xs">
+          <Filter className="w-3.5 h-3.5 text-purple-400" />
           <span>Quick Genre Filter</span>
         </div>
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        <div className="flex items-center gap-1.5 overflow-x-auto pb-1.5 scrollbar-none">
           {['All', ...ANIME_GENRES].map((genre) => (
             <button
               key={genre}
               onClick={() => handleGenreChange(genre)}
-              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
+              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all ${
                 selectedGenre === genre || (genre === 'All' && selectedGenre === 'All')
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-950'
+                  ? 'bg-purple-600 text-white shadow-md'
                   : 'bg-[#0D0D12] text-slate-400 hover:text-white hover:bg-slate-800 border border-slate-900'
               }`}
             >
@@ -113,12 +113,12 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Filter / Search Active Grid */}
+      {/* Search or Filter Active Grid */}
       {isSearchOrFilterActive ? (
-        <section className="space-y-6">
-          <div className="flex items-center justify-between border-b border-slate-900 pb-4">
-            <h2 className="text-lg sm:text-xl font-extrabold text-white flex items-center gap-2">
-              <Sparkles className="w-5 h-5 text-purple-400" />
+        <section className="space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-900 pb-3">
+            <h2 className="text-base sm:text-xl font-extrabold text-white flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
               {searchQuery ? `Results for "${searchQuery}"` : `${selectedGenre} Anime`}
             </h2>
             <button
@@ -147,51 +147,83 @@ export default function HomePage() {
         </section>
       ) : (
         <>
-          {/* Row 1: Trending Now (Horizontal Swipeable Carousel on Mobile matching Mockup 1) */}
-          <section className="space-y-3 sm:space-y-4">
+          {/* LATEST EPISODES SECTION (HiAnime-Style Prominent Section with SUB/DUB Badges) */}
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
-                <span className="w-1 h-5 bg-purple-500 rounded-full inline-block md:hidden" />
-                <Flame className="w-5 h-5 text-purple-400 fill-purple-400/20 hidden md:inline-block" />
-                Trending Now
+              <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <span className="w-1 h-4 bg-purple-500 rounded-full inline-block" />
+                <Play className="w-4 h-4 text-purple-400 fill-purple-400/20" />
+                Latest Episodes
               </h2>
-              <span className="text-xs text-slate-400 hover:text-white font-bold cursor-pointer">
-                View All ›
-              </span>
+              <Link to="/browse?tab=latest" className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5">
+                View All <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
             {loading ? (
-              <div className="flex gap-3 overflow-x-auto">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="w-36 aspect-[3/4] bg-[#0D0D12] rounded-2xl animate-pulse shrink-0" />
+              <div className="flex gap-2.5 overflow-x-auto">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
-              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
-                {trending.slice(0, 12).map((anime) => (
-                  <div key={anime.id} className="w-36 sm:w-auto shrink-0 snap-start">
-                    <AnimeCard anime={anime} />
-                  </div>
+              <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-none snap-x">
+                {airing.slice(0, 10).map((anime, idx) => (
+                  <AnimeCard
+                    key={anime.id}
+                    anime={anime}
+                    variant="latest"
+                    episodeNumber={anime.nextAiringEpisode ? anime.nextAiringEpisode.episode - 1 || 6 : (idx % 8) + 1}
+                    hasDub={idx % 2 === 0}
+                  />
                 ))}
               </div>
             )}
           </section>
 
-          {/* Row 2: Continue Watching (Vertical Stacked Cards matching Mockup 1) */}
+          {/* TRENDING NOW SECTION (Dense horizontal carousel) */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <span className="w-1 h-4 bg-purple-500 rounded-full inline-block" />
+                <Flame className="w-4 h-4 text-purple-400 fill-purple-400/20 hidden sm:inline-block" />
+                Trending Now
+              </h2>
+              <Link to="/browse?sort=TRENDING_DESC" className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5">
+                View All <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {loading ? (
+              <div className="flex gap-2.5 overflow-x-auto">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
+                ))}
+              </div>
+            ) : (
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
+                {trending.map((anime) => (
+                  <AnimeCard key={anime.id} anime={anime} />
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* CONTINUE WATCHING SECTION */}
           {continueWatching.length > 0 && (
-            <section className="space-y-3 sm:space-y-4">
+            <section className="space-y-3">
               <div className="flex items-center justify-between">
-                <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
-                  <span className="w-1 h-5 bg-purple-500 rounded-full inline-block md:hidden" />
-                  <Clock className="w-5 h-5 text-purple-400 hidden md:inline-block" />
+                <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                  <span className="w-1 h-4 bg-purple-500 rounded-full inline-block" />
+                  <Clock className="w-4 h-4 text-purple-400 hidden sm:inline-block" />
                   Continue Watching
                 </h2>
-                <span className="text-xs text-slate-400 hover:text-white font-bold cursor-pointer">
-                  View All ›
-                </span>
+                <Link to="/watchlist?tab=history" className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5">
+                  View All <ChevronRight className="w-3.5 h-3.5" />
+                </Link>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {continueWatching.map((item) => {
                   const media: AnimeMedia = {
                     id: item.animeId,
@@ -216,85 +248,84 @@ export default function HomePage() {
             </section>
           )}
 
-          {/* Row 3: Popular This Week (Horizontal Swipeable Carousel on Mobile matching Mockup 1) */}
-          <section className="space-y-3 sm:space-y-4">
+          {/* POPULAR ANIME SECTION */}
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
-                <span className="w-1 h-5 bg-purple-500 rounded-full inline-block md:hidden" />
-                <Sparkles className="w-5 h-5 text-amber-400 hidden md:inline-block" />
+              <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <span className="w-1 h-4 bg-purple-500 rounded-full inline-block" />
+                <Sparkles className="w-4 h-4 text-amber-400 hidden sm:inline-block" />
                 Popular This Week
               </h2>
-              <span className="text-xs text-slate-400 hover:text-white font-bold cursor-pointer">
-                View All ›
-              </span>
+              <Link to="/browse?sort=POPULARITY_DESC" className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5">
+                View All <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
             {loading ? (
-              <div className="flex gap-3 overflow-x-auto">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="w-36 aspect-[3/4] bg-[#0D0D12] rounded-2xl animate-pulse shrink-0" />
+              <div className="flex gap-2.5 overflow-x-auto">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
-              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
                 {popular.map((anime) => (
-                  <div key={anime.id} className="w-36 sm:w-auto shrink-0 snap-start">
-                    <AnimeCard anime={anime} />
-                  </div>
+                  <AnimeCard key={anime.id} anime={anime} />
                 ))}
               </div>
             )}
           </section>
 
-          {/* Row 4: Currently Airing */}
-          <section className="space-y-3 sm:space-y-4">
+          {/* TOP AIRING SECTION */}
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
-                <span className="w-1 h-5 bg-purple-500 rounded-full inline-block md:hidden" />
-                <Play className="w-5 h-5 text-emerald-400 fill-emerald-400/20 hidden md:inline-block" />
-                Currently Airing Seasons
+              <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <span className="w-1 h-4 bg-purple-500 rounded-full inline-block" />
+                Top Airing
               </h2>
+              <Link to="/browse?status=RELEASING" className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5">
+                View All <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
             {loading ? (
-              <div className="flex gap-3 overflow-x-auto">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="w-36 aspect-[3/4] bg-[#0D0D12] rounded-2xl animate-pulse shrink-0" />
+              <div className="flex gap-2.5 overflow-x-auto">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
-              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
                 {airing.map((anime) => (
-                  <div key={anime.id} className="w-36 sm:w-auto shrink-0 snap-start">
-                    <AnimeCard anime={anime} />
-                  </div>
+                  <AnimeCard key={anime.id} anime={anime} />
                 ))}
               </div>
             )}
           </section>
 
-          {/* Row 5: Top Rated */}
-          <section className="space-y-3 sm:space-y-4">
+          {/* TOP RATED CLASSICS */}
+          <section className="space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
-                <span className="w-1 h-5 bg-purple-500 rounded-full inline-block md:hidden" />
-                <Trophy className="w-5 h-5 text-amber-500 hidden md:inline-block" />
-                Highest Rated Classics
+              <h2 className="text-base sm:text-xl font-black text-white flex items-center gap-2 tracking-tight">
+                <span className="w-1 h-4 bg-purple-500 rounded-full inline-block" />
+                <Trophy className="w-4 h-4 text-amber-500 hidden sm:inline-block" />
+                Highest Rated
               </h2>
+              <Link to="/browse?sort=SCORE_DESC" className="text-xs text-purple-400 hover:text-purple-300 font-bold flex items-center gap-0.5">
+                View All <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
 
             {loading ? (
-              <div className="flex gap-3 overflow-x-auto">
-                {[...Array(5)].map((_, i) => (
-                  <div key={i} className="w-36 aspect-[3/4] bg-[#0D0D12] rounded-2xl animate-pulse shrink-0" />
+              <div className="flex gap-2.5 overflow-x-auto">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="w-[115px] aspect-[3/4] bg-[#0D0D12] rounded-xl animate-pulse shrink-0" />
                 ))}
               </div>
             ) : (
-              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
+              <div className="flex sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2.5 sm:gap-6 overflow-x-auto pb-2 scrollbar-none snap-x">
                 {topRated.map((anime) => (
-                  <div key={anime.id} className="w-36 sm:w-auto shrink-0 snap-start">
-                    <AnimeCard anime={anime} />
-                  </div>
+                  <AnimeCard key={anime.id} anime={anime} />
                 ))}
               </div>
             )}
