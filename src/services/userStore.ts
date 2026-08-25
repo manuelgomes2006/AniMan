@@ -255,6 +255,50 @@ export function getWatchlist(): WatchlistItem[] {
   }
 }
 
+export async function fetchWatchlistFromSupabase(): Promise<WatchlistItem[]> {
+  const localList = getWatchlist();
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return localList;
+
+    const { data, error } = await supabase
+      .from('watchlist')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('updated_at', { ascending: false });
+
+    if (error || !data) return localList;
+
+    const enrichedPromises = data.map(async (row) => {
+      const match = localList.find((l) => l.anime.id === row.anime_id);
+      let anime = match?.anime;
+      if (!anime) {
+        try {
+          anime = await getAnimeDetails(row.anime_id);
+        } catch {
+          anime = {
+            id: row.anime_id,
+            title: { english: `Anime #${row.anime_id}`, romaji: `Anime #${row.anime_id}` },
+            coverImage: { large: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80' },
+          } as any;
+        }
+      }
+      return {
+        anime,
+        category: row.status,
+        addedAt: row.added_at || row.updated_at
+      } as WatchlistItem;
+    });
+
+    const enriched = await Promise.all(enrichedPromises);
+    localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(enriched));
+    window.dispatchEvent(new Event('aniworld_watchlist_updated'));
+    return enriched;
+  } catch (err) {
+    return localList;
+  }
+}
+
 export function getWatchlistItem(animeId: number): WatchlistItem | undefined {
   const list = getWatchlist();
   return list.find((item) => item.anime.id === animeId);

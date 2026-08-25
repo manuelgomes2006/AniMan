@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
+import { fetchWatchHistoryFromSupabase, fetchWatchlistFromSupabase } from '../services/userStore';
 
 export interface UserPreferences {
   preferredAudio: 'sub' | 'dub';
@@ -179,6 +180,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       subscription.unsubscribe();
     };
   }, []);
+
+  // 3. Real-Time Multi-Device Database Sync Subscription
+  useEffect(() => {
+    if (!user?.id || !isSupabaseConfigured()) return;
+
+    const channel = supabase
+      .channel(`multi-device-sync-${user.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+        () => {
+          console.log('[Multi-Device Sync] Profile updated on another device');
+          loadProfile(user);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'user_preferences', filter: `user_id=eq.${user.id}` },
+        () => {
+          console.log('[Multi-Device Sync] Preferences updated on another device');
+          loadProfile(user);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'watch_history', filter: `user_id=eq.${user.id}` },
+        () => {
+          console.log('[Multi-Device Sync] Watch history updated on another device');
+          fetchWatchHistoryFromSupabase();
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'watchlist', filter: `user_id=eq.${user.id}` },
+        () => {
+          console.log('[Multi-Device Sync] Watchlist updated on another device');
+          fetchWatchlistFromSupabase();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
 
   const signInWithGoogle = async () => {
     if (!isSupabaseConfigured()) {
