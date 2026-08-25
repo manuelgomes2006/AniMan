@@ -5,6 +5,7 @@ import {
   NormalizedStreamResponse,
   StreamingServerOption
 } from './providerTypes';
+import { AnikotoHlsProvider } from './providers/anikotoHlsProvider';
 import { MegaCloudProvider } from './providers/megaCloudProvider';
 import { VidStreamProvider } from './providers/vidstreamProvider';
 import { StreamtapeProvider } from './providers/streamtapeProvider';
@@ -12,13 +13,16 @@ import { MixdropProvider } from './providers/mixdropProvider';
 import { StreamWishProvider } from './providers/streamWishProvider';
 
 /**
- * Anikoto Official Streaming Architecture:
- * 1. MegaCloud / VidStream (Primary source for high-definition 1080p HLS video manifests)
- * 2. Streamtape (Backup video hosting mirror)
- * 3. Mixdrop (Secondary video stream backup)
- * 4. StreamWish / StreamSB (Alternative video mirrors for mobile and desktop playback)
+ * Anikoto Direct HLS & Multi-Host Streaming Architecture:
+ * 1. Anikoto HLS Direct (Proxied .m3u8 HLS manifest engine via hls.js)
+ * 2. MegaCloud / VidStream (Primary 1080p HLS video source)
+ * 3. AutoEmbed HD (High-res adaptive mirror)
+ * 4. Streamtape (Backup video hosting mirror)
+ * 5. Mixdrop (Secondary video stream backup)
+ * 6. StreamWish / StreamSB (Alternative video mirror)
  */
 const REGISTERED_PROVIDERS: StreamingProvider[] = [
+  new AnikotoHlsProvider(),
   new MegaCloudProvider(),
   new VidStreamProvider(),
   new StreamtapeProvider(),
@@ -56,8 +60,8 @@ async function fetchProviderWithRetry(
 }
 
 /**
- * Anikoto Pure Stream Resolver Engine:
- * Resolves exclusively via Anikoto's 4 official server provider mirrors.
+ * Anikoto Direct HLS Proxy & Multi-Host Resolver Engine:
+ * Concurrently resolves direct .m3u8 manifest streams and server embeds in parallel.
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -84,7 +88,7 @@ export function resolveParallelSources(options: {
     const ep = Math.max(1, episode);
     const targetId = malId || animeId || 151807;
 
-    // Launch all 4 Anikoto server providers in parallel
+    // Launch all registered Anikoto server providers in parallel
     const providerPromises = REGISTERED_PROVIDERS.map((provider) =>
       fetchProviderWithRetry(provider, animeId, title, episode, variant, malId).catch(() => null)
     );
@@ -98,8 +102,16 @@ export function resolveParallelSources(options: {
       }
     });
 
-    // Guaranteed fallback using Anikoto providers with resolved DNS endpoints
+    // Guaranteed fallback list
     if (validSources.length === 0) {
+      validSources.push({
+        providerId: 'anikoto-hls-primary',
+        providerName: 'Anikoto HLS Direct',
+        url: `https://corsproxy.io/?${encodeURIComponent(`https://megacloud.blog/stream/${targetId}/${ep}/master.m3u8?variant=${variant}`)}`,
+        type: 'hls',
+        isHLS: true,
+        quality: '1080p'
+      });
       validSources.push({
         providerId: 'megacloud-hls',
         providerName: 'MegaCloud HD',
@@ -111,27 +123,6 @@ export function resolveParallelSources(options: {
         providerId: 'vidstream-hd',
         providerName: 'AutoEmbed HD',
         url: `https://player.autoembed.cc/embed/anime/${targetId}/${ep}?sub=1&audio=${variant}`,
-        type: 'embed',
-        quality: '1080p'
-      });
-      validSources.push({
-        providerId: 'streamtape-mirror',
-        providerName: 'Streamtape Mirror',
-        url: `https://streamtape.com/e/${targetId}/${ep}`,
-        type: 'embed',
-        quality: '1080p'
-      });
-      validSources.push({
-        providerId: 'mixdrop-mirror',
-        providerName: 'Mixdrop Mirror',
-        url: `https://mixdrop.co/e/${targetId}/${ep}`,
-        type: 'embed',
-        quality: '1080p'
-      });
-      validSources.push({
-        providerId: 'streamwish-mirror',
-        providerName: 'StreamWish / StreamSB',
-        url: `https://streamwish.to/e/${targetId}/${ep}`,
         type: 'embed',
         quality: '1080p'
       });
