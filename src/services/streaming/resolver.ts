@@ -6,15 +6,23 @@ import {
   StreamingServerOption
 } from './providerTypes';
 import { AniLinkProvider } from './providers/anilinkProvider';
+import { YomiHlsProvider } from './providers/yomiHlsProvider';
+import { MegaCloudProvider } from './providers/megaCloudProvider';
+import { StreamtapeProvider } from './providers/streamtapeProvider';
+import { MixdropProvider } from './providers/mixdropProvider';
+import { StreamWishProvider } from './providers/streamWishProvider';
 import { VidStreamProvider } from './providers/vidstreamProvider';
 import { TwoEmbedProvider } from './providers/twoEmbedProvider';
 import { VidSrcProvider } from './providers/vidsrcProvider';
-import { YomiHlsProvider } from './providers/yomiHlsProvider';
 
 const REGISTERED_PROVIDERS: StreamingProvider[] = [
   new AniLinkProvider(),
+  new MegaCloudProvider(),
   new YomiHlsProvider(),
   new VidStreamProvider(),
+  new StreamtapeProvider(),
+  new MixdropProvider(),
+  new StreamWishProvider(),
   new TwoEmbedProvider(),
   new VidSrcProvider(),
 ];
@@ -52,10 +60,15 @@ async function fetchProviderWithRetry(
 }
 
 /**
- * Multi-Mirror Stream Resolver Engine:
- * - Concurrently resolves all server mirrors including HLS Direct manifest and iframe embeds in parallel.
+ * Anikoto-Style Multi-Host Stream Resolver Engine:
+ * - Concurrently resolves all third-party hosting providers:
+ *   1. MegaCloud / VidStream (1080p HLS video manifests)
+ *   2. Streamtape (Backup video hosting mirror)
+ *   3. Mixdrop (Secondary video stream backup)
+ *   4. StreamWish / StreamSB (Alternative video mirror)
+ *   5. AniLink HD, 2Embed HD, VidSrc HD
  * - Auto-reboots failed server requests.
- * - Populates all mirrors for 1-click mirror switching and automatic fallback.
+ * - Populates all mirrors for 1-click mirror switching and automatic backup.
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -106,23 +119,30 @@ export function resolveParallelSources(options: {
         quality: '1080p'
       });
       validSources.push({
-        providerId: 'vidstream-hd',
-        providerName: 'AutoEmbed HD',
-        url: `https://player.autoembed.cc/embed/anime/${targetId}/${ep}?sub=1&audio=${variant}`,
+        providerId: 'megacloud-hls',
+        providerName: 'MegaCloud HD',
+        url: `https://megacloud.tv/embed/anime/${targetId}/${ep}?audio=${variant}&autoPlay=1`,
         type: 'embed',
         quality: '1080p'
       });
       validSources.push({
-        providerId: '2embed-mirror',
-        providerName: '2Embed HD',
-        url: `https://2embed.cc/embed/anime/${targetId}/${ep}`,
+        providerId: 'streamtape-mirror',
+        providerName: 'Streamtape Mirror',
+        url: `https://streamtape.com/e/${targetId}/${ep}`,
         type: 'embed',
         quality: '1080p'
       });
       validSources.push({
-        providerId: 'vidsrc-mirror',
-        providerName: 'VidSrc HD',
-        url: `https://vidsrc.cc/v2/embed/anime/${targetId}/${ep}?autoPlay=true`,
+        providerId: 'mixdrop-mirror',
+        providerName: 'Mixdrop Mirror',
+        url: `https://mixdrop.co/e/${targetId}/${ep}`,
+        type: 'embed',
+        quality: '1080p'
+      });
+      validSources.push({
+        providerId: 'streamwish-mirror',
+        providerName: 'StreamWish / StreamSB',
+        url: `https://streamwish.to/e/${targetId}/${ep}`,
         type: 'embed',
         quality: '1080p'
       });
