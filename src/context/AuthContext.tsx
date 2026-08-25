@@ -61,27 +61,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const setGuestSession = (email = 'user@aniworld.io', username = 'Member') => {
     const prof = getGuestProfile(email, username);
-    localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(prof));
+    try {
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(prof));
+    } catch {}
     setProfile(prof);
     setUser({ id: prof.id, email: prof.email, app_metadata: {}, user_metadata: {}, aud: '', created_at: '' } as any);
   };
 
   const clearAllUserData = () => {
-    localStorage.removeItem(LOCAL_SESSION_KEY);
-    localStorage.removeItem('aniworld_watch_history');
-    localStorage.removeItem('aniworld_watchlist');
+    try {
+      localStorage.removeItem(LOCAL_SESSION_KEY);
+      localStorage.removeItem('aniworld_watch_history');
+      localStorage.removeItem('aniworld_watchlist');
+    } catch {}
   };
 
   const restoreLocalSessionIfPresent = () => {
-    const local = localStorage.getItem(LOCAL_SESSION_KEY);
-    if (local) {
-      try {
+    try {
+      const local = localStorage.getItem(LOCAL_SESSION_KEY);
+      if (local) {
         const prof = JSON.parse(local);
-        setProfile(prof);
-        setUser({ id: prof.id, email: prof.email } as any);
-        return true;
-      } catch {}
-    }
+        if (prof && prof.id) {
+          setProfile(prof);
+          setUser({ id: prof.id, email: prof.email || 'user@aniworld.io' } as any);
+          return true;
+        }
+      }
+    } catch {}
     return false;
   };
 
@@ -125,7 +131,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       setProfile(loadedProfile);
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
+      try {
+        localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
+      } catch {}
     } catch (err) {
       console.warn('[AuthContext] Load Profile Notice:', err);
       if (!restoreLocalSessionIfPresent()) {
@@ -137,7 +145,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isSubscribed = true;
 
-    // 1. Initial Session Retrieval
+    // ⚡ 1. Synchronously restore local session immediately to avoid black screen on mobile
+    const hasLocalSession = restoreLocalSessionIfPresent();
+    if (hasLocalSession) {
+      setLoading(false);
+    }
+
+    // ⚡ 2. Safety Timeout: Ensure loading never hangs on mobile networks
+    const safetyTimeout = setTimeout(() => {
+      if (isSubscribed) {
+        setLoading(false);
+      }
+    }, 1200);
+
+    // 3. Revalidate Session via Supabase Auth
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!isSubscribed) return;
       setSession(session);
@@ -147,7 +168,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (isSubscribed) setLoading(false);
         });
       } else {
-        restoreLocalSessionIfPresent();
+        if (!hasLocalSession) {
+          restoreLocalSessionIfPresent();
+        }
         setLoading(false);
       }
     }).catch(() => {
@@ -155,9 +178,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         restoreLocalSessionIfPresent();
         setLoading(false);
       }
+    }).finally(() => {
+      clearTimeout(safetyTimeout);
     });
 
-    // 2. Real-Time Auth State Listener
+    // 4. Real-Time Auth State Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!isSubscribed) return;
       setSession(session);
@@ -177,52 +202,60 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       isSubscribed = false;
+      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
 
-  // 3. Real-Time Multi-Device Database Sync Subscription
+  // 5. Real-Time Multi-Device Database Sync Subscription
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured()) return;
 
-    const channel = supabase
-      .channel(`multi-device-sync-${user.id}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
-        () => {
-          console.log('[Multi-Device Sync] Profile updated on another device');
-          loadProfile(user);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'user_preferences', filter: `user_id=eq.${user.id}` },
-        () => {
-          console.log('[Multi-Device Sync] Preferences updated on another device');
-          loadProfile(user);
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'watch_history', filter: `user_id=eq.${user.id}` },
-        () => {
-          console.log('[Multi-Device Sync] Watch history updated on another device');
-          fetchWatchHistoryFromSupabase();
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'watchlist', filter: `user_id=eq.${user.id}` },
-        () => {
-          console.log('[Multi-Device Sync] Watchlist updated on another device');
-          fetchWatchlistFromSupabase();
-        }
-      )
-      .subscribe();
+    let channel: any = null;
+    try {
+      channel = supabase
+        .channel(`multi-device-sync-${user.id}`)
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
+          () => {
+            console.log('[Multi-Device Sync] Profile updated on another device');
+            loadProfile(user);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'user_preferences', filter: `user_id=eq.${user.id}` },
+          () => {
+            console.log('[Multi-Device Sync] Preferences updated on another device');
+            loadProfile(user);
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'watch_history', filter: `user_id=eq.${user.id}` },
+          () => {
+            console.log('[Multi-Device Sync] Watch history updated on another device');
+            fetchWatchHistoryFromSupabase();
+          }
+        )
+        .on(
+          'postgres_changes',
+          { event: '*', schema: 'public', table: 'watchlist', filter: `user_id=eq.${user.id}` },
+          () => {
+            console.log('[Multi-Device Sync] Watchlist updated on another device');
+            fetchWatchlistFromSupabase();
+          }
+        )
+        .subscribe();
+    } catch (err) {
+      console.warn('Realtime subscription notice:', err);
+    }
 
     return () => {
-      supabase.removeChannel(channel);
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [user?.id]);
 
