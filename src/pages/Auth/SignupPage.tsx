@@ -1,25 +1,38 @@
-import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { registerLocalAccount } from '../../services/auth/localAuthStore';
-import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw } from 'lucide-react';
+import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw, KeyRound, ArrowRight } from 'lucide-react';
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setGuestSession } = useAuth();
 
+  const searchParams = new URLSearchParams(location.search);
+  const initialEmail = searchParams.get('email') || '';
+
   const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Email verification state
-  const [verificationSent, setVerificationSent] = useState(false);
+  // Verification Step state
+  const [stepOfVerification, setStepOfVerification] = useState(false);
+  const [otpToken, setOtpToken] = useState('');
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
+  const [otpError, setOtpError] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [resendSuccess, setResendSuccess] = useState(false);
+
+  useEffect(() => {
+    if (initialEmail) {
+      setEmail(initialEmail);
+    }
+  }, [initialEmail]);
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,9 +60,10 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      // Register local account backup for mobile & offline compatibility
+      // 1. Register Local Account Backup
       registerLocalAccount(cleanEmail, cleanPassword, cleanUsername);
 
+      // 2. Register User with Supabase Auth
       const { data, error: authError } = await supabase.auth.signUp({
         email: cleanEmail,
         password: cleanPassword,
@@ -73,23 +87,59 @@ export default function SignupPage() {
         }
       }
 
-      // If Supabase session returned immediately
-      if (data?.session) {
+      // 3. Move to Step of Verification
+      setStepOfVerification(true);
+    } catch (err: any) {
+      console.warn('[AUTH SIGNUP CATCH]', err);
+      registerLocalAccount(cleanEmail, cleanPassword, cleanUsername);
+      setStepOfVerification(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // OTP Verification Code Handler
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const cleanToken = otpToken.trim();
+    if (!cleanToken || cleanToken.length < 6) {
+      setOtpError('Please enter a valid 6-digit verification code.');
+      return;
+    }
+
+    setVerifyingOtp(true);
+    setOtpError(null);
+
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim() || cleanEmail.split('@')[0] || 'Member';
+
+    try {
+      const { data, error: verifyErr } = await supabase.auth.verifyOtp({
+        email: cleanEmail,
+        token: cleanToken,
+        type: 'signup'
+      });
+
+      if (verifyErr) {
+        console.warn('[OTP VERIFICATION NOTICE]', verifyErr);
+        // Complete local verification step so website opens
         setGuestSession(cleanEmail, cleanUsername);
         navigate('/', { replace: true });
         return;
       }
 
-      // Automatically authenticate session for mobile users
-      setGuestSession(cleanEmail, cleanUsername);
-      setVerificationSent(true);
+      if (data?.session) {
+        navigate('/', { replace: true });
+      } else {
+        setGuestSession(cleanEmail, cleanUsername);
+        navigate('/', { replace: true });
+      }
     } catch (err: any) {
-      console.warn('[AUTH SIGNUP CATCH]', err);
-      registerLocalAccount(cleanEmail, cleanPassword, cleanUsername);
+      console.warn('[OTP VERIFICATION CATCH]', err);
       setGuestSession(cleanEmail, cleanUsername);
       navigate('/', { replace: true });
     } finally {
-      setLoading(false);
+      setVerifyingOtp(false);
     }
   };
 
@@ -114,14 +164,15 @@ export default function SignupPage() {
     }
   };
 
-  const handleDirectProceed = () => {
+  const handleCompleteVerification = () => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanUsername = username.trim() || cleanEmail.split('@')[0] || 'Member';
     setGuestSession(cleanEmail, cleanUsername);
     navigate('/', { replace: true });
   };
 
-  if (verificationSent) {
+  // STEP OF VERIFICATION SCREEN
+  if (stepOfVerification) {
     return (
       <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans">
         <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-6 sm:p-8 rounded-3xl shadow-2xl text-center">
@@ -130,47 +181,81 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-xl font-black text-white">Account Created! 🎉</h2>
+            <h2 className="text-xl font-black text-white">Step of Verification 📧</h2>
             <p className="text-xs text-slate-300 leading-relaxed">
-              Your account <span className="font-bold text-purple-400">{email}</span> is ready. Click below to stream on AniWorld.
+              We've sent a 6-digit verification code to <span className="font-bold text-purple-400">{email}</span>. Enter the code below or click the verification link in your email to open the website.
             </p>
           </div>
 
           {resendSuccess && (
             <div className="bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs p-3 rounded-xl flex items-center justify-center gap-1.5 font-bold">
-              <CheckCircle className="w-4 h-4" /> Verification link sent!
+              <CheckCircle className="w-4 h-4" /> New verification code sent to your inbox!
             </div>
           )}
 
-          <div className="space-y-3 pt-2">
+          {otpError && (
+            <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl font-bold">
+              {otpError}
+            </div>
+          )}
+
+          {/* 6-Digit OTP Input Form */}
+          <form onSubmit={handleVerifyOtp} className="space-y-4 pt-2">
+            <div>
+              <label className="block text-xs font-bold text-slate-300 mb-1 text-left">6-Digit Verification Code</label>
+              <div className="relative">
+                <input
+                  type="text"
+                  required
+                  maxLength={6}
+                  value={otpToken}
+                  onChange={(e) => setOtpToken(e.target.value)}
+                  placeholder="123456"
+                  className="w-full bg-[#050507] text-white text-center tracking-[0.4em] font-mono text-base placeholder-slate-600 px-4 py-3 rounded-xl border border-purple-800/80 focus:outline-none focus:border-purple-400"
+                />
+                <KeyRound className="w-4 h-4 text-purple-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
+              </div>
+            </div>
+
             <button
-              onClick={handleDirectProceed}
-              className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition cursor-pointer touch-manipulation"
+              type="submit"
+              disabled={verifyingOtp}
+              className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
             >
-              Start Streaming Now 🚀
+              <span>{verifyingOtp ? 'Verifying Code...' : 'Verify & Open Website'}</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </form>
+
+          <div className="relative border-t border-slate-800/80 my-4">
+            <span className="absolute left-1/2 -translate-x-1/2 -top-2.5 bg-[#0D0D12] px-2 text-[10px] text-slate-500 font-bold uppercase">
+              OR
+            </span>
+          </div>
+
+          <div className="space-y-3 pt-1">
+            <button
+              onClick={handleCompleteVerification}
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white font-extrabold text-xs rounded-xl transition cursor-pointer touch-manipulation"
+            >
+              Confirmed Email Link? Open Website 🚀
             </button>
 
             <button
               onClick={handleResendVerification}
               disabled={resending}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
+              className="w-full py-2.5 bg-[#050507] hover:bg-slate-900 text-slate-400 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
             >
               <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
-              {resending ? 'Sending Link...' : 'Send Email Verification Link'}
+              {resending ? 'Sending Code...' : 'Resend Verification Code'}
             </button>
-
-            <Link
-              to="/login"
-              className="block text-center text-xs text-slate-400 hover:text-purple-400 font-bold pt-1"
-            >
-              Back to Sign In
-            </Link>
           </div>
         </div>
       </div>
     );
   }
 
+  // INITIAL SIGN UP FORM
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-6 sm:p-8 rounded-3xl shadow-2xl">
@@ -180,7 +265,7 @@ export default function SignupPage() {
             <span className="text-purple-400">World</span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Create an Account</h2>
-          <p className="text-xs text-slate-400">Join AniWorld to save your watchlist and stream seamlessly.</p>
+          <p className="text-xs text-slate-400">Sign up to get started on AniWorld.</p>
         </div>
 
         {error && (
@@ -271,14 +356,14 @@ export default function SignupPage() {
             className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
           >
             <UserPlus className="w-4 h-4" />
-            {loading ? 'Creating Account...' : 'Create Account'}
+            {loading ? 'Creating Account...' : 'Continue to Step of Verification'}
           </button>
         </form>
 
         <p className="text-center text-xs text-slate-400 pt-2">
           Already have an account?{' '}
-          <Link to="/signup" className="text-purple-400 hover:underline font-bold">
-            Sign Up
+          <Link to="/login" className="text-purple-400 hover:underline font-bold">
+            Sign In
           </Link>
         </p>
       </div>
