@@ -30,7 +30,8 @@ export default function DetailsPage() {
           data.id,
           data.episodes,
           data.idMal,
-          data.streamingEpisodes
+          data.streamingEpisodes,
+          data.status
         );
         setEpisodes(epList);
       } catch (err) {
@@ -54,20 +55,21 @@ export default function DetailsPage() {
   const synopsis = anime?.description?.replace(/<[^>]*>?/gm, '') || 'No description available.';
   const studioName = anime?.studios?.nodes?.[0]?.name || 'Unknown Studio';
 
-  const totalCount = Math.max(episodes.length, anime?.episodes || 0, 12);
+  const releasedCount = episodes.length;
+  const expectedCount = anime?.episodes;
   const RANGE_SIZE = 100;
 
   const ranges = useMemo(() => {
     const r: { start: number; end: number; label: string }[] = [];
-    for (let i = 0; i < totalCount; i += RANGE_SIZE) {
+    for (let i = 0; i < releasedCount; i += RANGE_SIZE) {
       const start = i + 1;
-      const end = Math.min(i + RANGE_SIZE, totalCount);
+      const end = Math.min(i + RANGE_SIZE, releasedCount);
       r.push({ start, end, label: `${start}-${end}` });
     }
     return r;
-  }, [totalCount]);
+  }, [releasedCount]);
 
-  const currentRange = ranges[rangeIndex] || { start: 1, end: totalCount };
+  const currentRange = ranges[rangeIndex] || { start: 1, end: releasedCount };
 
   const displayedEpisodes = useMemo(() => {
     if (searchQuery.trim() !== '') {
@@ -172,10 +174,17 @@ export default function DetailsPage() {
         {/* Episode Catalog Section */}
         <section className="space-y-4 pt-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-900 pb-3">
-            <h2 className="text-base sm:text-xl font-extrabold text-white flex items-center gap-2">
-              <Video className="w-4 h-4 text-purple-400" />
-              Episodes Catalog ({totalCount} Total)
-            </h2>
+            <div className="space-y-0.5">
+              <h2 className="text-base sm:text-xl font-extrabold text-white flex items-center gap-2">
+                <Video className="w-4 h-4 text-purple-400" />
+                Released Episodes ({releasedCount})
+              </h2>
+              {expectedCount && expectedCount > releasedCount && (
+                <p className="text-[11px] font-bold text-slate-400">
+                  {releasedCount} Released • Expected Total: {expectedCount} Episodes
+                </p>
+              )}
+            </div>
 
             <div className="flex items-center gap-2">
               {/* Search Bar */}
@@ -214,7 +223,7 @@ export default function DetailsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
             {displayedEpisodes.length === 0 ? (
               <div className="col-span-full py-8 text-center text-xs text-slate-500">
-                No episodes found matching "{searchQuery}"
+                No released episodes found matching "{searchQuery}"
               </div>
             ) : (
               displayedEpisodes.map((ep) => {

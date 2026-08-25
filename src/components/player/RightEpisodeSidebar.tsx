@@ -25,19 +25,19 @@ export default function RightEpisodeSidebar({
   const [searchQuery, setSearchQuery] = useState('');
   const activeEpRef = useRef<HTMLButtonElement | null>(null);
 
-  const totalCount = Math.max(episodes.length, totalEpisodes || 0, activeEp, 12);
+  const releasedCount = episodes.length;
   const RANGE_SIZE = 100;
 
   // 100-episode ranges for long-running series
   const ranges = useMemo(() => {
     const r: { start: number; end: number; label: string }[] = [];
-    for (let i = 0; i < totalCount; i += RANGE_SIZE) {
+    for (let i = 0; i < releasedCount; i += RANGE_SIZE) {
       const start = i + 1;
-      const end = Math.min(i + RANGE_SIZE, totalCount);
+      const end = Math.min(i + RANGE_SIZE, releasedCount);
       r.push({ start, end, label: `${start}-${end}` });
     }
     return r;
-  }, [totalCount]);
+  }, [releasedCount]);
 
   // Auto-switch to range containing current active episode
   useEffect(() => {
@@ -47,30 +47,19 @@ export default function RightEpisodeSidebar({
     }
   }, [activeEp, ranges]);
 
-  const currentRange = ranges[rangeIndex] || { start: 1, end: totalCount };
+  const currentRange = ranges[rangeIndex] || { start: 1, end: releasedCount };
 
   const displayedEpisodes = useMemo(() => {
-    const baseList = episodes.length > 0
-      ? episodes
-      : Array.from({ length: totalCount }, (_, i) => ({
-          number: i + 1,
-          title: `Episode ${i + 1}`,
-          duration: 24,
-          subAvailable: true,
-          dubAvailable: true,
-          playable: true
-        }));
-
     if (searchQuery.trim() !== '') {
       const q = searchQuery.trim().toLowerCase();
-      return baseList.filter(ep =>
+      return episodes.filter(ep =>
         ep.number.toString() === q ||
         ep.title.toLowerCase().includes(q)
       );
     }
 
-    return baseList.filter(ep => ep.number >= currentRange.start && ep.number <= currentRange.end);
-  }, [episodes, totalCount, searchQuery, currentRange]);
+    return episodes.filter(ep => ep.number >= currentRange.start && ep.number <= currentRange.end);
+  }, [episodes, searchQuery, currentRange]);
 
   // Auto scroll active episode into view
   useEffect(() => {
@@ -84,32 +73,40 @@ export default function RightEpisodeSidebar({
   return (
     <div className="bg-[#0D0D12]/90 border border-slate-800/80 rounded-3xl p-4 space-y-4 shadow-xl font-sans text-white">
       {/* Top Tabs: Episodes | Related */}
-      <div className="flex items-center border-b border-slate-800/80 pb-2">
-        <button
-          type="button"
-          onClick={() => setActiveTab('episodes')}
-          className={`pb-2 text-sm font-extrabold transition relative mr-6 cursor-pointer ${
-            activeTab === 'episodes' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Episodes ({totalCount})
-          {activeTab === 'episodes' && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500 rounded-full" />
-          )}
-        </button>
+      <div className="flex items-center border-b border-slate-800/80 pb-2 justify-between">
+        <div className="flex items-center">
+          <button
+            type="button"
+            onClick={() => setActiveTab('episodes')}
+            className={`pb-2 text-sm font-extrabold transition relative mr-6 cursor-pointer ${
+              activeTab === 'episodes' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Episodes ({releasedCount})
+            {activeTab === 'episodes' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500 rounded-full" />
+            )}
+          </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveTab('related')}
-          className={`pb-2 text-sm font-extrabold transition relative cursor-pointer ${
-            activeTab === 'related' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
-          }`}
-        >
-          Related
-          {activeTab === 'related' && (
-            <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500 rounded-full" />
-          )}
-        </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('related')}
+            className={`pb-2 text-sm font-extrabold transition relative cursor-pointer ${
+              activeTab === 'related' ? 'text-white' : 'text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            Related
+            {activeTab === 'related' && (
+              <span className="absolute bottom-0 left-0 right-0 h-0.5 bg-purple-500 rounded-full" />
+            )}
+          </button>
+        </div>
+
+        {totalEpisodes && totalEpisodes > releasedCount && (
+          <span className="text-[10px] font-bold text-slate-400">
+            Expected: {totalEpisodes}
+          </span>
+        )}
       </div>
 
       {activeTab === 'episodes' ? (
@@ -152,7 +149,7 @@ export default function RightEpisodeSidebar({
           <div className="space-y-2 max-h-[460px] overflow-y-auto pr-1 scrollbar-thin">
             {displayedEpisodes.length === 0 ? (
               <div className="py-8 text-center text-xs text-slate-500">
-                No episodes found matching "{searchQuery}"
+                No released episodes found matching "{searchQuery}"
               </div>
             ) : (
               displayedEpisodes.map((ep) => {

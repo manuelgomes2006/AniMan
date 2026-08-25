@@ -24,37 +24,28 @@ export interface EpisodePagination {
 export interface PaginatedEpisodesResponse {
   episodes: NormalizedEpisode[];
   pagination: EpisodePagination;
+  totalEpisodes?: number;
+  releasedEpisodes: number;
 }
 
-const MAL_EPISODE_CACHE = new Map<number, NormalizedEpisode[]>();
+interface CacheEntry {
+  episodes: NormalizedEpisode[];
+  timestamp: number;
+  isAiring?: boolean;
+}
 
-// Known total episode counts for ongoing or long-running series
-const KNOWN_EPISODE_COUNTS: Record<number, number> = {
-  21: 1125,    // One Piece
-  20: 220,     // Naruto
-  1735: 500,   // Naruto Shippuden
-  269: 366,    // Bleach
-  97940: 170,  // Black Clover
-  235: 291,    // Dragon Ball Z
-  105333: 170, // Dr. Stone
-  21519: 500,  // Boruto
-  237: 1120,   // Detective Conan
-  21087: 175,  // Fairy Tail
-  151807: 12,  // Solo Leveling
-  154587: 28,  // Frieren
-  142329: 26,  // Demon Slayer
-  113415: 24,  // Jujutsu Kaisen
-};
+const EPISODE_CACHE = new Map<number, CacheEntry>();
+const SHORT_CACHE_TTL_MS = 10 * 60 * 1000; // 10 minutes for airing anime
+const LONG_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours for finished anime
 
 /**
- * Anikoto-Style Paginated Episode Fetcher:
- * Automatically iterates through upstream Jikan API pagination (page=1, page=2, page=3...)
- * to retrieve ALL available episode titles and metadata without stopping at 100.
+ * Anikoto-Style Upstream Episode Fetcher:
+ * Queries Jikan API pagination (page=1, page=2...) to retrieve ALL released episodes.
  */
 async function fetchAllMalEpisodes(targetId: number): Promise<Map<number, any>> {
   const malEpMap = new Map<number, any>();
   let page = 1;
-  const maxPages = 15; // Cap at 1500 episodes to prevent infinite loops
+  const maxPages = 15; // Up to 1500 episodes
 
   while (page <= maxPages) {
     try {
@@ -74,8 +65,8 @@ async function fetchAllMalEpisodes(targetId: number): Promise<Map<number, any>> 
       if (!hasNext) break;
 
       page++;
-      // Respect rate limits (3 requests per second)
-      await new Promise((resolve) => setTimeout(resolve, 300));
+      // Respect Jikan rate limit
+      await new Promise((resolve) => setTimeout(resolve, 250));
     } catch (err) {
       console.warn(`[Episode Layer] Jikan page ${page} fetch notice:`, err);
       break;
@@ -86,22 +77,29 @@ async function fetchAllMalEpisodes(targetId: number): Promise<Map<number, any>> 
 }
 
 /**
- * Complete Episode List Resolver:
- * Combines AniList streaming episode metadata (titles & thumbnails) with Jikan/MAL pagination
- * to guarantee 100% accurate episode titles, air dates, thumbnails, and counts for all series.
+ * Released Episodes Resolver:
+ * Resolves ONLY actual released episodes returned by the source catalog (AniList streamingEpisodes / Jikan MAL).
+ * NEVER fabricates unreleased/future episode placeholders.
  */
 export async function getNormalizedEpisodes(
   animeId: number,
   totalEpisodes?: number | null,
   malId?: number,
-  streamingEpisodes?: Array<{ title?: string; thumbnail?: string; url?: string }>
+  streamingEpisodes?: Array<{ title?: string; thumbnail?: string; url?: string }>,
+  status?: string
 ): Promise<NormalizedEpisode[]> {
   const targetId = malId || animeId;
-  const cacheKey = `${animeId}-${targetId}-${streamingEpisodes?.length || 0}`;
 
-  if (MAL_EPISODE_CACHE.has(targetId)) {
-    const cached = MAL_EPISODE_CACHE.get(targetId)!;
-    if (cached.length > 0) return cached;
+  // Check cache freshness
+  const cached = EPISODE_CACHE.get(targetId);
+  if (cached) {
+    const isExpired = cached.isAiring
+      ? Date.now() - cached.timestamp > SHORT_CACHE_TTL_MS
+      : Date.now() - cached.timestamp > LONG_CACHE_TTL_MS;
+
+    if (!isExpired && cached.episodes.length > 0) {
+      return cached.episodes;
+    }
   }
 
   // 1. Extract official titles & thumbnails from AniList streamingEpisodes
@@ -110,12 +108,9 @@ export async function getNormalizedEpisodes(
     streamingEpisodes.forEach((se, idx) => {
       const epNum = idx + 1;
       let cleanTitle = se.title;
-
-      // Clean title format e.g. "Episode 6 - Title" -> "Title"
       if (cleanTitle) {
         cleanTitle = cleanTitle.replace(/^Episode\s+\d+\s*[-:]\s*/i, '').trim();
       }
-
       streamingDataMap.set(epNum, {
         title: cleanTitle || se.title,
         thumbnail: se.thumbnail,
@@ -123,21 +118,22 @@ export async function getNormalizedEpisodes(
     });
   }
 
-  // 2. Resolve accurate total episode count
-  const knownCount = KNOWN_EPISODE_COUNTS[animeId] || (malId ? KNOWN_EPISODE_COUNTS[malId] : undefined);
-  const epCount = Math.max(
-    streamingEpisodes?.length || 0,
-    knownCount || 0,
-    totalEpisodes && totalEpisodes > 0 ? totalEpisodes : 12
-  );
-
   const episodes: NormalizedEpisode[] = [];
 
   try {
     const malEpMap = await fetchAllMalEpisodes(targetId);
 
-    // 3. Merge AniList streaming data + MAL episode metadata
-    for (let i = 1; i <= epCount; i++) {
+    // 2. Determine actual released episode count from source responses ONLY
+    const releasedCount = Math.max(
+      streamingEpisodes?.length || 0,
+      malEpMap.size
+    );
+
+    // If source catalog returns 0 released episodes (e.g. newly announced), fallback to streamingEpisodes
+    const finalReleasedCount = releasedCount > 0 ? releasedCount : (streamingEpisodes?.length || 0);
+
+    // 3. Loop ONLY through actual released episodes 1..finalReleasedCount
+    for (let i = 1; i <= finalReleasedCount; i++) {
       const malItem = malEpMap.get(i);
       const aniListData = streamingDataMap.get(i);
 
@@ -168,28 +164,38 @@ export async function getNormalizedEpisodes(
     console.warn('MAL Episode fetch fallback:', err);
   }
 
-  // Fallback if MAL query fails completely
-  if (episodes.length === 0) {
-    for (let i = 1; i <= epCount; i++) {
-      const aniListData = streamingDataMap.get(i);
+  // Fallback if MAL fetch fails: use ONLY actual streamingEpisodes returned
+  if (episodes.length === 0 && streamingEpisodes && streamingEpisodes.length > 0) {
+    streamingEpisodes.forEach((se, idx) => {
+      const i = idx + 1;
+      let cleanTitle = se.title;
+      if (cleanTitle) {
+        cleanTitle = cleanTitle.replace(/^Episode\s+\d+\s*[-:]\s*/i, '').trim();
+      }
       episodes.push({
         number: i,
-        title: aniListData?.title || `Episode ${i}`,
+        title: cleanTitle || `Episode ${i}`,
         subAvailable: true,
         dubAvailable: true,
         playable: true,
-        thumbnail: aniListData?.thumbnail,
+        thumbnail: se.thumbnail,
       });
-    }
+    });
   }
 
-  MAL_EPISODE_CACHE.set(targetId, episodes);
+  const isAiring = status === 'RELEASING' || status === 'Currently Airing';
+  EPISODE_CACHE.set(targetId, {
+    episodes,
+    timestamp: Date.now(),
+    isAiring,
+  });
+
   return episodes;
 }
 
 /**
  * Server-Side Episode Pagination Endpoint Handler:
- * Returns paginated slice of episodes for frontend rendering without loading thousands of DOM nodes at once.
+ * Returns paginated slice of released episodes without generating unreleased episode placeholders.
  */
 export async function getPaginatedEpisodes(
   animeId: number,
@@ -197,26 +203,35 @@ export async function getPaginatedEpisodes(
   pageSize: number = 100,
   totalEpisodes?: number | null,
   malId?: number,
-  streamingEpisodes?: Array<{ title?: string; thumbnail?: string; url?: string }>
+  streamingEpisodes?: Array<{ title?: string; thumbnail?: string; url?: string }>,
+  status?: string
 ): Promise<PaginatedEpisodesResponse> {
-  const allEpisodes = await getNormalizedEpisodes(animeId, totalEpisodes, malId, streamingEpisodes);
+  const allReleasedEpisodes = await getNormalizedEpisodes(
+    animeId,
+    totalEpisodes,
+    malId,
+    streamingEpisodes,
+    status
+  );
 
-  const total = allEpisodes.length;
+  const releasedEpisodes = allReleasedEpisodes.length;
   const safePageSize = Math.max(1, pageSize);
-  const totalPages = Math.ceil(total / safePageSize);
+  const totalPages = Math.ceil(releasedEpisodes / safePageSize);
   const currentPage = Math.max(1, Math.min(page, totalPages || 1));
 
   const startIndex = (currentPage - 1) * safePageSize;
-  const paginatedSlice = allEpisodes.slice(startIndex, startIndex + safePageSize);
+  const paginatedSlice = allReleasedEpisodes.slice(startIndex, startIndex + safePageSize);
 
   return {
     episodes: paginatedSlice,
     pagination: {
       page: currentPage,
       pageSize: safePageSize,
-      total,
+      total: releasedEpisodes,
       hasNextPage: currentPage < totalPages,
       totalPages,
     },
+    totalEpisodes: totalEpisodes || undefined,
+    releasedEpisodes,
   };
 }
