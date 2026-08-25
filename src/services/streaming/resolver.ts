@@ -9,9 +9,11 @@ import { AniLinkProvider } from './providers/anilinkProvider';
 import { VidStreamProvider } from './providers/vidstreamProvider';
 import { TwoEmbedProvider } from './providers/twoEmbedProvider';
 import { VidSrcProvider } from './providers/vidsrcProvider';
+import { YomiHlsProvider } from './providers/yomiHlsProvider';
 
 const REGISTERED_PROVIDERS: StreamingProvider[] = [
   new AniLinkProvider(),
+  new YomiHlsProvider(),
   new VidStreamProvider(),
   new TwoEmbedProvider(),
   new VidSrcProvider(),
@@ -51,9 +53,9 @@ async function fetchProviderWithRetry(
 
 /**
  * Multi-Mirror Stream Resolver Engine:
- * - Concurrently resolves all 4 server mirrors in parallel.
+ * - Concurrently resolves all server mirrors including HLS Direct manifest and iframe embeds in parallel.
  * - Auto-reboots failed server requests.
- * - Populates all 4 mirrors for 1-click mirror switching and automatic fallback.
+ * - Populates all mirrors for 1-click mirror switching and automatic fallback.
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -80,7 +82,7 @@ export function resolveParallelSources(options: {
     const ep = Math.max(1, episode);
     const targetId = animeId || malId || 151807;
 
-    // Launch all 4 servers in parallel
+    // Launch all registered servers in parallel
     const providerPromises = REGISTERED_PROVIDERS.map((provider) =>
       fetchProviderWithRetry(provider, animeId, title, episode, variant, malId).catch(() => null)
     );
