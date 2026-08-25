@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { supabase } from '../../services/auth/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { verifyLocalAccount } from '../../services/auth/localAuthStore';
+import { verifyLocalAccount, accountExists } from '../../services/auth/localAuthStore';
 import { Mail, Lock, LogIn, CheckCircle, UserPlus, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
@@ -61,7 +61,7 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. Check Registered Local Accounts Second
+      // 2. Check Registered Local Accounts Backup Second
       const verifiedLocal = verifyLocalAccount(cleanEmail, cleanPassword);
       if (verifiedLocal) {
         setGuestSession(verifiedLocal.email, verifiedLocal.username);
@@ -69,21 +69,45 @@ export default function LoginPage() {
         return;
       }
 
-      // 3. New User or Invalid Credentials -> Detect New User Status
+      // 3. Handle Authentication Errors Gracefully
       if (authError) {
         const msg = authError.message.toLowerCase();
 
         if (msg.includes('email not confirmed')) {
-          setError('Your email verification is pending. Please check your email inbox and click the verification link before signing in.');
+          setError('Your email verification is pending. Please check your inbox and complete verification before signing in.');
           setLoading(false);
           return;
         }
 
-        setIsNewUser(true);
-        setError('You are a new user! Please Sign Up to create an account first.');
+        // Check if account exists in database to distinguish wrong password from non-existent user
+        let userExistsInDb = accountExists(cleanEmail);
+
+        if (!userExistsInDb && isSupabaseConfigured()) {
+          try {
+            const { data: profileRow } = await supabase
+              .from('profiles')
+              .select('id')
+              .ilike('email', cleanEmail)
+              .maybeSingle();
+
+            if (profileRow) {
+              userExistsInDb = true;
+            }
+          } catch {}
+        }
+
+        if (userExistsInDb) {
+          // Account exists in database -> Password issue
+          setIsNewUser(false);
+          setError('Incorrect password for this account. Please check your password or click "Forgot password?".');
+        } else {
+          // Account does not exist -> New user
+          setIsNewUser(true);
+          setError('No account found for this email address. Please Sign Up to create an account first.');
+        }
       } else {
         setIsNewUser(true);
-        setError('You are a new user! Please Sign Up to create an account first.');
+        setError('No account found for this email address. Please Sign Up to create an account first.');
       }
     } catch (err: any) {
       console.warn('[AUTH LOGIN ERROR]', err);
@@ -94,7 +118,7 @@ export default function LoginPage() {
         return;
       }
       setIsNewUser(true);
-      setError('You are a new user! Please Sign Up to create an account first.');
+      setError('No account found for this email address. Please Sign Up to create an account first.');
     } finally {
       setLoading(false);
     }
@@ -114,7 +138,7 @@ export default function LoginPage() {
             <span className="text-purple-400">World</span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Welcome Back 👋</h2>
-          <p className="text-xs text-slate-400">Sign in to your AniWorld account to stream seamlessly.</p>
+          <p className="text-xs text-slate-400">Sign in to your AniWorld account on any device.</p>
         </div>
 
         {verifiedSuccess && (
