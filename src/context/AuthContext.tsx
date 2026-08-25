@@ -41,9 +41,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Local Guest Session Generator (only used if explicitly requested in Guest Mode)
-  const getGuestProfile = (email = 'guest@aniworld.io', name = 'Guest'): UserProfileData => ({
-    id: 'usr_guest',
+  // Local Guest / Active Session Generator & Persistence Helper
+  const getGuestProfile = (email = 'user@aniworld.io', name = 'Member'): UserProfileData => ({
+    id: `usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
     username: name,
     displayName: name,
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
@@ -58,7 +58,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   });
 
-  const setGuestSession = (email = 'guest@aniworld.io', username = 'Guest') => {
+  const setGuestSession = (email = 'user@aniworld.io', username = 'Member') => {
     const prof = getGuestProfile(email, username);
     localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(prof));
     setProfile(prof);
@@ -71,12 +71,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     localStorage.removeItem('aniworld_watchlist');
   };
 
+  const restoreLocalSessionIfPresent = () => {
+    const local = localStorage.getItem(LOCAL_SESSION_KEY);
+    if (local) {
+      try {
+        const prof = JSON.parse(local);
+        setProfile(prof);
+        setUser({ id: prof.id, email: prof.email } as any);
+        return true;
+      } catch {}
+    }
+    return false;
+  };
+
   // Load User Profile and Preferences from Supabase Database
   const loadProfile = async (currentUser: User) => {
     try {
       if (!isSupabaseConfigured()) {
-        const local = localStorage.getItem(LOCAL_SESSION_KEY);
-        setProfile(local ? JSON.parse(local) : getGuestProfile(currentUser.email || undefined));
+        if (!restoreLocalSessionIfPresent()) {
+          setProfile(getGuestProfile(currentUser.email || undefined));
+        }
         return;
       }
 
@@ -99,63 +113,63 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         skipOutro: prefData?.skip_outro ?? false,
       };
 
-      setProfile({
+      const loadedProfile: UserProfileData = {
         id: currentUser.id,
         username,
         displayName,
         avatarUrl,
         email,
         preferences
-      });
+      };
+
+      setProfile(loadedProfile);
+      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
     } catch (err) {
       console.warn('[AuthContext] Load Profile Notice:', err);
-      setProfile(getGuestProfile(currentUser.email || undefined, currentUser.email?.split('@')[0]));
+      if (!restoreLocalSessionIfPresent()) {
+        setProfile(getGuestProfile(currentUser.email || undefined, currentUser.email?.split('@')[0]));
+      }
     }
   };
 
   useEffect(() => {
     let isSubscribed = true;
 
-    if (!isSupabaseConfigured()) {
-      const local = localStorage.getItem(LOCAL_SESSION_KEY);
-      if (local) {
-        try {
-          const prof = JSON.parse(local);
-          setProfile(prof);
-          setUser({ id: prof.id, email: prof.email } as any);
-        } catch {}
-      }
-      setLoading(false);
-      return;
-    }
-
     // 1. Initial Session Retrieval
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (!isSubscribed) return;
       setSession(session);
-      setUser(session?.user ?? null);
       if (session?.user) {
+        setUser(session.user);
         loadProfile(session.user).finally(() => {
           if (isSubscribed) setLoading(false);
         });
       } else {
-        setProfile(null);
+        restoreLocalSessionIfPresent();
         setLoading(false);
       }
     }).catch(() => {
-      if (isSubscribed) setLoading(false);
+      if (isSubscribed) {
+        restoreLocalSessionIfPresent();
+        setLoading(false);
+      }
     });
 
     // 2. Real-Time Auth State Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!isSubscribed) return;
       setSession(session);
-      setUser(session?.user ?? null);
 
       if (session?.user) {
+        setUser(session.user);
         await loadProfile(session.user);
       } else {
-        setProfile(null);
+        // Only clear profile if local session is also absent (or during explicit logout)
+        const hasLocal = restoreLocalSessionIfPresent();
+        if (!hasLocal) {
+          setProfile(null);
+          setUser(null);
+        }
       }
       setLoading(false);
     });
