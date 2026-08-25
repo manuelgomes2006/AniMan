@@ -14,63 +14,65 @@ export const ALLOWED_EMBED_HOSTS = [
 ];
 
 /**
- * Centralized Provider Configuration & Status Classification
+ * Centralized Provider Configuration & Honest Status Classification
+ * Providers are evaluated for X-Frame-Options, CSP frame-ancestors, JS frame-busting,
+ * Cloudflare challenges, DNS availability, and route mapping validity.
  */
 export const VIDEO_PROVIDERS: ProviderConfig[] = [
   {
     id: 'anilink',
     name: 'AniLink HD',
-    enabled: true,
+    enabled: false, // Route mapping requires slug title rather than numeric AniList ID
     priority: 1,
     allowedDomains: ['anilink.cc'],
-    status: 'available',
-    verified: true,
+    status: 'invalid_url',
+    verified: false,
     requiresAuth: false,
   },
   {
     id: 'twoembed',
     name: '2Embed HD',
-    enabled: true,
+    enabled: false, // Contains JavaScript frame-busting (if (top !== self)) blocking iframe embedding
     priority: 2,
     allowedDomains: ['www.2embed.cc', '2embed.cc'],
-    status: 'available',
-    verified: true,
+    status: 'blocked_by_provider',
+    verified: false,
     requiresAuth: false,
   },
   {
     id: 'vidcloud',
     name: 'VidSrc HD',
-    enabled: true,
+    enabled: false, // Returns Cloudflare HTTP 522 Origin Error & X-Frame-Options: SAMEORIGIN
     priority: 3,
     allowedDomains: ['vidsrc.cc'],
     status: 'blocked_by_provider',
-    verified: true,
+    verified: false,
     requiresAuth: false,
   },
   {
     id: 'autoembed',
     name: 'AutoEmbed HD',
-    enabled: true,
+    enabled: false, // DNS resolution failure (ENOTFOUND getaddrinfo player.autoembed.cc)
     priority: 4,
     allowedDomains: ['player.autoembed.cc', 'autoembed.cc'],
     status: 'offline',
-    verified: true,
+    verified: false,
     requiresAuth: false,
   },
   {
     id: 'megacloud',
     name: 'MegaCloud HD',
-    enabled: true,
+    enabled: false, // Cloudflare HTTP 523 Origin Unreachable & X-Frame-Options: SAMEORIGIN
     priority: 5,
     allowedDomains: ['megacloud.blog', 'megacloud.cc'],
     status: 'offline',
-    verified: true,
+    verified: false,
     requiresAuth: false,
   },
   {
     id: 'kiwi',
     name: 'Kiwi / Kwik',
-    enabled: false,
+    enabled: false, // Marked disabled until credentials/configuration verified
     priority: 6,
     allowedDomains: ['kwik.cx', 'kiwi.mobi'],
     status: 'not_verified',
@@ -80,7 +82,7 @@ export const VIDEO_PROVIDERS: ProviderConfig[] = [
   {
     id: 'vidplay',
     name: 'VidPlay HD',
-    enabled: false,
+    enabled: false, // Marked disabled until credentials/configuration verified
     priority: 7,
     allowedDomains: ['vidplay.online', 'vidplay.site'],
     status: 'not_verified',
@@ -102,10 +104,8 @@ export function isAllowedEmbedUrl(url: string, providerId?: string): boolean {
   try {
     const parsed = new URL(url);
 
-    // 1. Must be HTTPS
     if (parsed.protocol !== 'https:') return false;
 
-    // 2. Validate hostname against ALLOWED_EMBED_HOSTS allowlist
     const hostname = parsed.hostname.toLowerCase();
     const isAllowlisted = ALLOWED_EMBED_HOSTS.some(
       (host) => hostname === host || hostname.endsWith(`.${host}`)
@@ -113,7 +113,6 @@ export function isAllowedEmbedUrl(url: string, providerId?: string): boolean {
 
     if (!isAllowlisted) return false;
 
-    // 3. Optional provider-specific domain validation
     if (providerId) {
       const config = VIDEO_PROVIDERS.find((p) => p.id === providerId);
       if (config) {
@@ -129,7 +128,6 @@ export function isAllowedEmbedUrl(url: string, providerId?: string): boolean {
   }
 }
 
-// Alias for backward compatibility
 export const validateEmbedUrl = isAllowedEmbedUrl;
 
 /**
@@ -188,29 +186,17 @@ export function recordProviderFailure(providerId: string): void {
 }
 
 /**
- * Get Ranked Providers ordered by Enablement, Priority, and Health
+ * Get Ranked Available Providers
+ * Only returns providers where status === 'available' and enabled === true.
  */
 export function getRankedProviders(): ProviderConfig[] {
-  const healthMap = getProviderHealth();
-
   return [...VIDEO_PROVIDERS]
-    .filter((p) => p.enabled && p.status !== 'blocked_by_provider' && p.status !== 'offline')
-    .sort((a, b) => {
-      const healthA = healthMap[a.id];
-      const healthB = healthMap[b.id];
-
-      const failRatioA = healthA ? healthA.failureCount / Math.max(1, healthA.successCount + healthA.failureCount) : 0;
-      const failRatioB = healthB ? healthB.failureCount / Math.max(1, healthB.successCount + healthB.failureCount) : 0;
-
-      if (failRatioA > 0.8 && failRatioB <= 0.8) return 1;
-      if (failRatioB > 0.8 && failRatioA <= 0.8) return -1;
-
-      return a.priority - b.priority;
-    });
+    .filter((p) => p.enabled && p.status === 'available')
+    .sort((a, b) => a.priority - b.priority);
 }
 
 export function getPreferredProviderId(): string {
-  return localStorage.getItem(PREFERRED_PROVIDER_KEY) || 'anilink';
+  return localStorage.getItem(PREFERRED_PROVIDER_KEY) || 'autoembed';
 }
 
 export function setPreferredProviderId(providerId: string): void {

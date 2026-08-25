@@ -12,8 +12,9 @@ const RESOLVED_CACHE = new Map<string, { data: NormalizedStreamResponse; timesta
 const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
 
 /**
- * Verified Multi-Provider Parallel Resolver Engine:
+ * Verified Multi-Provider Resolver Engine:
  * Resolves episode sources via domain-allowlisted VideoProviders.
+ * Returns null firstValidSource if no provider is verified available.
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -51,7 +52,7 @@ export function resolveParallelSources(options: {
         status: src.status,
       }));
 
-    const firstValidSource = validSources.find((s) => s.status === 'available') || validSources[0] || null;
+    const firstValidSource = validSources.find((s) => s.status === 'available') || null;
 
     const servers: StreamingServerOption[] = VIDEO_PROVIDERS.map((prov, idx) => {
       const match = validSources.find((s) => s.providerId === prov.id);
@@ -59,8 +60,8 @@ export function resolveParallelSources(options: {
         id: prov.id,
         name: prov.name,
         providerId: prov.id,
-        url: match ? match.url : validSources[idx % validSources.length]?.url || firstValidSource?.url || '',
-        status: prov.enabled && prov.status === 'available' ? 'active' : prov.status === 'offline' ? 'offline' : 'degraded',
+        url: match ? match.url : '',
+        status: prov.enabled && prov.status === 'available' ? 'active' : 'offline',
         providerStatus: prov.status,
         isDefault: idx === 0,
         audioVariant: variant,

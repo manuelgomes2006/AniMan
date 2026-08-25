@@ -19,6 +19,7 @@ const WatchPage = lazy(() => import('./pages/WatchPage'));
 const WatchlistPage = lazy(() => import('./pages/WatchlistPage'));
 const SchedulePage = lazy(() => import('./pages/SchedulePage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const DebugPlayerPage = lazy(() => import('./pages/DebugPlayerPage'));
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
               <Route path="/signup" element={<SignupPage />} />
               <Route path="/forgot-password" element={<ForgotPasswordPage />} />
               <Route path="/reset-password" element={<ResetPasswordPage />} />
+              <Route path="/debug-player" element={<DebugPlayerPage />} />
 
               {/* Authenticated Protected Routes */}
               <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
