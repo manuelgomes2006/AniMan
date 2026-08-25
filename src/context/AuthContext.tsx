@@ -253,6 +253,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           () => {
             console.log('[Multi-Device Sync] Profile updated on another device');
             loadProfile(user);
+            window.dispatchEvent(new CustomEvent('aniworld_profile_updated'));
           }
         )
         .on(
@@ -261,6 +262,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           () => {
             console.log('[Multi-Device Sync] Preferences updated on another device');
             loadProfile(user);
+            window.dispatchEvent(new CustomEvent('aniworld_profile_updated'));
           }
         )
         .on(
@@ -269,6 +271,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           () => {
             console.log('[Multi-Device Sync] Watch history updated on another device');
             fetchWatchHistoryFromSupabase();
+            window.dispatchEvent(new CustomEvent('aniworld_history_updated'));
           }
         )
         .on(
@@ -277,6 +280,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           () => {
             console.log('[Multi-Device Sync] Watchlist updated on another device');
             fetchWatchlistFromSupabase();
+            window.dispatchEvent(new CustomEvent('aniworld_watchlist_updated'));
           }
         )
         .subscribe();
