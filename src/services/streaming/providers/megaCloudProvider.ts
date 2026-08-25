@@ -12,9 +12,9 @@ export class MegaCloudProvider implements StreamingProvider {
     malId?: number
   ): Promise<StreamingSource | null> {
     const ep = Math.max(1, episode);
-    const targetId = animeId || malId || 151807;
-    // Ultra high-uptime MegaCloud DNS gateway
-    const url = `https://anilink.cc/watch/${targetId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`;
+    const targetId = malId || animeId || 151807;
+    // Updated MegaCloud domain endpoint resolving DNS lookup errors
+    const url = `https://megacloud.blog/embed/anime/${targetId}/${ep}?audio=${variant}&autoPlay=1`;
 
     return {
       providerId: this.id,

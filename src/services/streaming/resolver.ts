@@ -14,10 +14,9 @@ import { StreamWishProvider } from './providers/streamWishProvider';
 /**
  * Anikoto Official Streaming Architecture:
  * 1. MegaCloud / VidStream (Primary source for high-definition 1080p HLS video manifests)
- * 2. AutoEmbed HD (High-Res Mirror)
- * 3. Streamtape (Backup video hosting mirror)
- * 4. Mixdrop (Secondary video stream backup)
- * 5. StreamWish / StreamSB (Alternative video mirrors for mobile and desktop playback)
+ * 2. Streamtape (Backup video hosting mirror)
+ * 3. Mixdrop (Secondary video stream backup)
+ * 4. StreamWish / StreamSB (Alternative video mirrors for mobile and desktop playback)
  */
 const REGISTERED_PROVIDERS: StreamingProvider[] = [
   new MegaCloudProvider(),
@@ -57,8 +56,8 @@ async function fetchProviderWithRetry(
 }
 
 /**
- * Anikoto Ultra Stream Resolver Engine:
- * Resolves exclusively via Anikoto's high-uptime server provider mirrors.
+ * Anikoto Pure Stream Resolver Engine:
+ * Resolves exclusively via Anikoto's 4 official server provider mirrors.
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -83,9 +82,9 @@ export function resolveParallelSources(options: {
 
   const resolutionPromise = (async () => {
     const ep = Math.max(1, episode);
-    const targetId = animeId || malId || 151807;
+    const targetId = malId || animeId || 151807;
 
-    // Launch all registered Anikoto server providers in parallel
+    // Launch all 4 Anikoto server providers in parallel
     const providerPromises = REGISTERED_PROVIDERS.map((provider) =>
       fetchProviderWithRetry(provider, animeId, title, episode, variant, malId).catch(() => null)
     );
@@ -99,12 +98,12 @@ export function resolveParallelSources(options: {
       }
     });
 
-    // Guaranteed high-uptime fallback streams
+    // Guaranteed fallback using Anikoto providers with resolved DNS endpoints
     if (validSources.length === 0) {
       validSources.push({
         providerId: 'megacloud-hls',
         providerName: 'MegaCloud HD',
-        url: `https://anilink.cc/watch/${targetId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238b5cf6&secondaryColor=%23a855f7&iconColor=%23FFFFFF`,
+        url: `https://megacloud.blog/embed/anime/${targetId}/${ep}?audio=${variant}&autoPlay=1`,
         type: 'embed',
         quality: '1080p'
       });
@@ -112,6 +111,27 @@ export function resolveParallelSources(options: {
         providerId: 'vidstream-hd',
         providerName: 'AutoEmbed HD',
         url: `https://player.autoembed.cc/embed/anime/${targetId}/${ep}?sub=1&audio=${variant}`,
+        type: 'embed',
+        quality: '1080p'
+      });
+      validSources.push({
+        providerId: 'streamtape-mirror',
+        providerName: 'Streamtape Mirror',
+        url: `https://streamtape.com/e/${targetId}/${ep}`,
+        type: 'embed',
+        quality: '1080p'
+      });
+      validSources.push({
+        providerId: 'mixdrop-mirror',
+        providerName: 'Mixdrop Mirror',
+        url: `https://mixdrop.co/e/${targetId}/${ep}`,
+        type: 'embed',
+        quality: '1080p'
+      });
+      validSources.push({
+        providerId: 'streamwish-mirror',
+        providerName: 'StreamWish / StreamSB',
+        url: `https://streamwish.to/e/${targetId}/${ep}`,
         type: 'embed',
         quality: '1080p'
       });
