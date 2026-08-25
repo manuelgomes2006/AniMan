@@ -50,6 +50,7 @@ CREATE TABLE IF NOT EXISTS public.favorites (
 CREATE TABLE IF NOT EXISTS public.user_preferences (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   preferred_audio TEXT DEFAULT 'sub' CHECK (preferred_audio IN ('sub', 'dub')),
+  preferred_provider TEXT DEFAULT 'autoembed',
   preferred_quality TEXT DEFAULT 'auto',
   autoplay BOOLEAN DEFAULT TRUE,
   autoplay_next BOOLEAN DEFAULT TRUE,
@@ -66,6 +67,31 @@ CREATE TABLE IF NOT EXISTS public.search_history (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
+-- 7. EPISODE SOURCES TABLE (Multi-Provider Authorized Mapping Layer)
+CREATE TABLE IF NOT EXISTS public.episode_sources (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  episode_id TEXT NOT NULL,
+  provider_id TEXT NOT NULL,
+  embed_url TEXT NOT NULL,
+  language TEXT DEFAULT 'sub' CHECK (language IN ('sub', 'dub')),
+  quality TEXT DEFAULT '1080p',
+  priority INTEGER DEFAULT 1,
+  enabled BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(episode_id, provider_id, language)
+);
+
+-- 8. PROVIDER HEALTH TABLE (Lightweight Monitoring System)
+CREATE TABLE IF NOT EXISTS public.provider_health (
+  provider_id TEXT PRIMARY KEY,
+  success_count INTEGER DEFAULT 0,
+  failure_count INTEGER DEFAULT 0,
+  last_success TIMESTAMP WITH TIME ZONE,
+  last_failure TIMESTAMP WITH TIME ZONE,
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE
 CREATE INDEX IF NOT EXISTS idx_watchlist_user_id ON public.watchlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_user_anime ON public.watchlist(user_id, anime_id);
@@ -74,6 +100,8 @@ CREATE INDEX IF NOT EXISTS idx_watch_history_user_anime ON public.watch_history(
 CREATE INDEX IF NOT EXISTS idx_watch_history_last_watched ON public.watch_history(user_id, last_watched DESC);
 CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON public.favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_search_history_user_id ON public.search_history(user_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_episode_sources_ep_prov ON public.episode_sources(episode_id, provider_id);
+CREATE INDEX IF NOT EXISTS idx_episode_sources_enabled ON public.episode_sources(enabled);
 
 -- ====================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -85,6 +113,8 @@ ALTER TABLE public.watch_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.episode_sources ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.provider_health ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
 CREATE POLICY "Users can read public profiles" ON public.profiles FOR SELECT USING (true);
@@ -106,6 +136,12 @@ CREATE POLICY "Users can manage own preferences" ON public.user_preferences FOR 
 
 -- Search History Policies
 CREATE POLICY "Users can manage own search history" ON public.search_history FOR ALL USING (auth.uid() = user_id);
+
+-- Episode Sources Policies (Public Read Access)
+CREATE POLICY "Anyone can read episode sources" ON public.episode_sources FOR SELECT USING (enabled = true);
+
+-- Provider Health Policies (Public Read Access)
+CREATE POLICY "Anyone can read provider health" ON public.provider_health FOR SELECT USING (true);
 
 -- ====================================================================
 -- AUTOMATIC NEW USER INITIALIZATION TRIGGER
@@ -142,32 +178,8 @@ CREATE TRIGGER on_auth_user_created
 CREATE OR REPLACE FUNCTION public.delete_user_account()
 RETURNS void AS $$
 BEGIN
-  -- Permanently delete the authenticated user from auth.users
-  -- ON DELETE CASCADE automatically purges profiles, watchlist, history, favorites, preferences, search_history
   DELETE FROM auth.users WHERE id = auth.uid();
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Grant execution to authenticated users
 GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;
-
--- ====================================================================
--- 🧹 AUTOMATIC 6-MONTH INACTIVE USER ACCOUNT DELETION PROCEDURE
--- ====================================================================
-
-CREATE OR REPLACE FUNCTION public.delete_inactive_users_6_months()
-RETURNS INTEGER AS $$
-DECLARE
-  deleted_count INTEGER := 0;
-BEGIN
-  WITH inactive_users AS (
-    SELECT id FROM auth.users
-    WHERE COALESCE(last_sign_in_at, created_at) < (NOW() - INTERVAL '6 months')
-  )
-  DELETE FROM auth.users
-  WHERE id IN (SELECT id FROM inactive_users);
-
-  GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RETURN deleted_count;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;

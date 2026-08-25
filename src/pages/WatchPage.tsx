@@ -19,6 +19,7 @@ import {
 import { AnimeMedia } from '../types/anime';
 
 import SubDubControls from '../components/player/SubDubControls';
+import ServerSelector from '../components/player/ServerSelector';
 import RightEpisodeSidebar from '../components/player/RightEpisodeSidebar';
 import CommentsSection from '../components/player/CommentsSection';
 import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
@@ -131,6 +132,13 @@ export default function WatchPage() {
     setStreamError(false);
     if (streamResponse && streamResponse.sources.length > 1) {
       setActiveSourceIndex((prev) => (prev + 1) % streamResponse.sources.length);
+    }
+  };
+
+  const handleSelectServerIndex = (index: number) => {
+    setStreamError(false);
+    if (streamResponse && index >= 0 && index < streamResponse.sources.length) {
+      setActiveSourceIndex(index);
     }
   };
 
@@ -251,6 +259,18 @@ export default function WatchPage() {
               onEnded={() => handleSelectEpisode(currentEpNum + 1)}
             />
 
+            {/* Interactive Server Selector Tabs */}
+            {streamResponse && streamResponse.servers && (
+              <ServerSelector
+                servers={streamResponse.servers}
+                activeSourceIndex={activeSourceIndex}
+                onSelectServer={handleSelectServerIndex}
+                audioVariant={audioVariant}
+                onAudioChange={handleAudioChange}
+                episodeNumber={currentEpNum}
+              />
+            )}
+
             <SubDubControls
               audioVariant={audioVariant}
               onAudioChange={handleAudioChange}
@@ -294,6 +314,8 @@ export default function WatchPage() {
           episodes={normalizedEpisodes}
           streamResponse={streamResponse}
           activeSource={activeSource}
+          activeSourceIndex={activeSourceIndex}
+          onSelectServer={handleSelectServerIndex}
           audioVariant={audioVariant}
           onAudioChange={handleAudioChange}
           onSelectEpisode={handleSelectEpisode}

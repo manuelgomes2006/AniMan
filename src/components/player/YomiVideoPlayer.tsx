@@ -1,7 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, Settings } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, Settings, AlertTriangle, ShieldCheck } from 'lucide-react';
 import { StreamingSource } from '../../services/streaming/providerTypes';
+import { validateEmbedUrl, recordProviderSuccess, recordProviderFailure } from '../../services/streaming/providerRegistry';
 
 interface AniworldVideoPlayerProps {
   source: StreamingSource | null;
@@ -38,14 +39,28 @@ export default function YomiVideoPlayer({
   const [showControls, setShowControls] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [isHlsSource, setIsHlsSource] = useState(false);
+  const [hasPlayerError, setHasPlayerError] = useState(false);
+  const [isIframeLoading, setIsIframeLoading] = useState(true);
 
   const controlsTimeoutRef = useRef<any>(null);
 
-  // Initialize HLS.js or Embed player
+  // Initialize player state when source changes
   useEffect(() => {
+    setHasPlayerError(false);
+    setIsIframeLoading(true);
+
     if (!source || !source.url) return;
 
     const url = source.url;
+
+    // Validate domain allowlist and HTTPS safety
+    if (!validateEmbedUrl(url, source.providerId)) {
+      console.warn(`[Player] Security Notice: URL failed domain allowlist validation (${url})`);
+      setHasPlayerError(true);
+      if (source.providerId) recordProviderFailure(source.providerId);
+      return;
+    }
+
     const isDirectHls = url.includes('.m3u8') || source.type === 'hls';
     setIsHlsSource(isDirectHls);
 
@@ -63,6 +78,9 @@ export default function YomiVideoPlayer({
         hls.attachMedia(videoRef.current);
 
         hls.on(Hls.Events.MANIFEST_PARSED, (_, data) => {
+          setIsIframeLoading(false);
+          if (source.providerId) recordProviderSuccess(source.providerId);
+
           if (data.levels && data.levels.length > 0) {
             const parsedQualities = ['Auto', ...data.levels.map((l) => `${l.height}p`)];
             setQualities(parsedQualities);
@@ -73,9 +91,15 @@ export default function YomiVideoPlayer({
           videoRef.current?.play().then(() => setPlaying(true)).catch(() => {});
         });
 
+        hls.on(Hls.Events.ERROR, () => {
+          setHasPlayerError(true);
+          if (source.providerId) recordProviderFailure(source.providerId);
+        });
+
         hlsRef.current = hls;
       } else if (videoRef.current.canPlayType('application/vnd.apple.mpegurl')) {
         videoRef.current.src = url;
+        setIsIframeLoading(false);
         if (initialTime > 5) videoRef.current.currentTime = initialTime;
         videoRef.current.play().then(() => setPlaying(true)).catch(() => {});
       }
@@ -108,7 +132,6 @@ export default function YomiVideoPlayer({
     setDuration(dur);
     if (onTimeUpdate) onTimeUpdate(cur, dur);
 
-    // Auto Skip Intro (between 10s and 95s)
     if (skipIntroEnabled && cur > 10 && cur < 90) {
       videoRef.current.currentTime = 95;
     }
@@ -159,10 +182,22 @@ export default function YomiVideoPlayer({
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
+  const handleIframeLoad = () => {
+    setIsIframeLoading(false);
+    if (source?.providerId) recordProviderSuccess(source.providerId);
+  };
+
+  const handleIframeError = () => {
+    setHasPlayerError(true);
+    setIsIframeLoading(false);
+    if (source?.providerId) recordProviderFailure(source.providerId);
+  };
+
   if (!source || !source.url) {
     return (
-      <div className="w-full aspect-video bg-[#0D0D12] border border-slate-900 rounded-3xl flex items-center justify-center">
-        <span className="text-xs text-purple-400 font-extrabold animate-pulse">Loading AniWorld stream feed...</span>
+      <div className="w-full aspect-video bg-[#0D0D12] border border-slate-800 rounded-3xl flex flex-col items-center justify-center p-6 space-y-3">
+        <div className="w-10 h-10 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+        <span className="text-xs text-purple-400 font-extrabold animate-pulse">Resolving authorized stream servers...</span>
       </div>
     );
   }
@@ -173,8 +208,38 @@ export default function YomiVideoPlayer({
       onMouseMove={handleMouseMove}
       className="relative w-full aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-slate-900/90 group select-none"
     >
-      {/* 1. HLS Video Element or iFrame Embed Fallback */}
-      {isHlsSource ? (
+      {/* Skeleton Loading Indicator */}
+      {isIframeLoading && !hasPlayerError && (
+        <div className="absolute inset-0 bg-[#0D0D12] z-20 flex flex-col items-center justify-center space-y-3 animate-pulse">
+          <div className="w-8 h-8 border-3 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+          <span className="text-xs text-slate-400 font-extrabold">Loading {source.providerName}...</span>
+        </div>
+      )}
+
+      {/* Automatic Provider Fallback Error Card */}
+      {hasPlayerError ? (
+        <div className="absolute inset-0 bg-[#0D0D12] z-40 p-6 flex flex-col items-center justify-center text-center space-y-4">
+          <div className="w-12 h-12 bg-amber-950/60 border border-amber-800/80 rounded-2xl flex items-center justify-center text-amber-400 shadow-xl">
+            <AlertTriangle className="w-6 h-6" />
+          </div>
+          <div className="space-y-1 max-w-md">
+            <h3 className="text-sm font-black text-white">Server Unavailable</h3>
+            <p className="text-xs text-slate-400 font-medium">
+              The current stream provider (<strong className="text-purple-300">{source.providerName}</strong>) is uncommunicative or restricted. Try another server below.
+            </p>
+          </div>
+
+          {onSwitchMirror && (
+            <button
+              onClick={onSwitchMirror}
+              className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
+            >
+              <RotateCcw className="w-4 h-4" />
+              <span>Try Next Available Server</span>
+            </button>
+          )}
+        </div>
+      ) : isHlsSource ? (
         <video
           ref={videoRef}
           onTimeUpdate={handleTimeUpdate}
@@ -191,21 +256,26 @@ export default function YomiVideoPlayer({
           className="w-full h-full border-0 relative z-10 pointer-events-auto"
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
           allowFullScreen
-          referrerPolicy="origin"
+          loading="lazy"
+          referrerPolicy="strict-origin-when-cross-origin"
+          onLoad={handleIframeLoad}
+          onError={handleIframeError}
         />
       )}
 
-      {/* 2. Top Header Overlay (Always visible on hover for both HLS & Embed sources) */}
+      {/* Top Header Overlay */}
       <div
         className={`absolute top-0 left-0 right-0 p-3.5 z-30 flex items-center justify-between transition-opacity duration-300 pointer-events-auto ${
           showControls ? 'opacity-100 bg-gradient-to-b from-black/80 to-transparent' : 'opacity-0 pointer-events-none'
         }`}
       >
         <div className="flex items-center gap-2">
-          <span className="bg-purple-600 text-white text-[10px] uppercase font-black px-2.5 py-1 rounded-full tracking-wider shadow-md">
-            ANIWORLD HD
+          <span className="bg-purple-600 text-white text-[10px] uppercase font-black px-2.5 py-1 rounded-full tracking-wider shadow-md flex items-center gap-1">
+            <ShieldCheck className="w-3 h-3" /> ANIWORLD HD
           </span>
-          <span className="text-xs font-black text-white truncate max-w-[180px] sm:max-w-xs">{title} • Ep {episodeNumber}</span>
+          <span className="text-xs font-black text-white truncate max-w-[180px] sm:max-w-xs">
+            {title} • Ep {episodeNumber}
+          </span>
         </div>
 
         {onSwitchMirror && (
@@ -219,15 +289,14 @@ export default function YomiVideoPlayer({
         )}
       </div>
 
-      {/* 3. Bottom Bar Custom Controls (for HLS Direct Sources) */}
-      {isHlsSource && (
+      {/* Bottom Bar Custom Controls (for HLS Direct Sources) */}
+      {isHlsSource && !hasPlayerError && (
         <div
           className={`absolute bottom-0 left-0 right-0 p-4 z-30 transition-opacity duration-300 bg-gradient-to-t from-black/90 to-transparent ${
             showControls ? 'opacity-100' : 'opacity-0 pointer-events-none'
           }`}
         >
           <div className="space-y-2">
-            {/* Seek Bar */}
             <input
               type="range"
               min={0}

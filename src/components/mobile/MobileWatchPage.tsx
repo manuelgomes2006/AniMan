@@ -5,6 +5,7 @@ import { NormalizedStreamResponse, StreamingSource } from '../../services/stream
 import { AnimeMedia } from '../../types/anime';
 import ErrorState from '../shared/ErrorState';
 import YomiVideoPlayer from '../player/YomiVideoPlayer';
+import ServerSelector from '../player/ServerSelector';
 
 import {
   ChevronLeft,
@@ -28,6 +29,8 @@ interface MobileWatchPageProps {
   episodes: NormalizedEpisode[];
   streamResponse: NormalizedStreamResponse | null;
   activeSource: StreamingSource | null;
+  activeSourceIndex?: number;
+  onSelectServer?: (index: number) => void;
   audioVariant: 'sub' | 'dub';
   onAudioChange: (variant: 'sub' | 'dub') => void;
   onSelectEpisode: (epNum: number) => void;
@@ -44,6 +47,8 @@ export default function MobileWatchPage({
   episodes,
   streamResponse,
   activeSource,
+  activeSourceIndex = 0,
+  onSelectServer,
   audioVariant,
   onAudioChange,
   onSelectEpisode,
@@ -112,6 +117,20 @@ export default function MobileWatchPage({
           />
         )}
       </div>
+
+      {/* Interactive Mobile Server Selector */}
+      {streamResponse && streamResponse.servers && onSelectServer && (
+        <div className="px-1">
+          <ServerSelector
+            servers={streamResponse.servers}
+            activeSourceIndex={activeSourceIndex}
+            onSelectServer={onSelectServer}
+            audioVariant={audioVariant}
+            onAudioChange={onAudioChange}
+            episodeNumber={currentEpNum}
+          />
+        </div>
+      )}
 
       {/* 3. Anime Details & Action Buttons */}
       <div className="space-y-3 px-1">

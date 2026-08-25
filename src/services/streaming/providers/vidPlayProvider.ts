@@ -1,10 +1,10 @@
 import { VideoProvider, StreamingSource, AudioVariant } from '../providerTypes';
 import { validateEmbedUrl } from '../providerRegistry';
 
-export class MegaCloudProvider implements VideoProvider {
-  id = 'megacloud';
-  name = 'MegaCloud HD';
-  allowedDomains = ['megacloud.blog', 'megacloud.cc', 'megacloud.club', 'megacloud.tv'];
+export class VidPlayProvider implements VideoProvider {
+  id = 'vidplay';
+  name = 'VidPlay HD';
+  allowedDomains = ['vidplay.online', 'vidplay.site'];
 
   async getEmbedUrl(
     animeId: number,
@@ -13,9 +13,16 @@ export class MegaCloudProvider implements VideoProvider {
     variant: AudioVariant = 'sub',
     malId?: number
   ): Promise<string | null> {
+    // Requires authorized server API key or verified credential configuration
+    const apiKey = typeof process !== 'undefined' ? process.env?.VIDPLAY_API_KEY : undefined;
+    if (!apiKey) {
+      // Unverified/unauthenticated configuration safely returns null
+      return null;
+    }
+
     const ep = Math.max(1, episode);
     const targetId = malId || animeId || 151807;
-    const url = `https://megacloud.blog/embed/anime/${targetId}/${ep}?audio=${variant}&autoPlay=1`;
+    const url = `https://vidplay.online/e/${targetId}/${ep}`;
 
     if (!validateEmbedUrl(url, this.id)) return null;
     return url;
@@ -37,12 +44,13 @@ export class MegaCloudProvider implements VideoProvider {
       url,
       type: 'embed',
       quality: '1080p',
-      isVerified: true,
+      isVerified: false,
       allowedDomains: this.allowedDomains,
     };
   }
 
   async isAvailable(): Promise<boolean> {
-    return true;
+    const apiKey = typeof process !== 'undefined' ? process.env?.VIDPLAY_API_KEY : undefined;
+    return Boolean(apiKey);
   }
 }

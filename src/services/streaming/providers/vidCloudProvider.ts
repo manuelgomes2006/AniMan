@@ -1,10 +1,10 @@
 import { VideoProvider, StreamingSource, AudioVariant } from '../providerTypes';
 import { validateEmbedUrl } from '../providerRegistry';
 
-export class MegaCloudProvider implements VideoProvider {
-  id = 'megacloud';
-  name = 'MegaCloud HD';
-  allowedDomains = ['megacloud.blog', 'megacloud.cc', 'megacloud.club', 'megacloud.tv'];
+export class VidCloudProvider implements VideoProvider {
+  id = 'vidcloud';
+  name = 'VidCloud HD';
+  allowedDomains = ['vidcloud.stream', 'vidcloud.icu', 'vidsrc.cc'];
 
   async getEmbedUrl(
     animeId: number,
@@ -15,7 +15,7 @@ export class MegaCloudProvider implements VideoProvider {
   ): Promise<string | null> {
     const ep = Math.max(1, episode);
     const targetId = malId || animeId || 151807;
-    const url = `https://megacloud.blog/embed/anime/${targetId}/${ep}?audio=${variant}&autoPlay=1`;
+    const url = `https://vidsrc.cc/v2/embed/anime/${targetId}/${ep}?autoPlay=true&audio=${variant}`;
 
     if (!validateEmbedUrl(url, this.id)) return null;
     return url;

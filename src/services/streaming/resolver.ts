@@ -1,67 +1,19 @@
 import {
-  StreamingProvider,
   StreamingSource,
   AudioVariant,
   NormalizedStreamResponse,
   StreamingServerOption
 } from './providerTypes';
-import { AnikotoHlsProvider } from './providers/anikotoHlsProvider';
-import { MegaCloudProvider } from './providers/megaCloudProvider';
-import { VidStreamProvider } from './providers/vidstreamProvider';
-import { StreamtapeProvider } from './providers/streamtapeProvider';
-import { MixdropProvider } from './providers/mixdropProvider';
-import { StreamWishProvider } from './providers/streamWishProvider';
-
-/**
- * Anikoto Direct HLS & Multi-Host Streaming Architecture:
- * 1. Anikoto HLS Direct (Proxied .m3u8 HLS manifest engine via hls.js)
- * 2. MegaCloud / VidStream (Primary 1080p HLS video source)
- * 3. AutoEmbed HD (High-res adaptive mirror)
- * 4. Streamtape (Backup video hosting mirror)
- * 5. Mixdrop (Secondary video stream backup)
- * 6. StreamWish / StreamSB (Alternative video mirror)
- */
-const REGISTERED_PROVIDERS: StreamingProvider[] = [
-  new AnikotoHlsProvider(),
-  new MegaCloudProvider(),
-  new VidStreamProvider(),
-  new StreamtapeProvider(),
-  new MixdropProvider(),
-  new StreamWishProvider(),
-];
+import { getEpisodeSourcesHandler } from '../../api/sources';
+import { VIDEO_PROVIDERS, validateEmbedUrl } from './providerRegistry';
 
 const IN_FLIGHT_REQUESTS = new Map<string, Promise<NormalizedStreamResponse>>();
 const RESOLVED_CACHE = new Map<string, { data: NormalizedStreamResponse; timestamp: number }>();
 const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
 
-async function fetchProviderWithRetry(
-  provider: StreamingProvider,
-  animeId: number,
-  title: string,
-  episode: number,
-  variant: AudioVariant,
-  malId?: number,
-  maxRetries = 1
-): Promise<StreamingSource | null> {
-  let attempt = 0;
-  while (attempt <= maxRetries) {
-    try {
-      const source = await provider.getSources(animeId, title, episode, variant, malId);
-      if (source && source.url) return source;
-    } catch (err) {
-      console.warn(`[Anikoto Engine] Server ${provider.name} failed (attempt ${attempt + 1}). Rebooting...`);
-    }
-    attempt++;
-    if (attempt <= maxRetries) {
-      await new Promise((res) => setTimeout(res, 200));
-    }
-  }
-  return null;
-}
-
 /**
- * Anikoto Direct HLS Proxy & Multi-Host Resolver Engine:
- * Concurrently resolves direct .m3u8 manifest streams and server embeds in parallel.
+ * Verified Multi-Provider Parallel Resolver Engine:
+ * Resolves episode sources via domain-allowlisted VideoProviders.
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -85,60 +37,33 @@ export function resolveParallelSources(options: {
   }
 
   const resolutionPromise = (async () => {
-    const ep = Math.max(1, episode);
-    const targetId = malId || animeId || 151807;
+    const episodeData = await getEpisodeSourcesHandler(animeId, episode, variant, title, malId);
 
-    // Launch all registered Anikoto server providers in parallel
-    const providerPromises = REGISTERED_PROVIDERS.map((provider) =>
-      fetchProviderWithRetry(provider, animeId, title, episode, variant, malId).catch(() => null)
-    );
-
-    const results = await Promise.allSettled(providerPromises);
-    const validSources: StreamingSource[] = [];
-
-    results.forEach((res) => {
-      if (res.status === 'fulfilled' && res.value && res.value.url) {
-        validSources.push(res.value);
-      }
-    });
-
-    // Guaranteed fallback list
-    if (validSources.length === 0) {
-      validSources.push({
-        providerId: 'anikoto-hls-primary',
-        providerName: 'Anikoto HLS Direct',
-        url: `https://corsproxy.io/?${encodeURIComponent(`https://megacloud.blog/stream/${targetId}/${ep}/master.m3u8?variant=${variant}`)}`,
-        type: 'hls',
-        isHLS: true,
-        quality: '1080p'
-      });
-      validSources.push({
-        providerId: 'megacloud-hls',
-        providerName: 'MegaCloud HD',
-        url: `https://megacloud.blog/embed/anime/${targetId}/${ep}?audio=${variant}&autoPlay=1`,
+    const validSources: StreamingSource[] = episodeData.sources
+      .filter((src) => validateEmbedUrl(src.embedUrl, src.providerId))
+      .map((src) => ({
+        providerId: src.providerId,
+        providerName: src.providerName,
+        url: src.embedUrl,
         type: 'embed',
-        quality: '1080p'
-      });
-      validSources.push({
-        providerId: 'vidstream-hd',
-        providerName: 'AutoEmbed HD',
-        url: `https://player.autoembed.cc/embed/anime/${targetId}/${ep}?sub=1&audio=${variant}`,
-        type: 'embed',
-        quality: '1080p'
-      });
-    }
+        quality: src.quality || '1080p',
+        isVerified: src.isVerified,
+      }));
 
-    const firstValidSource = validSources[0];
+    const firstValidSource = validSources[0] || null;
 
-    const servers: StreamingServerOption[] = REGISTERED_PROVIDERS.map((prov, idx) => {
+    const servers: StreamingServerOption[] = VIDEO_PROVIDERS.map((prov, idx) => {
       const match = validSources.find((s) => s.providerId === prov.id);
       return {
         id: prov.id,
         name: prov.name,
         providerId: prov.id,
-        url: match ? match.url : validSources[idx % validSources.length]?.url || validSources[0]?.url || '',
-        status: match ? 'active' : 'degraded',
-        isDefault: idx === 0
+        url: match ? match.url : validSources[idx % validSources.length]?.url || firstValidSource?.url || '',
+        status: prov.enabled ? (match ? 'active' : 'degraded') : 'offline',
+        isDefault: idx === 0,
+        audioVariant: variant,
+        quality: '1080p',
+        isVerified: prov.verified,
       };
     });
 
@@ -149,7 +74,7 @@ export function resolveParallelSources(options: {
       firstValidSource,
       sources: validSources,
       servers,
-      resolvedAt: Date.now()
+      resolvedAt: Date.now(),
     };
 
     RESOLVED_CACHE.set(requestKey, { data: response, timestamp: Date.now() });
@@ -160,9 +85,9 @@ export function resolveParallelSources(options: {
       prefetchNextEpisodeSources({
         animeId,
         title,
-        episode: ep,
+        episode: Math.max(1, episode),
         variant,
-        malId
+        malId,
       });
     }, 1000);
 
@@ -187,7 +112,7 @@ export function prefetchNextEpisodeSources(options: {
   if (!RESOLVED_CACHE.has(nextRequestKey) && !IN_FLIGHT_REQUESTS.has(nextRequestKey)) {
     resolveParallelSources({
       ...options,
-      episode: nextEp
+      episode: nextEp,
     }).catch((err) => console.warn('Next episode prefetch notice:', err));
   }
 }
