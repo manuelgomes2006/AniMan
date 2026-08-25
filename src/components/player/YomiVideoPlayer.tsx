@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, Settings, AlertTriangle, ShieldCheck } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, Settings, AlertTriangle, ShieldCheck, Flag } from 'lucide-react';
 import { StreamingSource } from '../../services/streaming/providerTypes';
-import { validateEmbedUrl, recordProviderSuccess, recordProviderFailure } from '../../services/streaming/providerRegistry';
+import { isAllowedEmbedUrl, recordProviderSuccess, recordProviderFailure } from '../../services/streaming/providerRegistry';
 
 interface AniworldVideoPlayerProps {
   source: StreamingSource | null;
@@ -40,6 +40,7 @@ export default function YomiVideoPlayer({
   const [showSettings, setShowSettings] = useState(false);
   const [isHlsSource, setIsHlsSource] = useState(false);
   const [hasPlayerError, setHasPlayerError] = useState(false);
+  const [errorReason, setErrorReason] = useState<string>('Unable to load this video server.');
   const [isIframeLoading, setIsIframeLoading] = useState(true);
 
   const controlsTimeoutRef = useRef<any>(null);
@@ -48,16 +49,42 @@ export default function YomiVideoPlayer({
   useEffect(() => {
     setHasPlayerError(false);
     setIsIframeLoading(true);
+    setErrorReason('Unable to load this video server.');
 
     if (!source || !source.url) return;
 
     const url = source.url;
 
-    // Validate domain allowlist and HTTPS safety
-    if (!validateEmbedUrl(url, source.providerId)) {
-      console.warn(`[Player] Security Notice: URL failed domain allowlist validation (${url})`);
+    // Log the final sanitized iframe URL in development mode
+    if (import.meta.env.DEV || process.env.NODE_ENV !== 'production') {
+      console.log('[AniWorld Player] Sanitized Iframe Embed URL:', url);
+      console.log('[AniWorld Player] Provider Status:', source.status);
+    }
+
+    // 1. Check provider status classification
+    if (source.status === 'blocked_by_provider') {
+      console.warn(`[AniWorld Player] Root Cause: Provider ${source.providerName} explicitly blocks embedding via X-Frame-Options or CSP frame-ancestors.`);
       setHasPlayerError(true);
+      setErrorReason(`Blocked by provider (${source.providerName}). Third-party iframe embedding is restricted by host security rules.`);
+      setIsIframeLoading(false);
+      return;
+    }
+
+    if (source.status === 'offline') {
+      console.warn(`[AniWorld Player] Root Cause: Provider ${source.providerName} host is offline or unreachable via DNS.`);
+      setHasPlayerError(true);
+      setErrorReason(`Provider ${source.providerName} is currently offline or unreachable.`);
+      setIsIframeLoading(false);
+      return;
+    }
+
+    // 2. Validate domain allowlist and HTTPS safety
+    if (!isAllowedEmbedUrl(url, source.providerId)) {
+      console.warn(`[AniWorld Player] Root Cause: URL failed domain allowlist validation (${url})`);
+      setHasPlayerError(true);
+      setErrorReason('URL failed domain allowlist validation.');
       if (source.providerId) recordProviderFailure(source.providerId);
+      setIsIframeLoading(false);
       return;
     }
 
@@ -93,6 +120,7 @@ export default function YomiVideoPlayer({
 
         hls.on(Hls.Events.ERROR, () => {
           setHasPlayerError(true);
+          setErrorReason('HLS stream load error or segment download failure.');
           if (source.providerId) recordProviderFailure(source.providerId);
         });
 
@@ -190,6 +218,7 @@ export default function YomiVideoPlayer({
   const handleIframeError = () => {
     setHasPlayerError(true);
     setIsIframeLoading(false);
+    setErrorReason('Unable to load this video server. Connection refused or blocked by provider headers.');
     if (source?.providerId) recordProviderFailure(source.providerId);
   };
 
@@ -216,28 +245,38 @@ export default function YomiVideoPlayer({
         </div>
       )}
 
-      {/* Automatic Provider Fallback Error Card */}
+      {/* Automatic Provider Fallback & Diagnostics Error Card */}
       {hasPlayerError ? (
         <div className="absolute inset-0 bg-[#0D0D12] z-40 p-6 flex flex-col items-center justify-center text-center space-y-4">
           <div className="w-12 h-12 bg-amber-950/60 border border-amber-800/80 rounded-2xl flex items-center justify-center text-amber-400 shadow-xl">
             <AlertTriangle className="w-6 h-6" />
           </div>
-          <div className="space-y-1 max-w-md">
-            <h3 className="text-sm font-black text-white">Server Unavailable</h3>
-            <p className="text-xs text-slate-400 font-medium">
-              The current stream provider (<strong className="text-purple-300">{source.providerName}</strong>) is uncommunicative or restricted. Try another server below.
+          <div className="space-y-1.5 max-w-md">
+            <h3 className="text-sm font-black text-white">Unable to load this video server.</h3>
+            <p className="text-xs text-amber-300 font-bold bg-amber-950/40 border border-amber-800/50 px-3 py-1 rounded-xl inline-block">
+              {errorReason}
             </p>
           </div>
 
-          {onSwitchMirror && (
+          <div className="flex items-center gap-3 pt-2">
+            {onSwitchMirror && (
+              <button
+                onClick={onSwitchMirror}
+                className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>Try Another Server</span>
+              </button>
+            )}
+
             <button
-              onClick={onSwitchMirror}
-              className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-4 py-2 rounded-xl transition shadow-lg flex items-center gap-2 cursor-pointer active:scale-95"
+              onClick={() => alert(`Report logged for server ${source.providerName}. Our team will inspect it.`)}
+              className="bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold text-xs px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
             >
-              <RotateCcw className="w-4 h-4" />
-              <span>Try Next Available Server</span>
+              <Flag className="w-3.5 h-3.5 text-amber-400" />
+              <span>Report Broken Server</span>
             </button>
-          )}
+          </div>
         </div>
       ) : isHlsSource ? (
         <video

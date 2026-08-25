@@ -1,10 +1,11 @@
-import { VideoProvider, StreamingSource, AudioVariant } from '../providerTypes';
-import { validateEmbedUrl } from '../providerRegistry';
+import { VideoProvider, StreamingSource, AudioVariant, ProviderStatus } from '../providerTypes';
+import { isAllowedEmbedUrl } from '../providerRegistry';
 
 export class AutoEmbedProvider implements VideoProvider {
   id = 'autoembed';
   name = 'AutoEmbed HD';
-  allowedDomains = ['player.autoembed.cc', 'autoembed.cc', '2embed.cc'];
+  allowedDomains = ['player.autoembed.cc', 'autoembed.cc'];
+  status: ProviderStatus = 'offline';
 
   async getEmbedUrl(
     animeId: number,
@@ -17,7 +18,7 @@ export class AutoEmbedProvider implements VideoProvider {
     const targetId = malId || animeId || 151807;
     const url = `https://player.autoembed.cc/embed/anime/${targetId}/${ep}?sub=1&audio=${variant}`;
 
-    if (!validateEmbedUrl(url, this.id)) return null;
+    if (!isAllowedEmbedUrl(url, this.id)) return null;
     return url;
   }
 
@@ -38,11 +39,12 @@ export class AutoEmbedProvider implements VideoProvider {
       type: 'embed',
       quality: '1080p',
       isVerified: true,
+      status: this.status,
       allowedDomains: this.allowedDomains,
     };
   }
 
   async isAvailable(): Promise<boolean> {
-    return true;
+    return false;
   }
 }

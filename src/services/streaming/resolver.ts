@@ -5,7 +5,7 @@ import {
   StreamingServerOption
 } from './providerTypes';
 import { getEpisodeSourcesHandler } from '../../api/sources';
-import { VIDEO_PROVIDERS, validateEmbedUrl } from './providerRegistry';
+import { VIDEO_PROVIDERS, isAllowedEmbedUrl } from './providerRegistry';
 
 const IN_FLIGHT_REQUESTS = new Map<string, Promise<NormalizedStreamResponse>>();
 const RESOLVED_CACHE = new Map<string, { data: NormalizedStreamResponse; timestamp: number }>();
@@ -40,7 +40,7 @@ export function resolveParallelSources(options: {
     const episodeData = await getEpisodeSourcesHandler(animeId, episode, variant, title, malId);
 
     const validSources: StreamingSource[] = episodeData.sources
-      .filter((src) => validateEmbedUrl(src.embedUrl, src.providerId))
+      .filter((src) => isAllowedEmbedUrl(src.embedUrl, src.providerId))
       .map((src) => ({
         providerId: src.providerId,
         providerName: src.providerName,
@@ -48,9 +48,10 @@ export function resolveParallelSources(options: {
         type: 'embed',
         quality: src.quality || '1080p',
         isVerified: src.isVerified,
+        status: src.status,
       }));
 
-    const firstValidSource = validSources[0] || null;
+    const firstValidSource = validSources.find((s) => s.status === 'available') || validSources[0] || null;
 
     const servers: StreamingServerOption[] = VIDEO_PROVIDERS.map((prov, idx) => {
       const match = validSources.find((s) => s.providerId === prov.id);
@@ -59,7 +60,8 @@ export function resolveParallelSources(options: {
         name: prov.name,
         providerId: prov.id,
         url: match ? match.url : validSources[idx % validSources.length]?.url || firstValidSource?.url || '',
-        status: prov.enabled ? (match ? 'active' : 'degraded') : 'offline',
+        status: prov.enabled && prov.status === 'available' ? 'active' : prov.status === 'offline' ? 'offline' : 'degraded',
+        providerStatus: prov.status,
         isDefault: idx === 0,
         audioVariant: variant,
         quality: '1080p',

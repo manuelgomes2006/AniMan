@@ -1,5 +1,13 @@
 export type AudioVariant = 'sub' | 'dub';
 
+export type ProviderStatus =
+  | 'available'
+  | 'blocked_by_provider'
+  | 'invalid_url'
+  | 'offline'
+  | 'requires_authentication'
+  | 'not_verified';
+
 export interface StreamingSource {
   providerId: string;
   providerName: string;
@@ -8,6 +16,7 @@ export interface StreamingSource {
   quality?: string;
   isHLS?: boolean;
   isVerified?: boolean;
+  status: ProviderStatus;
   allowedDomains?: string[];
   subtitles?: { url: string; lang: string }[];
 }
@@ -18,6 +27,7 @@ export interface StreamingServerOption {
   providerId: string;
   url: string;
   status: 'active' | 'degraded' | 'offline';
+  providerStatus: ProviderStatus;
   isDefault?: boolean;
   audioVariant?: AudioVariant;
   quality?: string;
@@ -38,6 +48,7 @@ export interface VideoProvider {
   id: string;
   name: string;
   allowedDomains: string[];
+  status: ProviderStatus;
   getEmbedUrl(
     animeId: number,
     title: string,
@@ -54,6 +65,7 @@ export interface ProviderConfig {
   enabled: boolean;
   priority: number;
   allowedDomains: string[];
+  status: ProviderStatus;
   verified: boolean;
   requiresAuth?: boolean;
 }
@@ -65,6 +77,7 @@ export interface EpisodeSourceItem {
   language: AudioVariant;
   quality?: string;
   isVerified: boolean;
+  status: ProviderStatus;
 }
 
 export interface EpisodeSources {

@@ -1,16 +1,59 @@
-import { ProviderConfig, ProviderHealth } from './providerTypes';
+import { ProviderConfig, ProviderHealth, ProviderStatus } from './providerTypes';
 
 /**
- * Centralized Provider Configuration & Domain Allowlist Registry
- * Strictly enforces HTTPS-only authorized domains.
+ * Verified Authorized Embed Hosts Allowlist
+ * Only documented/authorized hosts permitting iframe embedding are included.
+ */
+export const ALLOWED_EMBED_HOSTS = [
+  'anilink.cc',
+  'www.2embed.cc',
+  '2embed.cc',
+  'vidsrc.cc',
+  'player.autoembed.cc',
+  'megacloud.blog',
+];
+
+/**
+ * Centralized Provider Configuration & Status Classification
  */
 export const VIDEO_PROVIDERS: ProviderConfig[] = [
+  {
+    id: 'anilink',
+    name: 'AniLink HD',
+    enabled: true,
+    priority: 1,
+    allowedDomains: ['anilink.cc'],
+    status: 'available',
+    verified: true,
+    requiresAuth: false,
+  },
+  {
+    id: 'twoembed',
+    name: '2Embed HD',
+    enabled: true,
+    priority: 2,
+    allowedDomains: ['www.2embed.cc', '2embed.cc'],
+    status: 'available',
+    verified: true,
+    requiresAuth: false,
+  },
+  {
+    id: 'vidcloud',
+    name: 'VidSrc HD',
+    enabled: true,
+    priority: 3,
+    allowedDomains: ['vidsrc.cc'],
+    status: 'blocked_by_provider',
+    verified: true,
+    requiresAuth: false,
+  },
   {
     id: 'autoembed',
     name: 'AutoEmbed HD',
     enabled: true,
-    priority: 1,
-    allowedDomains: ['player.autoembed.cc', 'autoembed.cc', '2embed.cc'],
+    priority: 4,
+    allowedDomains: ['player.autoembed.cc', 'autoembed.cc'],
+    status: 'offline',
     verified: true,
     requiresAuth: false,
   },
@@ -18,35 +61,29 @@ export const VIDEO_PROVIDERS: ProviderConfig[] = [
     id: 'megacloud',
     name: 'MegaCloud HD',
     enabled: true,
-    priority: 2,
-    allowedDomains: ['megacloud.blog', 'megacloud.cc', 'megacloud.club', 'megacloud.tv'],
-    verified: true,
-    requiresAuth: false,
-  },
-  {
-    id: 'vidcloud',
-    name: 'VidCloud HD',
-    enabled: true,
-    priority: 3,
-    allowedDomains: ['vidcloud.stream', 'vidcloud.icu', 'vidsrc.cc'],
+    priority: 5,
+    allowedDomains: ['megacloud.blog', 'megacloud.cc'],
+    status: 'offline',
     verified: true,
     requiresAuth: false,
   },
   {
     id: 'kiwi',
     name: 'Kiwi / Kwik',
-    enabled: false, // Marked disabled until credentials/configuration verified
-    priority: 4,
+    enabled: false,
+    priority: 6,
     allowedDomains: ['kwik.cx', 'kiwi.mobi'],
+    status: 'not_verified',
     verified: false,
     requiresAuth: true,
   },
   {
     id: 'vidplay',
     name: 'VidPlay HD',
-    enabled: false, // Marked disabled until credentials/configuration verified
-    priority: 5,
+    enabled: false,
+    priority: 7,
     allowedDomains: ['vidplay.online', 'vidplay.site'],
+    status: 'not_verified',
     verified: false,
     requiresAuth: true,
   },
@@ -56,10 +93,10 @@ const PREFERRED_PROVIDER_KEY = 'aniworld_preferred_provider';
 const HEALTH_STORAGE_KEY = 'aniworld_provider_health';
 
 /**
- * Domain Allowlist & HTTPS Validator
- * Prevents unauthorized or arbitrary URL injection into player iframes.
+ * Domain Allowlist & HTTPS Validator Function
+ * Strictly validates protocol and hostname against ALLOWED_EMBED_HOSTS.
  */
-export function validateEmbedUrl(url: string, providerId?: string): boolean {
+export function isAllowedEmbedUrl(url: string, providerId?: string): boolean {
   if (!url || typeof url !== 'string') return false;
 
   try {
@@ -68,28 +105,35 @@ export function validateEmbedUrl(url: string, providerId?: string): boolean {
     // 1. Must be HTTPS
     if (parsed.protocol !== 'https:') return false;
 
-    // 2. Lookup provider config or use global allowlist
+    // 2. Validate hostname against ALLOWED_EMBED_HOSTS allowlist
     const hostname = parsed.hostname.toLowerCase();
-    const config = providerId ? VIDEO_PROVIDERS.find((p) => p.id === providerId) : null;
+    const isAllowlisted = ALLOWED_EMBED_HOSTS.some(
+      (host) => hostname === host || hostname.endsWith(`.${host}`)
+    );
 
-    if (config) {
-      return config.allowedDomains.some(
-        (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
-      );
+    if (!isAllowlisted) return false;
+
+    // 3. Optional provider-specific domain validation
+    if (providerId) {
+      const config = VIDEO_PROVIDERS.find((p) => p.id === providerId);
+      if (config) {
+        return config.allowedDomains.some(
+          (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
+        );
+      }
     }
 
-    // Global Allowlist Fallback
-    const globalAllowedDomains = VIDEO_PROVIDERS.flatMap((p) => p.allowedDomains);
-    return globalAllowedDomains.some(
-      (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
-    );
+    return true;
   } catch {
     return false;
   }
 }
 
+// Alias for backward compatibility
+export const validateEmbedUrl = isAllowedEmbedUrl;
+
 /**
- * Provider Health Tracking Engine
+ * Lightweight Provider Health Tracking
  */
 export function getProviderHealth(): Record<string, ProviderHealth> {
   try {
@@ -118,7 +162,7 @@ export function recordProviderSuccess(providerId: string): void {
 
     localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(healthMap));
   } catch (err) {
-    console.warn('Health record success error:', err);
+    console.warn('Health record success notice:', err);
   }
 }
 
@@ -139,7 +183,7 @@ export function recordProviderFailure(providerId: string): void {
 
     localStorage.setItem(HEALTH_STORAGE_KEY, JSON.stringify(healthMap));
   } catch (err) {
-    console.warn('Health record failure error:', err);
+    console.warn('Health record failure notice:', err);
   }
 }
 
@@ -150,12 +194,11 @@ export function getRankedProviders(): ProviderConfig[] {
   const healthMap = getProviderHealth();
 
   return [...VIDEO_PROVIDERS]
-    .filter((p) => p.enabled)
+    .filter((p) => p.enabled && p.status !== 'blocked_by_provider' && p.status !== 'offline')
     .sort((a, b) => {
       const healthA = healthMap[a.id];
       const healthB = healthMap[b.id];
 
-      // Penalize providers with consecutive failures
       const failRatioA = healthA ? healthA.failureCount / Math.max(1, healthA.successCount + healthA.failureCount) : 0;
       const failRatioB = healthB ? healthB.failureCount / Math.max(1, healthB.successCount + healthB.failureCount) : 0;
 
@@ -166,11 +209,8 @@ export function getRankedProviders(): ProviderConfig[] {
     });
 }
 
-/**
- * Remember Selected Provider Preference
- */
 export function getPreferredProviderId(): string {
-  return localStorage.getItem(PREFERRED_PROVIDER_KEY) || 'autoembed';
+  return localStorage.getItem(PREFERRED_PROVIDER_KEY) || 'anilink';
 }
 
 export function setPreferredProviderId(providerId: string): void {

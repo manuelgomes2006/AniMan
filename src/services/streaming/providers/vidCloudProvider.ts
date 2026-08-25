@@ -1,10 +1,11 @@
-import { VideoProvider, StreamingSource, AudioVariant } from '../providerTypes';
-import { validateEmbedUrl } from '../providerRegistry';
+import { VideoProvider, StreamingSource, AudioVariant, ProviderStatus } from '../providerTypes';
+import { isAllowedEmbedUrl } from '../providerRegistry';
 
 export class VidCloudProvider implements VideoProvider {
   id = 'vidcloud';
-  name = 'VidCloud HD';
-  allowedDomains = ['vidcloud.stream', 'vidcloud.icu', 'vidsrc.cc'];
+  name = 'VidSrc HD';
+  allowedDomains = ['vidsrc.cc'];
+  status: ProviderStatus = 'blocked_by_provider';
 
   async getEmbedUrl(
     animeId: number,
@@ -17,7 +18,7 @@ export class VidCloudProvider implements VideoProvider {
     const targetId = malId || animeId || 151807;
     const url = `https://vidsrc.cc/v2/embed/anime/${targetId}/${ep}?autoPlay=true&audio=${variant}`;
 
-    if (!validateEmbedUrl(url, this.id)) return null;
+    if (!isAllowedEmbedUrl(url, this.id)) return null;
     return url;
   }
 
@@ -38,11 +39,12 @@ export class VidCloudProvider implements VideoProvider {
       type: 'embed',
       quality: '1080p',
       isVerified: true,
+      status: this.status,
       allowedDomains: this.allowedDomains,
     };
   }
 
   async isAvailable(): Promise<boolean> {
-    return true;
+    return false;
   }
 }

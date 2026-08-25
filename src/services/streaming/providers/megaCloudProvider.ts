@@ -1,10 +1,11 @@
-import { VideoProvider, StreamingSource, AudioVariant } from '../providerTypes';
-import { validateEmbedUrl } from '../providerRegistry';
+import { VideoProvider, StreamingSource, AudioVariant, ProviderStatus } from '../providerTypes';
+import { isAllowedEmbedUrl } from '../providerRegistry';
 
 export class MegaCloudProvider implements VideoProvider {
   id = 'megacloud';
   name = 'MegaCloud HD';
-  allowedDomains = ['megacloud.blog', 'megacloud.cc', 'megacloud.club', 'megacloud.tv'];
+  allowedDomains = ['megacloud.blog', 'megacloud.cc'];
+  status: ProviderStatus = 'offline';
 
   async getEmbedUrl(
     animeId: number,
@@ -17,7 +18,7 @@ export class MegaCloudProvider implements VideoProvider {
     const targetId = malId || animeId || 151807;
     const url = `https://megacloud.blog/embed/anime/${targetId}/${ep}?audio=${variant}&autoPlay=1`;
 
-    if (!validateEmbedUrl(url, this.id)) return null;
+    if (!isAllowedEmbedUrl(url, this.id)) return null;
     return url;
   }
 
@@ -38,11 +39,12 @@ export class MegaCloudProvider implements VideoProvider {
       type: 'embed',
       quality: '1080p',
       isVerified: true,
+      status: this.status,
       allowedDomains: this.allowedDomains,
     };
   }
 
   async isAvailable(): Promise<boolean> {
-    return true;
+    return false;
   }
 }
