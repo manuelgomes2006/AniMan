@@ -7,7 +7,7 @@ import { Mail, Lock, LogIn, CheckCircle } from 'lucide-react';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signInWithGoogle, setGuestSession } = useAuth();
+  const { signInWithGoogle } = useAuth();
 
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get('redirect') || '/';
@@ -43,36 +43,26 @@ export default function LoginPage() {
       });
 
       if (authError) {
-        console.error('[AUTH LOGIN]', authError);
-
+        console.error('[AUTH LOGIN ERROR]', authError);
         const msg = authError.message.toLowerCase();
+
         if (msg.includes('email not confirmed')) {
           setError('Please check your email inbox and click the verification link before signing in.');
-          setLoading(false);
-          return;
+        } else {
+          setError('Account not found or invalid credentials. Please Sign Up to create an account first.');
         }
-
-        if (msg.includes('invalid login credentials') || msg.includes('user not found') || msg.includes('wrong password')) {
-          setError('Invalid email or password. Please verify your credentials or Sign Up.');
-          setLoading(false);
-          return;
-        }
-
-        // For network or API key fallback, authenticate user session smoothly
-        const username = email.split('@')[0] || 'Member';
-        setGuestSession(email, username);
-        navigate(redirectUrl, { replace: true });
+        setLoading(false);
         return;
       }
 
       if (data.session) {
         navigate(redirectUrl, { replace: true });
+      } else {
+        setError('Invalid login credentials. Please Sign Up if you do not have an account.');
       }
     } catch (err: any) {
       console.error('[AUTH LOGIN CATCH]', err);
-      const username = email.split('@')[0] || 'Member';
-      setGuestSession(email, username);
-      navigate(redirectUrl, { replace: true });
+      setError('Unable to sign in. Please check your credentials or click Sign Up to create an account.');
     } finally {
       setLoading(false);
     }
@@ -87,7 +77,7 @@ export default function LoginPage() {
             <span className="text-purple-400">World</span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Welcome back 👋</h2>
-          <p className="text-xs text-slate-400">Sign in to sync your watch history and list.</p>
+          <p className="text-xs text-slate-400">Sign in to your AniWorld account to stream seamlessly.</p>
         </div>
 
         {verifiedSuccess && (

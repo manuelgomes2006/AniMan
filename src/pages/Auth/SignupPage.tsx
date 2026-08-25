@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../services/auth/supabaseClient';
-import { useAuth } from '../../context/AuthContext';
 import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw } from 'lucide-react';
 
 export default function SignupPage() {
   const navigate = useNavigate();
-  const { setGuestSession } = useAuth();
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -47,31 +45,28 @@ export default function SignupPage() {
       });
 
       if (authError) {
-        console.error('[AUTH SIGNUP]', authError);
+        console.error('[AUTH SIGNUP ERROR]', authError);
         const msg = authError.message.toLowerCase();
-        if (msg.includes('already registered')) {
+        if (msg.includes('already registered') || msg.includes('user already exists')) {
           setError('An account with this email address already exists. Please Sign In.');
-          setLoading(false);
-          return;
+        } else {
+          setError(authError.message);
         }
-
-        // Smooth local session registration fallback if network/key unconfigured
-        setGuestSession(email, cleanUsername);
-        navigate('/', { replace: true });
+        setLoading(false);
         return;
       }
 
       // If user requires email confirmation
       if (data.user && !data.session) {
         setVerificationSent(true);
-      } else {
+      } else if (data.session) {
         navigate('/', { replace: true });
+      } else {
+        setVerificationSent(true);
       }
     } catch (err: any) {
       console.error('[AUTH SIGNUP CATCH]', err);
-      const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
-      setGuestSession(email, cleanUsername);
-      navigate('/', { replace: true });
+      setError(err?.message || 'Unable to create account. Please check your information and try again.');
     } finally {
       setLoading(false);
     }
