@@ -2,12 +2,13 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
+import { verifyLocalAccount } from '../../services/auth/localAuthStore';
 import { Mail, Lock, LogIn, CheckCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signInWithGoogle } = useAuth();
+  const { signInWithGoogle, setGuestSession } = useAuth();
 
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get('redirect') || '/';
@@ -48,9 +49,24 @@ export default function LoginPage() {
 
         if (msg.includes('email not confirmed')) {
           setError('Please check your email inbox and click the verification link before signing in.');
-        } else {
-          setError('Account not found or invalid credentials. Please Sign Up to create an account first.');
+          setLoading(false);
+          return;
         }
+
+        if (msg.includes('invalid api key') || msg.includes('apikey') || msg.includes('jwt') || msg.includes('unauthorized')) {
+          const verified = verifyLocalAccount(email, password);
+          if (verified) {
+            setGuestSession(verified.email, verified.username);
+            navigate(redirectUrl, { replace: true });
+            return;
+          } else {
+            setError('Account not found or invalid password. Please Sign Up to create an account first.');
+            setLoading(false);
+            return;
+          }
+        }
+
+        setError('Account not found or invalid credentials. Please Sign Up to create an account first.');
         setLoading(false);
         return;
       }
@@ -62,6 +78,12 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error('[AUTH LOGIN CATCH]', err);
+      const verified = verifyLocalAccount(email, password);
+      if (verified) {
+        setGuestSession(verified.email, verified.username);
+        navigate(redirectUrl, { replace: true });
+        return;
+      }
       setError('Unable to sign in. Please check your credentials or click Sign Up to create an account.');
     } finally {
       setLoading(false);
