@@ -46,7 +46,18 @@ export default function LoginPage() {
     }
 
     try {
-      // 1. Check Local Accounts First (Mobile & Offline Compatibility)
+      // 1. Query Supabase Cloud Auth First
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: cleanEmail,
+        password: cleanPassword
+      });
+
+      if (!authError && data?.session) {
+        navigate(redirectUrl, { replace: true });
+        return;
+      }
+
+      // 2. Check Registered Local Accounts Second
       const verifiedLocal = verifyLocalAccount(cleanEmail, cleanPassword);
       if (verifiedLocal) {
         setGuestSession(verifiedLocal.email, verifiedLocal.username);
@@ -54,47 +65,27 @@ export default function LoginPage() {
         return;
       }
 
-      // 2. Query Supabase Cloud Auth
-      const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email: cleanEmail,
-        password: cleanPassword
-      });
-
+      // 3. Account NOT found in database or local registry -> Display Error, DO NOT LOG IN
       if (authError) {
-        console.warn('[AUTH LOGIN NOTICE]', authError);
         const msg = authError.message.toLowerCase();
-
-        // On mobile or unconfigured key, grant access with normalized email
-        if (
-          msg.includes('invalid api key') ||
-          msg.includes('apikey') ||
-          msg.includes('jwt') ||
-          msg.includes('unauthorized') ||
-          msg.includes('email not confirmed')
-        ) {
-          const username = cleanEmail.split('@')[0] || 'Member';
-          setGuestSession(cleanEmail, username);
-          navigate(redirectUrl, { replace: true });
-          return;
+        if (msg.includes('email not confirmed')) {
+          setError('Please check your email inbox and click the verification link before signing in.');
+        } else {
+          setError('Account not found or invalid credentials. Please Sign Up to create an account first.');
         }
-
-        setError('Account not found or invalid credentials. Please Sign Up to create an account first.');
-        setLoading(false);
-        return;
-      }
-
-      if (data.session) {
-        navigate(redirectUrl, { replace: true });
       } else {
-        const username = cleanEmail.split('@')[0] || 'Member';
-        setGuestSession(cleanEmail, username);
-        navigate(redirectUrl, { replace: true });
+        setError('Account not found or invalid credentials. Please Sign Up to create an account first.');
       }
     } catch (err: any) {
-      console.warn('[AUTH LOGIN CATCH]', err);
-      const username = cleanEmail.split('@')[0] || 'Member';
-      setGuestSession(cleanEmail, username);
-      navigate(redirectUrl, { replace: true });
+      console.warn('[AUTH LOGIN ERROR]', err);
+      // Re-verify local account before denying
+      const verifiedLocal = verifyLocalAccount(cleanEmail, cleanPassword);
+      if (verifiedLocal) {
+        setGuestSession(verifiedLocal.email, verifiedLocal.username);
+        navigate(redirectUrl, { replace: true });
+        return;
+      }
+      setError('Account not found or invalid credentials. Please Sign Up to create an account first.');
     } finally {
       setLoading(false);
     }
