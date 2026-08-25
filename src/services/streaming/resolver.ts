@@ -31,33 +31,29 @@ async function fetchProviderWithRetry(
   episode: number,
   variant: AudioVariant,
   malId?: number,
-  signal?: AbortSignal,
-  maxRetries = 2
+  maxRetries = 1
 ): Promise<StreamingSource | null> {
   let attempt = 0;
   while (attempt <= maxRetries) {
-    if (signal?.aborted) return null;
     try {
       const source = await provider.getSources(animeId, title, episode, variant, malId);
       if (source && source.url) return source;
     } catch (err) {
-      if (signal?.aborted) return null;
       console.warn(`[Stream Engine] Server ${provider.name} failed (attempt ${attempt + 1}). Rebooting...`);
     }
     attempt++;
     if (attempt <= maxRetries) {
-      await new Promise((res) => setTimeout(res, 300)); // 300ms pause before rebooting failed server
+      await new Promise((res) => setTimeout(res, 200));
     }
   }
   return null;
 }
 
 /**
- * Ultra-Fast First-Feed Winner Algorithm:
- * 1. Runs all 4 servers in parallel.
- * 2. If any server fails while searching, automatically reboots it.
- * 3. As soon as ANY server returns a valid video feed, ABORTS all other pending servers.
- * 4. Gets ready for the next episode.
+ * Multi-Mirror Stream Resolver Engine:
+ * - Concurrently resolves all 4 server mirrors in parallel.
+ * - Auto-reboots failed server requests.
+ * - Populates all 4 mirrors for 1-click mirror switching and automatic fallback.
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -81,34 +77,24 @@ export function resolveParallelSources(options: {
   }
 
   const resolutionPromise = (async () => {
-    const abortController = new AbortController();
     const ep = Math.max(1, episode);
     const targetId = animeId || malId || 151807;
 
+    // Launch all 4 servers in parallel
+    const providerPromises = REGISTERED_PROVIDERS.map((provider) =>
+      fetchProviderWithRetry(provider, animeId, title, episode, variant, malId).catch(() => null)
+    );
+
+    const results = await Promise.allSettled(providerPromises);
     const validSources: StreamingSource[] = [];
 
-    // Launch all 4 servers with auto-reboot and race for the first valid video feed
-    const serverPromises = REGISTERED_PROVIDERS.map(async (provider) => {
-      const source = await fetchProviderWithRetry(
-        provider,
-        animeId,
-        title,
-        episode,
-        variant,
-        malId,
-        abortController.signal
-      );
-      if (source && !abortController.signal.aborted) {
-        validSources.push(source);
-        // Cancel/abort all other pending server requests once first video feed is received
-        abortController.abort();
+    results.forEach((res) => {
+      if (res.status === 'fulfilled' && res.value && res.value.url) {
+        validSources.push(res.value);
       }
-      return source;
     });
 
-    await Promise.allSettled(serverPromises);
-
-    // Guaranteed fallback if all servers were blocked/unreachable
+    // Guaranteed fallback streams if any provider was offline
     if (validSources.length === 0) {
       validSources.push({
         providerId: 'anilink-primary',
@@ -124,6 +110,20 @@ export function resolveParallelSources(options: {
         type: 'embed',
         quality: '1080p'
       });
+      validSources.push({
+        providerId: '2embed-mirror',
+        providerName: '2Embed HD',
+        url: `https://2embed.cc/embed/anime/${targetId}/${ep}`,
+        type: 'embed',
+        quality: '1080p'
+      });
+      validSources.push({
+        providerId: 'vidsrc-mirror',
+        providerName: 'VidSrc HD',
+        url: `https://vidsrc.cc/v2/embed/anime/${targetId}/${ep}?autoPlay=true`,
+        type: 'embed',
+        quality: '1080p'
+      });
     }
 
     const firstValidSource = validSources[0];
@@ -134,7 +134,7 @@ export function resolveParallelSources(options: {
         id: prov.id,
         name: prov.name,
         providerId: prov.id,
-        url: match ? match.url : validSources[0]?.url || '',
+        url: match ? match.url : validSources[idx % validSources.length]?.url || validSources[0]?.url || '',
         status: match ? 'active' : 'degraded',
         isDefault: idx === 0
       };
@@ -153,7 +153,7 @@ export function resolveParallelSources(options: {
     RESOLVED_CACHE.set(requestKey, { data: response, timestamp: Date.now() });
     IN_FLIGHT_REQUESTS.delete(requestKey);
 
-    // Get ready for next episode (prefetch Episode N+1)
+    // Prefetch Episode N+1
     setTimeout(() => {
       prefetchNextEpisodeSources({
         animeId,
