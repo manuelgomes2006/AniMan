@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { supabase } from '../../services/auth/supabaseClient';
+import { supabase, isSupabaseConfigured } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { registerLocalAccount } from '../../services/auth/localAuthStore';
+import { registerLocalAccount, isUsernameTaken, accountExists } from '../../services/auth/localAuthStore';
 import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw, KeyRound, ArrowRight } from 'lucide-react';
 
 export default function SignupPage() {
@@ -38,11 +38,11 @@ export default function SignupPage() {
     e.preventDefault();
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanUsername = username.trim() || cleanEmail.split('@')[0] || 'Member';
+    const cleanUsername = username.trim().toLowerCase();
     const cleanPassword = password.trim();
 
-    if (!cleanEmail || !cleanPassword) {
-      setError('Please enter a valid email address and password.');
+    if (!cleanEmail || !cleanUsername || !cleanPassword) {
+      setError('Please fill out all required fields.');
       return;
     }
 
@@ -60,10 +60,38 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      // 1. Register Local Account Backup
+      // 1. Check Local Unique Username & Email
+      if (isUsernameTaken(cleanUsername)) {
+        setError(`Username '@${cleanUsername}' is already taken. Please choose a unique username.`);
+        setLoading(false);
+        return;
+      }
+
+      if (accountExists(cleanEmail)) {
+        setError('An account with this email address already exists. Please Sign In.');
+        setLoading(false);
+        return;
+      }
+
+      // 2. Check Supabase Database Unique Username
+      if (isSupabaseConfigured()) {
+        const { data: existingUser } = await supabase
+          .from('profiles')
+          .select('username')
+          .eq('username', cleanUsername)
+          .maybeSingle();
+
+        if (existingUser) {
+          setError(`Username '@${cleanUsername}' is already taken. Please choose a unique username.`);
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 3. Register Local Account Backup
       registerLocalAccount(cleanEmail, cleanPassword, cleanUsername);
 
-      // 2. Register User with Supabase Auth
+      // 4. Register User with Supabase Auth
       const { data, error: authError } = await supabase.auth.signUp({
         email: cleanEmail,
         password: cleanPassword,
@@ -71,7 +99,7 @@ export default function SignupPage() {
           emailRedirectTo: `${window.location.origin}/login?verified=true`,
           data: {
             username: cleanUsername,
-            display_name: cleanUsername,
+            display_name: username.trim(), // Display Name can be same across users
           }
         }
       });
@@ -87,7 +115,7 @@ export default function SignupPage() {
         }
       }
 
-      // 3. Move to Step of Verification
+      // 5. Move to Step of Verification
       setStepOfVerification(true);
     } catch (err: any) {
       console.warn('[AUTH SIGNUP CATCH]', err);
@@ -98,7 +126,6 @@ export default function SignupPage() {
     }
   };
 
-  // OTP Verification Code Handler
   const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     const cleanToken = otpToken.trim();
@@ -111,7 +138,7 @@ export default function SignupPage() {
     setOtpError(null);
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanUsername = username.trim() || cleanEmail.split('@')[0] || 'Member';
+    const cleanUsername = username.trim().toLowerCase() || cleanEmail.split('@')[0];
 
     try {
       const { data, error: verifyErr } = await supabase.auth.verifyOtp({
@@ -122,7 +149,6 @@ export default function SignupPage() {
 
       if (verifyErr) {
         console.warn('[OTP VERIFICATION NOTICE]', verifyErr);
-        // Complete local verification step so website opens
         setGuestSession(cleanEmail, cleanUsername);
         navigate('/', { replace: true });
         return;
@@ -166,12 +192,11 @@ export default function SignupPage() {
 
   const handleCompleteVerification = () => {
     const cleanEmail = email.trim().toLowerCase();
-    const cleanUsername = username.trim() || cleanEmail.split('@')[0] || 'Member';
+    const cleanUsername = username.trim().toLowerCase() || cleanEmail.split('@')[0];
     setGuestSession(cleanEmail, cleanUsername);
     navigate('/', { replace: true });
   };
 
-  // STEP OF VERIFICATION SCREEN
   if (stepOfVerification) {
     return (
       <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans">
@@ -199,7 +224,6 @@ export default function SignupPage() {
             </div>
           )}
 
-          {/* 6-Digit OTP Input Form */}
           <form onSubmit={handleVerifyOtp} className="space-y-4 pt-2">
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1 text-left">6-Digit Verification Code</label>
@@ -255,7 +279,6 @@ export default function SignupPage() {
     );
   }
 
-  // INITIAL SIGN UP FORM
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-6 sm:p-8 rounded-3xl shadow-2xl">
@@ -265,7 +288,7 @@ export default function SignupPage() {
             <span className="text-purple-400">World</span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Create an Account</h2>
-          <p className="text-xs text-slate-400">Sign up to get started on AniWorld.</p>
+          <p className="text-xs text-slate-400">Sign up with a unique username and email to get started.</p>
         </div>
 
         {error && (
@@ -276,7 +299,9 @@ export default function SignupPage() {
 
         <form onSubmit={handleSignup} className="space-y-4">
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">Username</label>
+            <label className="block text-xs font-bold text-slate-300 mb-1">
+              Unique Username <span className="text-purple-400 font-normal">(Required Unique Handle)</span>
+            </label>
             <div className="relative">
               <input
                 type="text"
@@ -286,7 +311,7 @@ export default function SignupPage() {
                 spellCheck={false}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                placeholder="anime_fan99"
+                placeholder="sonava_official"
                 className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs font-medium"
               />
               <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
@@ -294,7 +319,9 @@ export default function SignupPage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">Email Address</label>
+            <label className="block text-xs font-bold text-slate-300 mb-1">
+              Email Address <span className="text-purple-400 font-normal">(Required Unique Email)</span>
+            </label>
             <div className="relative">
               <input
                 type="email"

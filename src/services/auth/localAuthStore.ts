@@ -17,9 +17,16 @@ export function getRegisteredAccounts(): LocalRegisteredAccount[] {
   }
 }
 
+export function isUsernameTaken(username: string): boolean {
+  const accounts = getRegisteredAccounts();
+  const normalizedUsername = username.trim().toLowerCase();
+  return accounts.some((a) => a.username.trim().toLowerCase() === normalizedUsername);
+}
+
 export function registerLocalAccount(email: string, password: string, username: string): LocalRegisteredAccount {
   const accounts = getRegisteredAccounts();
   const normalizedEmail = email.trim().toLowerCase();
+  const normalizedUsername = username.trim().toLowerCase() || normalizedEmail.split('@')[0];
 
   const existing = accounts.find((a) => a.email === normalizedEmail);
   if (existing) {
@@ -28,7 +35,7 @@ export function registerLocalAccount(email: string, password: string, username: 
 
   const newAcc: LocalRegisteredAccount = {
     email: normalizedEmail,
-    username: username.trim() || normalizedEmail.split('@')[0],
+    username: normalizedUsername,
     passwordHash: btoa(password),
     createdAt: new Date().toISOString(),
   };

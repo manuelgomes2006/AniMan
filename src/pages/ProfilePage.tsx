@@ -3,7 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 import { getWatchlist, setUserAudioPreference } from '../services/userStore';
-import { User, Settings, Check, Bookmark, Clock, Volume2, LogOut, Trash2, Heart, ShieldAlert, Loader2 } from 'lucide-react';
+import { isUsernameTaken } from '../services/auth/localAuthStore';
+import { User, Settings, Check, Bookmark, Clock, Volume2, LogOut, Trash2, Heart, ShieldAlert, Loader2, AlertCircle } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -22,6 +23,7 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   // Stats Counters
@@ -57,14 +59,40 @@ export default function ProfilePage() {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setErrorMsg(null);
 
-    // 1. Save audio preference in local store
+    const cleanUsername = username.trim().toLowerCase();
+
+    // 1. Validate Username Uniqueness
+    if (profile && cleanUsername !== profile.username.toLowerCase()) {
+      if (isUsernameTaken(cleanUsername)) {
+        setErrorMsg(`Username '@${cleanUsername}' is already taken by another user.`);
+        setSaving(false);
+        return;
+      }
+
+      if (isSupabaseConfigured()) {
+        const { data: existing } = await supabase
+          .from('profiles')
+          .select('id, username')
+          .eq('username', cleanUsername)
+          .maybeSingle();
+
+        if (existing && existing.id !== profile.id) {
+          setErrorMsg(`Username '@${cleanUsername}' is already taken by another user.`);
+          setSaving(false);
+          return;
+        }
+      }
+    }
+
+    // 2. Save audio preference in local store
     setUserAudioPreference(preferredAudio);
 
-    // 2. Build complete updated profile object
+    // 3. Build complete updated profile object
     const updatedProfile = {
       id: profile?.id || 'usr_active',
-      username: username.trim(),
+      username: cleanUsername,
       displayName: displayName.trim(),
       avatarUrl: avatarUrl.trim(),
       email: profile?.email || 'user@aniworld.io',
@@ -81,12 +109,12 @@ export default function ProfilePage() {
     // Save to local active session
     localStorage.setItem('aniworld_active_session', JSON.stringify(updatedProfile));
 
-    // 3. Sync to Supabase Database (Profiles & User Preferences)
+    // 4. Sync to Supabase Database (Profiles & User Preferences)
     if (isSupabaseConfigured() && profile?.id) {
       try {
         const { error: profErr } = await supabase.from('profiles').upsert({
           id: profile.id,
-          username: username.trim(),
+          username: cleanUsername,
           display_name: displayName.trim(),
           avatar_url: avatarUrl.trim(),
           updated_at: new Date().toISOString()
@@ -195,10 +223,19 @@ export default function ProfilePage() {
           Profile Settings & Playback Preferences
         </h3>
 
+        {errorMsg && (
+          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl flex items-center gap-2 font-bold">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{errorMsg}</span>
+          </div>
+        )}
+
         {/* Profile Info Fields */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">Display Name</label>
+            <label className="block text-xs font-bold text-slate-300 mb-1">
+              Display Name <span className="text-slate-500 font-normal">(Can be same for other users)</span>
+            </label>
             <input
               type="text"
               value={displayName}
@@ -208,7 +245,9 @@ export default function ProfilePage() {
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1">Username</label>
+            <label className="block text-xs font-bold text-slate-300 mb-1">
+              Unique Username <span className="text-purple-400 font-normal">(Must be unique)</span>
+            </label>
             <input
               type="text"
               value={username}
