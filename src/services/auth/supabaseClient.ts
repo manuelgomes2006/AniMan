@@ -8,7 +8,7 @@ const SUPABASE_URL =
 const SUPABASE_ANON_KEY =
   import.meta.env.VITE_SUPABASE_ANON_KEY ||
   import.meta.env.SUPABASE_ANON_KEY ||
-  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imd4Y2ZsaWJndmd2bndobmd4eWdsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MjAxNTAwMDAwMH0.dummy_anon_token_aniworld';
+  'sb_publishable_bMPUv__U73SLnCBgs6Ab9g_VgXiJZZ2';
 
 /**
  * Validates whether Supabase client is configured for database and auth queries.
