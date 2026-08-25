@@ -20,19 +20,19 @@ export default function EpisodeSelector({
   const [jumpInput, setJumpInput] = useState('');
   const [rangeIndex, setRangeIndex] = useState(0);
 
-  const totalCount = Math.max(episodes.length, currentEpisode, 12);
+  const releasedCount = episodes.length;
   const RANGE_SIZE = 100;
 
   // Compute 100-episode chunk ranges for long-running series
   const ranges = useMemo(() => {
     const r: { start: number; end: number; label: string }[] = [];
-    for (let i = 0; i < totalCount; i += RANGE_SIZE) {
+    for (let i = 0; i < releasedCount; i += RANGE_SIZE) {
       const start = i + 1;
-      const end = Math.min(i + RANGE_SIZE, totalCount);
+      const end = Math.min(i + RANGE_SIZE, releasedCount);
       r.push({ start, end, label: `${start}-${end}` });
     }
     return r;
-  }, [totalCount]);
+  }, [releasedCount]);
 
   // Auto-sync rangeIndex when currentEpisode changes
   useEffect(() => {
@@ -44,29 +44,11 @@ export default function EpisodeSelector({
     }
   }, [currentEpisode, ranges]);
 
-  // Filter & sort episodes for current range chunk
-  const currentRange = ranges[rangeIndex] || { start: 1, end: totalCount };
+  // Filter & sort released episodes for current range chunk
+  const currentRange = ranges[rangeIndex] || { start: 1, end: releasedCount };
 
   const displayedEpisodes = useMemo(() => {
-    let list = episodes.length > 0
-      ? episodes.filter(ep => ep.number >= currentRange.start && ep.number <= currentRange.end)
-      : Array.from({ length: currentRange.end - currentRange.start + 1 }, (_, i) => ({
-          number: currentRange.start + i,
-          title: `Episode ${currentRange.start + i}`,
-          subAvailable: true,
-          dubAvailable: true,
-          playable: true
-        }));
-
-    if (list.length === 0) {
-      list = Array.from({ length: currentRange.end - currentRange.start + 1 }, (_, i) => ({
-        number: currentRange.start + i,
-        title: `Episode ${currentRange.start + i}`,
-        subAvailable: true,
-        dubAvailable: true,
-        playable: true
-      }));
-    }
+    let list = episodes.filter(ep => ep.number >= currentRange.start && ep.number <= currentRange.end);
 
     if (sortOrder === 'newest') {
       list = [...list].reverse();
@@ -78,7 +60,7 @@ export default function EpisodeSelector({
   const handleJumpSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const epNum = parseInt(jumpInput, 10);
-    if (!isNaN(epNum) && epNum >= 1 && epNum <= totalCount) {
+    if (!isNaN(epNum) && epNum >= 1 && epNum <= releasedCount) {
       const targetRangeIdx = ranges.findIndex(r => epNum >= r.start && epNum <= r.end);
       if (targetRangeIdx >= 0) setRangeIndex(targetRangeIdx);
       onSelectEpisode(epNum);
@@ -112,7 +94,7 @@ export default function EpisodeSelector({
           )}
 
           <span className="bg-purple-950/80 text-purple-300 text-[10px] font-black px-2 py-0.5 rounded-full border border-purple-800/40">
-            {totalCount}
+            {releasedCount}
           </span>
         </div>
 
@@ -127,7 +109,7 @@ export default function EpisodeSelector({
             <span className="hidden sm:inline capitalize">{sortOrder}</span>
           </button>
 
-          {/* View Mode Toggle Switcher: [ Grid ⊞ ] [ List ≡ ] */}
+          {/* View Mode Toggle Switcher */}
           <div className="bg-[#14141F] p-0.5 rounded-xl border border-slate-800 flex items-center">
             <button
               onClick={() => setViewMode('grid')}
@@ -187,7 +169,7 @@ export default function EpisodeSelector({
         </div>
       </div>
 
-      {/* Grid View Mode (Compact PC & Mobile episode tiles) */}
+      {/* Grid View Mode */}
       {viewMode === 'grid' ? (
         <div className="grid grid-cols-6 sm:grid-cols-8 md:grid-cols-10 lg:grid-cols-12 xl:grid-cols-15 gap-1.5 max-h-[240px] overflow-y-auto pr-1 scrollbar-thin">
           {displayedEpisodes.map((ep) => {
@@ -218,7 +200,7 @@ export default function EpisodeSelector({
           })}
         </div>
       ) : (
-        /* List View Mode (Row cards) */
+        /* List View Mode */
         <div className="space-y-1.5 max-h-[240px] overflow-y-auto pr-1 scrollbar-thin">
           {displayedEpisodes.map((ep) => {
             const isCurrent = ep.number === currentEpisode;
