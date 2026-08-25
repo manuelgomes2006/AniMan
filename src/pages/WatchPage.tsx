@@ -1,35 +1,21 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { getAnimeDetails } from '../services/anilist/client';
 import { getNormalizedEpisodes, NormalizedEpisode } from '../services/episodes/episodes';
-import {
-  resolveParallelSources,
-  prefetchNextEpisodeSources
-} from '../services/streaming/resolver';
+import { resolveParallelSources, prefetchNextEpisodeSources } from '../services/streaming/resolver';
 import { NormalizedStreamResponse, StreamingSource } from '../services/streaming/providerTypes';
-import {
-  getUserAudioPreference,
-  setUserAudioPreference,
-  updateWatchProgress,
-  addToWatchlist,
-  getWatchlist,
-  getWatchHistory
-} from '../services/userStore';
-import { AnimeMedia } from '../types/anime';
+import { useAuth } from '../context/AuthContext';
+import { addToWatchlist, getWatchlist, updateWatchProgress, getWatchHistory, getUserAudioPreference, setUserAudioPreference } from '../services/userStore';
 
-import SubDubControls from '../components/player/SubDubControls';
+import YomiVideoPlayer from '../components/player/YomiVideoPlayer';
 import ServerSelector from '../components/player/ServerSelector';
+import SubDubControls from '../components/player/SubDubControls';
+import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
 import RightEpisodeSidebar from '../components/player/RightEpisodeSidebar';
 import CommentsSection from '../components/player/CommentsSection';
-import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
-import MobileWatchPage from '../components/mobile/MobileWatchPage';
-import YomiVideoPlayer from '../components/player/YomiVideoPlayer';
 
-import {
-  ChevronLeft,
-  RefreshCw
-} from 'lucide-react';
+import { ChevronLeft, RefreshCw } from 'lucide-react';
+import { AnimeMedia } from '../types/anime';
 
 export default function WatchPage() {
   const { id, episode } = useParams<{ id: string; episode: string }>();
@@ -37,7 +23,7 @@ export default function WatchPage() {
   const { profile } = useAuth();
 
   const animeId = parseInt(id || '151807', 10);
-  const currentEpNum = parseInt(episode || '6', 10);
+  const currentEpNum = parseInt(episode || '1', 10);
 
   const [anime, setAnime] = useState<AnimeMedia | null>(null);
   const [normalizedEpisodes, setNormalizedEpisodes] = useState<NormalizedEpisode[]>([]);
@@ -67,7 +53,9 @@ export default function WatchPage() {
           animeId,
           animeData.episodes,
           animeData.idMal,
-          animeData.streamingEpisodes
+          animeData.streamingEpisodes,
+          animeData.status,
+          animeData.nextAiringEpisode
         );
 
         const resolvedStreams = await resolveParallelSources({
@@ -147,9 +135,9 @@ export default function WatchPage() {
       ? streamResponse.sources[activeSourceIndex]
       : streamResponse?.firstValidSource || null;
 
-  const title = anime?.title?.english || anime?.title?.romaji || 'Solo Leveling';
+  const title = anime?.title?.english || anime?.title?.romaji || 'Anime';
   const epTitle = currentEpData.title || `Episode ${currentEpNum}`;
-  const score = anime?.averageScore ? (anime.averageScore / 10).toFixed(1) : '9.3';
+  const score = anime?.averageScore ? (anime.averageScore / 10).toFixed(1) : '8.5';
   const year = anime?.seasonYear || 2024;
   const cover = anime?.coverImage?.extraLarge || anime?.coverImage?.large || anime?.coverImage?.medium;
 
@@ -190,142 +178,118 @@ export default function WatchPage() {
   }
 
   return (
-    <>
-      {/* 🖥️ DESKTOP WATCH PAGE LAYOUT (>= 1024px) */}
-      <div className="hidden lg:block space-y-6 pb-16">
-        {/* Top Header Row */}
-        <div className="flex items-center justify-between">
-          <Link
-            to="/browse"
-            className="inline-flex items-center gap-1.5 text-slate-300 hover:text-white text-xs font-extrabold transition"
-          >
-            <ChevronLeft className="w-4 h-4 text-purple-400" />
-            <span>Back to Browse</span>
-          </Link>
+    <div className="space-y-6 pb-16 font-sans text-white">
+      {/* Top Header Row */}
+      <div className="flex items-center justify-between">
+        <Link
+          to="/browse"
+          className="inline-flex items-center gap-1.5 text-slate-300 hover:text-white text-xs font-extrabold transition"
+        >
+          <ChevronLeft className="w-4 h-4 text-purple-400" />
+          <span>Back to Browse</span>
+        </Link>
 
-          {/* Top Quality & Mirror Switcher */}
+        {/* Top Quality & Mirror Switcher */}
+        <div className="flex items-center gap-2">
+          {streamResponse && streamResponse.sources.length > 1 && (
+            <button
+              onClick={handleSwitchMirror}
+              className="bg-[#0D0D12] hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
+              <span>Switch Mirror ({activeSourceIndex + 1}/{streamResponse.sources.length})</span>
+            </button>
+          )}
+          <span className="bg-purple-950/60 border border-purple-800/80 text-purple-300 text-xs font-black px-3 py-1.5 rounded-xl uppercase">
+            1080p Ultra HD
+          </span>
+        </div>
+      </div>
+
+      {/* Resume Playback Badge */}
+      {showResumeBadge && resumeTime && (
+        <div className="bg-purple-950/40 border border-purple-800/80 text-purple-300 text-xs p-3 rounded-2xl flex items-center justify-between shadow-lg">
+          <span className="font-bold">
+            Resume playback from <span className="text-white font-black">{formatTime(resumeTime)}</span>
+          </span>
           <div className="flex items-center gap-2">
-            {streamResponse && streamResponse.sources.length > 1 && (
-              <button
-                onClick={handleSwitchMirror}
-                className="bg-[#0D0D12] hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
-              >
-                <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
-                <span>Switch Mirror ({activeSourceIndex + 1}/{streamResponse.sources.length})</span>
-              </button>
-            )}
-            <span className="bg-purple-950/60 border border-purple-800/80 text-purple-300 text-xs font-black px-3 py-1.5 rounded-xl uppercase">
-              1080p Ultra HD
-            </span>
+            <button
+              onClick={() => setShowResumeBadge(false)}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded-xl text-xs font-extrabold shadow-md cursor-pointer"
+            >
+              Resume ({formatTime(resumeTime)})
+            </button>
+            <button
+              onClick={() => setShowResumeBadge(false)}
+              className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
+            >
+              Start Over
+            </button>
           </div>
         </div>
+      )}
 
-        {/* Resume Playback Badge */}
-        {showResumeBadge && resumeTime && (
-          <div className="bg-purple-950/40 border border-purple-800/80 text-purple-300 text-xs p-3 rounded-2xl flex items-center justify-between shadow-lg">
-            <span className="font-bold">
-              Resume playback from <span className="text-white font-black">{formatTime(resumeTime)}</span>
-            </span>
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setShowResumeBadge(false)}
-                className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded-xl text-xs font-extrabold shadow-md cursor-pointer"
-              >
-                Resume ({formatTime(resumeTime)})
-              </button>
-              <button
-                onClick={() => setShowResumeBadge(false)}
-                className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
-              >
-                Start Over
-              </button>
-            </div>
-          </div>
-        )}
+      {/* Main 2-Column Grid Container */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Left Column: Player & Metadata */}
+        <div className="lg:col-span-2 space-y-6">
+          <YomiVideoPlayer
+            source={activeSource}
+            title={title}
+            episodeNumber={currentEpNum}
+            initialTime={resumeTime || 0}
+            onTimeUpdate={handleTimeUpdate}
+            skipIntroEnabled={profile?.preferences?.skipIntro || false}
+            skipOutroEnabled={profile?.preferences?.skipOutro || false}
+            onSwitchMirror={handleSwitchMirror}
+            onEnded={() => handleSelectEpisode(currentEpNum + 1)}
+          />
 
-        {/* Main 2-Column Grid Container */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
-          {/* Left Column: Player & Metadata */}
-          <div className="lg:col-span-2 space-y-6">
-            <YomiVideoPlayer
-              source={activeSource}
-              title={title}
-              episodeNumber={currentEpNum}
-              initialTime={resumeTime || 0}
-              onTimeUpdate={handleTimeUpdate}
-              skipIntroEnabled={profile?.preferences?.skipIntro || false}
-              skipOutroEnabled={profile?.preferences?.skipOutro || false}
-              onSwitchMirror={handleSwitchMirror}
-              onEnded={() => handleSelectEpisode(currentEpNum + 1)}
-            />
-
-            {/* Interactive Server Selector Tabs */}
-            {streamResponse && streamResponse.servers && (
-              <ServerSelector
-                servers={streamResponse.servers}
-                activeSourceIndex={activeSourceIndex}
-                onSelectServer={handleSelectServerIndex}
-                audioVariant={audioVariant}
-                onAudioChange={handleAudioChange}
-                episodeNumber={currentEpNum}
-              />
-            )}
-
-            <SubDubControls
+          {/* Interactive Server Selector Tabs */}
+          {streamResponse && streamResponse.servers && (
+            <ServerSelector
+              servers={streamResponse.servers}
+              activeSourceIndex={activeSourceIndex}
+              onSelectServer={handleSelectServerIndex}
               audioVariant={audioVariant}
               onAudioChange={handleAudioChange}
-              inWatchlist={inWatchlist}
-              onToggleWatchlist={handleToggleWatchlist}
-              onSwitchMirror={handleSwitchMirror}
+              episodeNumber={currentEpNum}
             />
+          )}
 
-            <YouAreWatchingCard
-              title={title}
-              epTitle={epTitle}
-              currentEpNum={currentEpNum}
-              score={score}
-              year={year}
-              format={anime?.format || 'TV'}
-              genres={anime?.genres || ['Action', 'Fantasy']}
-              description={anime?.description || ''}
-            />
+          <SubDubControls
+            audioVariant={audioVariant}
+            onAudioChange={handleAudioChange}
+            inWatchlist={inWatchlist}
+            onToggleWatchlist={handleToggleWatchlist}
+            onSwitchMirror={handleSwitchMirror}
+          />
 
-            <CommentsSection />
-          </div>
+          <YouAreWatchingCard
+            title={title}
+            epTitle={epTitle}
+            currentEpNum={currentEpNum}
+            score={score}
+            year={year}
+            format={anime?.format || 'TV'}
+            genres={anime?.genres || ['Action', 'Fantasy']}
+            description={anime?.description || ''}
+          />
 
-          {/* Right Column: Episode Sidebar */}
-          <div className="lg:col-span-1">
-            <RightEpisodeSidebar
-              episodes={normalizedEpisodes}
-              currentEpNum={currentEpNum}
-              onSelectEpisode={handleSelectEpisode}
-              coverImage={cover}
-              totalEpisodes={anime?.episodes || normalizedEpisodes.length}
-            />
-          </div>
+          <CommentsSection />
+        </div>
+
+        {/* Right Column: Episode Sidebar */}
+        <div className="lg:col-span-1">
+          <RightEpisodeSidebar
+            episodes={normalizedEpisodes}
+            currentEpNum={currentEpNum}
+            onSelectEpisode={handleSelectEpisode}
+            coverImage={cover}
+            totalEpisodes={anime?.episodes || normalizedEpisodes.length}
+          />
         </div>
       </div>
-
-      {/* 📱 MOBILE WATCH PAGE LAYOUT (< 1024px) */}
-      <div className="block lg:hidden">
-        <MobileWatchPage
-          anime={anime}
-          currentEpNum={currentEpNum}
-          episodes={normalizedEpisodes}
-          streamResponse={streamResponse}
-          activeSource={activeSource}
-          activeSourceIndex={activeSourceIndex}
-          onSelectServer={handleSelectServerIndex}
-          audioVariant={audioVariant}
-          onAudioChange={handleAudioChange}
-          onSelectEpisode={handleSelectEpisode}
-          onSwitchMirror={handleSwitchMirror}
-          streamError={streamError}
-          onRetryStream={() => setLoading(true)}
-          inWatchlist={inWatchlist}
-          onToggleWatchlist={handleToggleWatchlist}
-        />
-      </div>
-    </>
+    </div>
   );
 }

@@ -40,7 +40,7 @@ const LONG_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours for finished anime
 
 /**
  * Anikoto-Style Upstream Episode Fetcher:
- * Queries Jikan API pagination (page=1, page=2...) to retrieve ALL released episodes.
+ * Queries Jikan API pagination (page=1, page=2...) to retrieve released episode data.
  */
 async function fetchAllMalEpisodes(targetId: number): Promise<Map<number, any>> {
   const malEpMap = new Map<number, any>();
@@ -78,7 +78,7 @@ async function fetchAllMalEpisodes(targetId: number): Promise<Map<number, any>> 
 
 /**
  * Released Episodes Resolver:
- * Resolves ONLY actual released episodes returned by the source catalog (AniList streamingEpisodes / Jikan MAL).
+ * Resolves ONLY actual released episodes returned by the source catalog (AniList nextAiringEpisode / streamingEpisodes / Jikan MAL).
  * NEVER fabricates unreleased/future episode placeholders.
  */
 export async function getNormalizedEpisodes(
@@ -86,7 +86,8 @@ export async function getNormalizedEpisodes(
   totalEpisodes?: number | null,
   malId?: number,
   streamingEpisodes?: Array<{ title?: string; thumbnail?: string; url?: string }>,
-  status?: string
+  status?: string,
+  nextAiringEpisode?: { episode: number } | null
 ): Promise<NormalizedEpisode[]> {
   const targetId = malId || animeId;
 
@@ -123,17 +124,23 @@ export async function getNormalizedEpisodes(
   try {
     const malEpMap = await fetchAllMalEpisodes(targetId);
 
-    // 2. Determine actual released episode count from source responses ONLY
-    const releasedCount = Math.max(
-      streamingEpisodes?.length || 0,
-      malEpMap.size
-    );
+    // 2. Determine exact released episode count
+    let releasedCount = 0;
 
-    // If source catalog returns 0 released episodes (e.g. newly announced), fallback to streamingEpisodes
-    const finalReleasedCount = releasedCount > 0 ? releasedCount : (streamingEpisodes?.length || 0);
+    if (nextAiringEpisode && nextAiringEpisode.episode && nextAiringEpisode.episode > 1) {
+      // For currently airing anime, nextAiringEpisode.episode is N, so N-1 episodes have released
+      releasedCount = nextAiringEpisode.episode - 1;
+    } else {
+      const rawCount = Math.max(streamingEpisodes?.length || 0, malEpMap.size);
+      if (status === 'RELEASING' || status === 'Currently Airing') {
+        releasedCount = rawCount > 0 ? rawCount : (totalEpisodes || 1);
+      } else {
+        releasedCount = rawCount > 0 ? rawCount : (totalEpisodes || streamingEpisodes?.length || 1);
+      }
+    }
 
-    // 3. Loop ONLY through actual released episodes 1..finalReleasedCount
-    for (let i = 1; i <= finalReleasedCount; i++) {
+    // 3. Loop ONLY through actual released episodes 1..releasedCount
+    for (let i = 1; i <= releasedCount; i++) {
       const malItem = malEpMap.get(i);
       const aniListData = streamingDataMap.get(i);
 
@@ -204,14 +211,16 @@ export async function getPaginatedEpisodes(
   totalEpisodes?: number | null,
   malId?: number,
   streamingEpisodes?: Array<{ title?: string; thumbnail?: string; url?: string }>,
-  status?: string
+  status?: string,
+  nextAiringEpisode?: { episode: number } | null
 ): Promise<PaginatedEpisodesResponse> {
   const allReleasedEpisodes = await getNormalizedEpisodes(
     animeId,
     totalEpisodes,
     malId,
     streamingEpisodes,
-    status
+    status,
+    nextAiringEpisode
   );
 
   const releasedEpisodes = allReleasedEpisodes.length;
