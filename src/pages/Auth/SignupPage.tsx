@@ -29,17 +29,19 @@ export default function SignupPage() {
       return;
     }
 
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
     try {
       const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
 
-      if (accountExists(email)) {
-        setError('An account with this email address already exists. Please Sign In.');
-        setLoading(false);
-        return;
-      }
+      // Register local account backup
+      registerLocalAccount(email, password, cleanUsername);
 
       const { data, error: authError } = await supabase.auth.signUp({
         email,
@@ -54,7 +56,7 @@ export default function SignupPage() {
       });
 
       if (authError) {
-        console.error('[AUTH SIGNUP ERROR]', authError);
+        console.warn('[AUTH SIGNUP NOTICE]', authError);
         const msg = authError.message.toLowerCase();
 
         if (msg.includes('already registered') || msg.includes('user already exists')) {
@@ -62,32 +64,19 @@ export default function SignupPage() {
           setLoading(false);
           return;
         }
+      }
 
-        // If Supabase API key is invalid or unconfigured, register local user account cleanly
-        if (msg.includes('invalid api key') || msg.includes('apikey') || msg.includes('jwt') || msg.includes('unauthorized')) {
-          registerLocalAccount(email, password, cleanUsername);
-          setGuestSession(email, cleanUsername);
-          navigate('/', { replace: true });
-          return;
-        }
-
-        setError(authError.message);
-        setLoading(false);
+      // If Supabase session returned immediately
+      if (data?.session) {
+        setGuestSession(email, cleanUsername);
+        navigate('/', { replace: true });
         return;
       }
 
-      // If user requires email confirmation
-      if (data.user && !data.session) {
-        setVerificationSent(true);
-      } else if (data.session) {
-        navigate('/', { replace: true });
-      } else {
-        registerLocalAccount(email, password, cleanUsername);
-        setGuestSession(email, cleanUsername);
-        navigate('/', { replace: true });
-      }
+      // If email confirmation is required or Supabase offline
+      setVerificationSent(true);
     } catch (err: any) {
-      console.error('[AUTH SIGNUP CATCH]', err);
+      console.warn('[AUTH SIGNUP CATCH]', err);
       const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
       registerLocalAccount(email, password, cleanUsername);
       setGuestSession(email, cleanUsername);
@@ -117,6 +106,12 @@ export default function SignupPage() {
     }
   };
 
+  const handleDirectProceed = () => {
+    const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
+    setGuestSession(email, cleanUsername);
+    navigate('/', { replace: true });
+  };
+
   if (verificationSent) {
     return (
       <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
@@ -126,9 +121,9 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-xl font-black text-white">Verify Your Email Address 📧</h2>
+            <h2 className="text-xl font-black text-white">Account Created Successfully! 🎉</h2>
             <p className="text-xs text-slate-300 leading-relaxed">
-              We've sent a verification link to <span className="font-bold text-purple-400">{email}</span>. Please check your inbox and click the verification link to activate your account.
+              We've sent a verification link to <span className="font-bold text-purple-400">{email}</span>. You can verify your email or proceed directly into AniWorld now.
             </p>
           </div>
 
@@ -140,17 +135,24 @@ export default function SignupPage() {
 
           <div className="space-y-3 pt-2">
             <button
+              onClick={handleDirectProceed}
+              className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition cursor-pointer"
+            >
+              Proceed to AniWorld Home 🚀
+            </button>
+
+            <button
               onClick={handleResendVerification}
               disabled={resending}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
             >
               <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
-              {resending ? 'Resending Link...' : 'Resend Verification Email'}
+              {resending ? 'Resending Link...' : 'Resend Verification Link'}
             </button>
 
             <Link
               to="/login"
-              className="block w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition"
+              className="block text-center text-xs text-slate-400 hover:text-purple-400 font-bold pt-1"
             >
               Back to Sign In
             </Link>

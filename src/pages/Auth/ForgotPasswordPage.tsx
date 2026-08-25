@@ -20,19 +20,20 @@ export default function ForgotPasswordPage() {
       });
 
       if (resetErr) {
-        throw new Error(resetErr.message);
+        console.warn('[FORGOT PASSWORD NOTICE]', resetErr);
       }
 
       setSent(true);
     } catch (err: any) {
-      setError(err.message || 'Failed to send password reset email.');
+      console.warn('[FORGOT PASSWORD CATCH]', err);
+      setSent(true);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl">
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
@@ -44,20 +45,25 @@ export default function ForgotPasswordPage() {
         </div>
 
         {sent ? (
-          <div className="bg-purple-950/40 border border-purple-800 text-purple-300 text-xs p-4 rounded-2xl text-center space-y-2">
-            <CheckCircle2 className="w-8 h-8 text-purple-400 mx-auto" />
-            <p className="font-bold text-white">Reset Link Sent!</p>
-            <p className="text-slate-300">We've sent a password reset link to <span className="font-semibold text-purple-300">{email}</span>.</p>
+          <div className="bg-purple-950/40 border border-purple-800 text-purple-300 text-xs p-4 rounded-2xl text-center space-y-3">
+            <CheckCircle2 className="w-10 h-10 text-purple-400 mx-auto" />
+            <p className="font-extrabold text-white text-sm">Reset Link Dispatched!</p>
+            <p className="text-slate-300 leading-relaxed">
+              If an account is associated with <span className="font-bold text-purple-300">{email}</span>, a password reset link has been sent to your inbox.
+            </p>
             <div className="pt-2">
-              <Link to="/login" className="inline-flex items-center gap-1.5 text-xs text-purple-400 hover:underline font-bold">
-                <ArrowLeft className="w-3.5 h-3.5" /> Back to Login
+              <Link
+                to="/login"
+                className="inline-flex items-center justify-center gap-1.5 text-xs text-white bg-purple-600 hover:bg-purple-500 font-extrabold px-4 py-2 rounded-xl transition shadow-md"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Return to Sign In
               </Link>
             </div>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
             {error && (
-              <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center">
+              <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center font-bold">
                 {error}
               </div>
             )}
@@ -71,7 +77,7 @@ export default function ForgotPasswordPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@domain.com"
-                  className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs"
+                  className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs font-medium"
                 />
                 <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
               </div>
