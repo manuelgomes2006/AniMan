@@ -47,10 +47,10 @@ export default function ProfilePage() {
 
     const list = getWatchlist();
     setStats({
-      watching: list.filter(i => i.category === 'watching').length || 12,
-      completed: list.filter(i => i.category === 'completed').length || 43,
-      planToWatch: list.filter(i => i.category === 'plan_to_watch').length || 27,
-      favorites: 18
+      watching: list.filter(i => i.category === 'watching').length || 0,
+      completed: list.filter(i => i.category === 'completed').length || 0,
+      planToWatch: list.filter(i => i.category === 'plan_to_watch').length || 0,
+      favorites: list.length || 0
     });
   }, [profile]);
 
@@ -58,12 +58,12 @@ export default function ProfilePage() {
     e.preventDefault();
     setSaving(true);
 
-    // Save audio preference in local store
+    // 1. Save audio preference in local store
     setUserAudioPreference(preferredAudio);
 
-    // Update local profile object in localStorage
+    // 2. Build complete updated profile object
     const updatedProfile = {
-      id: profile?.id || 'usr_local_01',
+      id: profile?.id || 'usr_active',
       username: username.trim(),
       displayName: displayName.trim(),
       avatarUrl: avatarUrl.trim(),
@@ -78,20 +78,25 @@ export default function ProfilePage() {
       }
     };
 
+    // Save to local active session
     localStorage.setItem('aniworld_active_session', JSON.stringify(updatedProfile));
 
-    // Try Supabase Sync if configured
-    if (isSupabaseConfigured() && profile) {
+    // 3. Sync to Supabase Database (Profiles & User Preferences)
+    if (isSupabaseConfigured() && profile?.id) {
       try {
-        await supabase.from('profiles').upsert({
+        const { error: profErr } = await supabase.from('profiles').upsert({
           id: profile.id,
           username: username.trim(),
           display_name: displayName.trim(),
           avatar_url: avatarUrl.trim(),
           updated_at: new Date().toISOString()
-        }).catch(() => {});
+        }, { onConflict: 'id' });
 
-        await supabase.from('user_preferences').upsert({
+        if (profErr) {
+          console.warn('[Supabase Profiles Upsert Notice]:', profErr.message);
+        }
+
+        const { error: prefErr } = await supabase.from('user_preferences').upsert({
           user_id: profile.id,
           preferred_audio: preferredAudio,
           preferred_quality: preferredQuality,
@@ -100,7 +105,11 @@ export default function ProfilePage() {
           skip_intro: skipIntro,
           skip_outro: skipOutro,
           updated_at: new Date().toISOString()
-        }).catch(() => {});
+        }, { onConflict: 'user_id' });
+
+        if (prefErr) {
+          console.warn('[Supabase User Preferences Upsert Notice]:', prefErr.message);
+        }
 
         await refreshProfile().catch(() => {});
       } catch (err) {
@@ -130,7 +139,7 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-16">
+    <div className="max-w-4xl mx-auto space-y-8 pb-16 font-sans">
       {/* 1. Profile Header & Avatar Card */}
       <div className="bg-[#0D0D12] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
@@ -194,7 +203,7 @@ export default function ProfilePage() {
               type="text"
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
-              className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500"
+              className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium"
             />
           </div>
 
@@ -204,7 +213,7 @@ export default function ProfilePage() {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500"
+              className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium"
             />
           </div>
         </div>
@@ -215,7 +224,7 @@ export default function ProfilePage() {
             type="text"
             value={avatarUrl}
             onChange={(e) => setAvatarUrl(e.target.value)}
-            className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500"
+            className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium"
           />
         </div>
 
@@ -255,43 +264,43 @@ export default function ProfilePage() {
 
         {/* Player Toggles */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
-          <label className="flex items-center justify-between p-3 rounded-xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300">
+          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
             <span>Autoplay Video</span>
             <input
               type="checkbox"
               checked={autoplay}
               onChange={(e) => setAutoplay(e.target.checked)}
-              className="accent-purple-600 w-4 h-4"
+              className="accent-purple-600 w-4 h-4 cursor-pointer"
             />
           </label>
 
-          <label className="flex items-center justify-between p-3 rounded-xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300">
+          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
             <span>Autoplay Next Episode</span>
             <input
               type="checkbox"
               checked={autoplayNext}
               onChange={(e) => setAutoplayNext(e.target.checked)}
-              className="accent-purple-600 w-4 h-4"
+              className="accent-purple-600 w-4 h-4 cursor-pointer"
             />
           </label>
 
-          <label className="flex items-center justify-between p-3 rounded-xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300">
+          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
             <span>Auto-Skip Intro</span>
             <input
               type="checkbox"
               checked={skipIntro}
               onChange={(e) => setSkipIntro(e.target.checked)}
-              className="accent-purple-600 w-4 h-4"
+              className="accent-purple-600 w-4 h-4 cursor-pointer"
             />
           </label>
 
-          <label className="flex items-center justify-between p-3 rounded-xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300">
+          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
             <span>Auto-Skip Outro</span>
             <input
               type="checkbox"
               checked={skipOutro}
               onChange={(e) => setSkipOutro(e.target.checked)}
-              className="accent-purple-600 w-4 h-4"
+              className="accent-purple-600 w-4 h-4 cursor-pointer"
             />
           </label>
         </div>
@@ -299,8 +308,8 @@ export default function ProfilePage() {
         {/* Action Controls */}
         <div className="flex items-center justify-between pt-4">
           {savedSuccess ? (
-            <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
-              <Check className="w-4 h-4" /> Preferences saved!
+            <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-800/80 px-3 py-1.5 rounded-xl">
+              <Check className="w-4 h-4 text-emerald-400" /> All preferences saved to database!
             </span>
           ) : <span />}
 
@@ -318,7 +327,7 @@ export default function ProfilePage() {
               disabled={saving}
               className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-lg shadow-purple-950/60 transition cursor-pointer"
             >
-              {saving ? 'Saving...' : 'Save Changes'}
+              {saving ? 'Saving Preferences...' : 'Save Changes'}
             </button>
           </div>
         </div>

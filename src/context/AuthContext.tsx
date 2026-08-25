@@ -94,9 +94,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
+      // Use maybeSingle() to gracefully return null if record is missing without throwing errors
       const [{ data: profileData }, { data: prefData }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', currentUser.id).single(),
-        supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).single()
+        supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
+        supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).maybeSingle()
       ]);
 
       const email = currentUser.email || 'user@aniworld.io';
@@ -164,7 +165,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session.user);
         await loadProfile(session.user);
       } else {
-        // Only clear profile if local session is also absent (or during explicit logout)
         const hasLocal = restoreLocalSessionIfPresent();
         if (!hasLocal) {
           setProfile(null);
