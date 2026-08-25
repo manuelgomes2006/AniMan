@@ -62,6 +62,7 @@ export default function ProfilePage() {
     setErrorMsg(null);
 
     const cleanUsername = username.trim().toLowerCase();
+    const cleanEmail = (profile?.email || 'user@aniworld.io').trim().toLowerCase();
 
     // 1. Validate Username Uniqueness
     if (profile && cleanUsername !== profile.username.toLowerCase()) {
@@ -95,7 +96,7 @@ export default function ProfilePage() {
       username: cleanUsername,
       displayName: displayName.trim(),
       avatarUrl: avatarUrl.trim(),
-      email: profile?.email || 'user@aniworld.io',
+      email: cleanEmail,
       preferences: {
         preferredAudio,
         preferredQuality,
@@ -107,18 +108,30 @@ export default function ProfilePage() {
     };
 
     // Save to local active session
-    localStorage.setItem('aniworld_active_session', JSON.stringify(updatedProfile));
+    try {
+      localStorage.setItem('aniworld_active_session', JSON.stringify(updatedProfile));
+    } catch {}
 
-    // 4. Sync to Supabase Database (Profiles & User Preferences)
+    // 4. Sync to Supabase Database (Profiles & User Preferences) using Email as Primary Source
     if (isSupabaseConfigured() && profile?.id) {
       try {
         await supabase.from('profiles').upsert({
           id: profile.id,
+          email: cleanEmail,
           username: cleanUsername,
           display_name: displayName.trim(),
           avatar_url: avatarUrl.trim(),
           updated_at: new Date().toISOString()
         }, { onConflict: 'id' }).catch((err) => console.warn('Profiles upsert notice:', err));
+
+        // Sync metadata back to Supabase Auth User Metadata
+        await supabase.auth.updateUser({
+          data: {
+            username: cleanUsername,
+            display_name: displayName.trim(),
+            avatar_url: avatarUrl.trim()
+          }
+        }).catch(() => {});
 
         await syncAllUserPreferencesToSupabase(profile.id, {
           preferredAudio,

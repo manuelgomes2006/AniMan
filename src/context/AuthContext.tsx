@@ -91,26 +91,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   };
 
-  // Load User Profile and Preferences from Supabase Database
+  // Load User Profile and Preferences using Email as Primary Identifier
   const loadProfile = async (currentUser: User) => {
     try {
+      const email = (currentUser.email || 'user@aniworld.io').trim().toLowerCase();
+
       if (!isSupabaseConfigured()) {
         if (!restoreLocalSessionIfPresent()) {
-          setProfile(getGuestProfile(currentUser.email || undefined));
+          setProfile(getGuestProfile(email));
         }
         return;
       }
 
-      // Use maybeSingle() to gracefully return null if record is missing without throwing errors
-      const [{ data: profileData }, { data: prefData }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
-        supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).maybeSingle()
-      ]);
+      // Query profiles primarily by email (and fallback by user id)
+      let profileData: any = null;
+      let prefData: any = null;
 
-      const email = currentUser.email || 'user@aniworld.io';
-      const username = profileData?.username || currentUser.user_metadata?.username || email.split('@')[0] || 'User';
-      const displayName = profileData?.display_name || currentUser.user_metadata?.display_name || username;
+      try {
+        const [{ data: profByEmail }, { data: prefRow }] = await Promise.all([
+          supabase.from('profiles').select('*').ilike('email', email).maybeSingle(),
+          supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).maybeSingle()
+        ]);
+        profileData = profByEmail;
+        prefData = prefRow;
+      } catch {}
+
+      if (!profileData) {
+        // Try query by ID fallback
+        try {
+          const { data: profById } = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+          profileData = profById;
+        } catch {}
+      }
+
+      const metaUsername = currentUser.user_metadata?.username || currentUser.user_metadata?.display_name || email.split('@')[0];
+      const metaDisplayName = currentUser.user_metadata?.display_name || metaUsername;
+
+      const username = profileData?.username || metaUsername;
+      const displayName = profileData?.display_name || metaDisplayName;
       const avatarUrl = profileData?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
+
+      // Auto-heal missing profile row in database if missing
+      if (!profileData) {
+        await supabase.from('profiles').upsert({
+          id: currentUser.id,
+          email: email,
+          username: username.toLowerCase(),
+          display_name: displayName,
+          avatar_url: avatarUrl,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' }).catch(() => {});
+      }
 
       const preferences: UserPreferences = {
         preferredAudio: prefData?.preferred_audio === 'dub' ? 'dub' : 'sub',
@@ -137,7 +168,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.warn('[AuthContext] Load Profile Notice:', err);
       if (!restoreLocalSessionIfPresent()) {
-        setProfile(getGuestProfile(currentUser.email || undefined, currentUser.email?.split('@')[0]));
+        const cleanEmail = currentUser.email || 'user@aniworld.io';
+        setProfile(getGuestProfile(cleanEmail, currentUser.email?.split('@')[0]));
       }
     }
   };

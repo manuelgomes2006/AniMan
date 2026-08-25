@@ -3,15 +3,19 @@
 -- Run this in your Supabase SQL Editor to set up tables, RLS & triggers
 -- ====================================================================
 
--- 1. PROFILES TABLE
+-- 1. PROFILES TABLE (email is unique primary identifier)
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  email TEXT UNIQUE NOT NULL,
   username TEXT UNIQUE NOT NULL,
   display_name TEXT,
   avatar_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ensure email column exists if profiles table was previously created without it
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT UNIQUE;
 
 -- 2. WATCHLIST TABLE
 CREATE TABLE IF NOT EXISTS public.watchlist (
@@ -67,32 +71,9 @@ CREATE TABLE IF NOT EXISTS public.search_history (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 7. EPISODE SOURCES TABLE (Multi-Provider Authorized Mapping Layer)
-CREATE TABLE IF NOT EXISTS public.episode_sources (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  episode_id TEXT NOT NULL,
-  provider_id TEXT NOT NULL,
-  embed_url TEXT NOT NULL,
-  language TEXT DEFAULT 'sub' CHECK (language IN ('sub', 'dub')),
-  quality TEXT DEFAULT '1080p',
-  priority INTEGER DEFAULT 1,
-  enabled BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  UNIQUE(episode_id, provider_id, language)
-);
-
--- 8. PROVIDER HEALTH TABLE (Lightweight Monitoring System)
-CREATE TABLE IF NOT EXISTS public.provider_health (
-  provider_id TEXT PRIMARY KEY,
-  success_count INTEGER DEFAULT 0,
-  failure_count INTEGER DEFAULT 0,
-  last_success TIMESTAMP WITH TIME ZONE,
-  last_failure TIMESTAMP WITH TIME ZONE,
-  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
-
 -- INDEXES FOR MAXIMUM QUERY PERFORMANCE
+CREATE INDEX IF NOT EXISTS idx_profiles_email ON public.profiles(LOWER(email));
+CREATE INDEX IF NOT EXISTS idx_profiles_username ON public.profiles(LOWER(username));
 CREATE INDEX IF NOT EXISTS idx_watchlist_user_id ON public.watchlist(user_id);
 CREATE INDEX IF NOT EXISTS idx_watchlist_user_anime ON public.watchlist(user_id, anime_id);
 CREATE INDEX IF NOT EXISTS idx_watch_history_user_id ON public.watch_history(user_id);
@@ -100,8 +81,6 @@ CREATE INDEX IF NOT EXISTS idx_watch_history_user_anime ON public.watch_history(
 CREATE INDEX IF NOT EXISTS idx_watch_history_last_watched ON public.watch_history(user_id, last_watched DESC);
 CREATE INDEX IF NOT EXISTS idx_favorites_user_id ON public.favorites(user_id);
 CREATE INDEX IF NOT EXISTS idx_search_history_user_id ON public.search_history(user_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_episode_sources_ep_prov ON public.episode_sources(episode_id, provider_id);
-CREATE INDEX IF NOT EXISTS idx_episode_sources_enabled ON public.episode_sources(enabled);
 
 -- ====================================================================
 -- ROW LEVEL SECURITY (RLS) POLICIES
@@ -113,8 +92,6 @@ ALTER TABLE public.watch_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.favorites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.user_preferences ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.search_history ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.episode_sources ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.provider_health ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
 DROP POLICY IF EXISTS "Users can read public profiles" ON public.profiles;
@@ -153,14 +130,6 @@ CREATE POLICY "Users can update own preferences" ON public.user_preferences FOR 
 DROP POLICY IF EXISTS "Users can manage own search history" ON public.search_history;
 CREATE POLICY "Users can manage own search history" ON public.search_history FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Episode Sources Policies (Public Read Access)
-DROP POLICY IF EXISTS "Anyone can read episode sources" ON public.episode_sources;
-CREATE POLICY "Anyone can read episode sources" ON public.episode_sources FOR SELECT USING (enabled = true);
-
--- Provider Health Policies (Public Read Access)
-DROP POLICY IF EXISTS "Anyone can read provider health" ON public.provider_health;
-CREATE POLICY "Anyone can read provider health" ON public.provider_health FOR SELECT USING (true);
-
 -- ====================================================================
 -- AUTOMATIC NEW USER INITIALIZATION TRIGGER
 -- ====================================================================
@@ -168,13 +137,17 @@ CREATE POLICY "Anyone can read provider health" ON public.provider_health FOR SE
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS TRIGGER AS $$
 BEGIN
-  INSERT INTO public.profiles (id, username, display_name, avatar_url)
+  INSERT INTO public.profiles (id, email, username, display_name, avatar_url)
   VALUES (
     NEW.id,
+    LOWER(NEW.email),
     COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1)),
-    COALESCE(NEW.raw_user_meta_data->>'display_name', split_part(NEW.email, '@', 1)),
+    COALESCE(NEW.raw_user_meta_data->>'display_name', COALESCE(NEW.raw_user_meta_data->>'username', split_part(NEW.email, '@', 1))),
     COALESCE(NEW.raw_user_meta_data->>'avatar_url', 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80')
-  ) ON CONFLICT (id) DO NOTHING;
+  ) ON CONFLICT (id) DO UPDATE SET
+    email = EXCLUDED.email,
+    username = COALESCE(EXCLUDED.username, public.profiles.username),
+    display_name = COALESCE(EXCLUDED.display_name, public.profiles.display_name);
 
   INSERT INTO public.user_preferences (user_id, preferred_audio, preferred_quality, autoplay, autoplay_next, skip_intro, skip_outro)
   VALUES (NEW.id, 'sub', 'auto', true, true, false, false)
