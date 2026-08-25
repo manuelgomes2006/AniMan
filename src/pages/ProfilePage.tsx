@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
-import { getWatchlist, setUserAudioPreference } from '../services/userStore';
+import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
 import { isUsernameTaken } from '../services/auth/localAuthStore';
 import { User, Settings, Check, Bookmark, Clock, Volume2, LogOut, Trash2, Heart, ShieldAlert, Loader2, AlertCircle } from 'lucide-react';
 
@@ -112,32 +112,22 @@ export default function ProfilePage() {
     // 4. Sync to Supabase Database (Profiles & User Preferences)
     if (isSupabaseConfigured() && profile?.id) {
       try {
-        const { error: profErr } = await supabase.from('profiles').upsert({
+        await supabase.from('profiles').upsert({
           id: profile.id,
           username: cleanUsername,
           display_name: displayName.trim(),
           avatar_url: avatarUrl.trim(),
           updated_at: new Date().toISOString()
-        }, { onConflict: 'id' });
+        }, { onConflict: 'id' }).catch((err) => console.warn('Profiles upsert notice:', err));
 
-        if (profErr) {
-          console.warn('[Supabase Profiles Upsert Notice]:', profErr.message);
-        }
-
-        const { error: prefErr } = await supabase.from('user_preferences').upsert({
-          user_id: profile.id,
-          preferred_audio: preferredAudio,
-          preferred_quality: preferredQuality,
-          autoplay: autoplay,
-          autoplay_next: autoplayNext,
-          skip_intro: skipIntro,
-          skip_outro: skipOutro,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' });
-
-        if (prefErr) {
-          console.warn('[Supabase User Preferences Upsert Notice]:', prefErr.message);
-        }
+        await syncAllUserPreferencesToSupabase(profile.id, {
+          preferredAudio,
+          preferredQuality,
+          autoplay,
+          autoplayNext,
+          skipIntro,
+          skipOutro
+        });
 
         await refreshProfile().catch(() => {});
       } catch (err) {

@@ -6,7 +6,7 @@
 -- 1. PROFILES TABLE
 CREATE TABLE IF NOT EXISTS public.profiles (
   id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  username TEXT UNIQUE,
+  username TEXT UNIQUE NOT NULL,
   display_name TEXT,
   avatar_url TEXT,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -117,30 +117,48 @@ ALTER TABLE public.episode_sources ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.provider_health ENABLE ROW LEVEL SECURITY;
 
 -- Profiles Policies
+DROP POLICY IF EXISTS "Users can read public profiles" ON public.profiles;
+DROP POLICY IF EXISTS "Users can insert own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can update own profile" ON public.profiles;
+DROP POLICY IF EXISTS "Users can delete own profile" ON public.profiles;
+
 CREATE POLICY "Users can read public profiles" ON public.profiles FOR SELECT USING (true);
 CREATE POLICY "Users can insert own profile" ON public.profiles FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "Users can update own profile" ON public.profiles FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "Users can delete own profile" ON public.profiles FOR DELETE USING (auth.uid() = id);
 
 -- Watchlist Policies
-CREATE POLICY "Users can manage own watchlist" ON public.watchlist FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can manage own watchlist" ON public.watchlist;
+CREATE POLICY "Users can manage own watchlist" ON public.watchlist FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Watch History Policies
-CREATE POLICY "Users can manage own watch history" ON public.watch_history FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can manage own watch history" ON public.watch_history;
+CREATE POLICY "Users can manage own watch history" ON public.watch_history FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Favorites Policies
-CREATE POLICY "Users can manage own favorites" ON public.favorites FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can manage own favorites" ON public.favorites;
+CREATE POLICY "Users can manage own favorites" ON public.favorites FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Preferences Policies
-CREATE POLICY "Users can manage own preferences" ON public.user_preferences FOR ALL USING (auth.uid() = user_id);
+-- Preferences Policies (Explicit SELECT, INSERT, UPDATE RLS Policies with WITH CHECK)
+DROP POLICY IF EXISTS "Users can manage own preferences" ON public.user_preferences;
+DROP POLICY IF EXISTS "Users can read own preferences" ON public.user_preferences;
+DROP POLICY IF EXISTS "Users can insert own preferences" ON public.user_preferences;
+DROP POLICY IF EXISTS "Users can update own preferences" ON public.user_preferences;
+
+CREATE POLICY "Users can read own preferences" ON public.user_preferences FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own preferences" ON public.user_preferences FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own preferences" ON public.user_preferences FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Search History Policies
-CREATE POLICY "Users can manage own search history" ON public.search_history FOR ALL USING (auth.uid() = user_id);
+DROP POLICY IF EXISTS "Users can manage own search history" ON public.search_history;
+CREATE POLICY "Users can manage own search history" ON public.search_history FOR ALL USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
 -- Episode Sources Policies (Public Read Access)
+DROP POLICY IF EXISTS "Anyone can read episode sources" ON public.episode_sources;
 CREATE POLICY "Anyone can read episode sources" ON public.episode_sources FOR SELECT USING (enabled = true);
 
 -- Provider Health Policies (Public Read Access)
+DROP POLICY IF EXISTS "Anyone can read provider health" ON public.provider_health;
 CREATE POLICY "Anyone can read provider health" ON public.provider_health FOR SELECT USING (true);
 
 -- ====================================================================

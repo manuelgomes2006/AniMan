@@ -32,18 +32,68 @@ export function getUserAudioPreference(): 'sub' | 'dub' {
 
 export function setUserAudioPreference(preference: 'sub' | 'dub'): void {
   localStorage.setItem(STORAGE_KEYS.PREFERRED_AUDIO, preference);
-  
-  supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) {
+
+  // Sync to active local profile session
+  try {
+    const local = localStorage.getItem('aniworld_active_session');
+    if (local) {
+      const parsed = JSON.parse(local);
+      if (parsed.preferences) {
+        parsed.preferences.preferredAudio = preference;
+        localStorage.setItem('aniworld_active_session', JSON.stringify(parsed));
+      }
+    }
+  } catch {}
+
+  // Sync to Supabase Database
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
       supabase.from('user_preferences').upsert({
-        user_id: user.id,
+        user_id: session.user.id,
         preferred_audio: preference,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' }).then(({ error }) => {
-        if (error) console.warn('Failed to sync audio pref to Supabase:', error);
+        if (error) console.warn('[Supabase Sync Audio Notice]:', error.message);
       });
     }
   });
+}
+
+export async function syncAllUserPreferencesToSupabase(
+  userId: string,
+  prefs: {
+    preferredAudio: 'sub' | 'dub';
+    preferredQuality?: string;
+    autoplay?: boolean;
+    autoplayNext?: boolean;
+    skipIntro?: boolean;
+    skipOutro?: boolean;
+  }
+): Promise<boolean> {
+  if (!userId) return false;
+
+  const payload = {
+    user_id: userId,
+    preferred_audio: prefs.preferredAudio,
+    preferred_quality: prefs.preferredQuality || 'auto',
+    autoplay: prefs.autoplay ?? true,
+    autoplay_next: prefs.autoplayNext ?? true,
+    skip_intro: prefs.skipIntro ?? false,
+    skip_outro: prefs.skipOutro ?? false,
+    updated_at: new Date().toISOString()
+  };
+
+  try {
+    const { error } = await supabase.from('user_preferences').upsert(payload, { onConflict: 'user_id' });
+    if (error) {
+      console.warn('[UserPreferences Database Upsert Error]:', error.message);
+      return false;
+    }
+    return true;
+  } catch (err) {
+    console.warn('[UserPreferences Exception]:', err);
+    return false;
+  }
 }
 
 let watchHistoryDebounceTimer: any = null;
@@ -91,10 +141,10 @@ export function updateWatchProgress(
   clearTimeout(watchHistoryDebounceTimer);
   watchHistoryDebounceTimer = setTimeout(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
         await supabase.from('watch_history').upsert({
-          user_id: user.id,
+          user_id: session.user.id,
           anime_id: anime.id,
           episode_number: episodeNumber,
           current_time: currentTime,
@@ -126,13 +176,13 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
   const localHistory = getWatchHistory();
 
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return localHistory;
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user) return localHistory;
 
     const { data, error } = await supabase
       .from('watch_history')
       .select('*')
-      .eq('user_id', user.id)
+      .eq('user_id', session.user.id)
       .order('last_watched', { ascending: false })
       .limit(50);
 
@@ -180,9 +230,9 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
 export async function clearWatchHistory(): Promise<void> {
   localStorage.removeItem(STORAGE_KEYS.WATCH_HISTORY);
   try {
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) {
-      await supabase.from('watch_history').delete().eq('user_id', user.id);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user) {
+      await supabase.from('watch_history').delete().eq('user_id', session.user.id);
     }
   } catch (err) {
     console.warn('Clear watch history notice:', err);
@@ -229,10 +279,10 @@ export function setWatchlistCategory(
 
   localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(list));
 
-  supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
       supabase.from('watchlist').upsert({
-        user_id: user.id,
+        user_id: session.user.id,
         anime_id: anime.id,
         status: category,
         updated_at: new Date().toISOString()
@@ -257,9 +307,9 @@ export function removeFromWatchlist(animeId: number): WatchlistItem[] {
   const filtered = list.filter((item) => item.anime.id !== animeId);
   localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(filtered));
 
-  supabase.auth.getUser().then(({ data: { user } }) => {
-    if (user) {
-      supabase.from('watchlist').delete().eq('user_id', user.id).eq('anime_id', animeId).then(({ error }) => {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session?.user) {
+      supabase.from('watchlist').delete().eq('user_id', session.user.id).eq('anime_id', animeId).then(({ error }) => {
         if (error) console.warn('Watchlist delete error:', error);
       });
     }
