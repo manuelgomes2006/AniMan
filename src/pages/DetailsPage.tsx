@@ -1,18 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getAnimeDetails } from '../services/anilist/client';
+import { getNormalizedEpisodes, NormalizedEpisode } from '../services/episodes/episodes';
 import { setWatchlistCategory, getWatchlistItem } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
-import AnimeCard from '../components/common/AnimeCard';
 import {
-  Play, Plus, Check, Star, Video, Users, Sparkles, Loader2, Calendar, Tv
+  Play, Plus, Check, Star, Video, Loader2, Search, ChevronDown
 } from 'lucide-react';
 
 export default function DetailsPage() {
   const { id } = useParams<{ id: string }>();
   const [anime, setAnime] = useState<AnimeMedia | null>(null);
+  const [episodes, setEpisodes] = useState<NormalizedEpisode[]>([]);
   const [loading, setLoading] = useState(true);
   const [inWatchlist, setInWatchlist] = useState(false);
+  const [rangeIndex, setRangeIndex] = useState(0);
+  const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
     if (!id) return;
@@ -22,6 +25,14 @@ export default function DetailsPage() {
         const data = await getAnimeDetails(parseInt(id!, 10));
         setAnime(data);
         setInWatchlist(Boolean(getWatchlistItem(data.id)));
+
+        const epList = await getNormalizedEpisodes(
+          data.id,
+          data.episodes,
+          data.idMal,
+          data.streamingEpisodes
+        );
+        setEpisodes(epList);
       } catch (err) {
         console.error('Failed to load anime details:', err);
       } finally {
@@ -36,6 +47,38 @@ export default function DetailsPage() {
     const updated = setWatchlistCategory(anime, 'watching');
     setInWatchlist(Boolean(updated));
   };
+
+  const title = anime?.title?.english || anime?.title?.romaji || anime?.title?.native || 'Anime';
+  const banner = anime?.bannerImage || anime?.coverImage?.extraLarge;
+  const cover = anime?.coverImage?.extraLarge || anime?.coverImage?.large;
+  const synopsis = anime?.description?.replace(/<[^>]*>?/gm, '') || 'No description available.';
+  const studioName = anime?.studios?.nodes?.[0]?.name || 'Unknown Studio';
+
+  const totalCount = Math.max(episodes.length, anime?.episodes || 0, 12);
+  const RANGE_SIZE = 100;
+
+  const ranges = useMemo(() => {
+    const r: { start: number; end: number; label: string }[] = [];
+    for (let i = 0; i < totalCount; i += RANGE_SIZE) {
+      const start = i + 1;
+      const end = Math.min(i + RANGE_SIZE, totalCount);
+      r.push({ start, end, label: `${start}-${end}` });
+    }
+    return r;
+  }, [totalCount]);
+
+  const currentRange = ranges[rangeIndex] || { start: 1, end: totalCount };
+
+  const displayedEpisodes = useMemo(() => {
+    if (searchQuery.trim() !== '') {
+      const q = searchQuery.trim().toLowerCase();
+      return episodes.filter(ep =>
+        ep.number.toString() === q ||
+        ep.title.toLowerCase().includes(q)
+      );
+    }
+    return episodes.filter(ep => ep.number >= currentRange.start && ep.number <= currentRange.end);
+  }, [episodes, searchQuery, currentRange]);
 
   if (loading) {
     return (
@@ -54,15 +97,8 @@ export default function DetailsPage() {
     );
   }
 
-  const title = anime.title?.english || anime.title?.romaji || anime.title?.native;
-  const banner = anime.bannerImage || anime.coverImage?.extraLarge;
-  const cover = anime.coverImage?.extraLarge || anime.coverImage?.large;
-  const synopsis = anime.description?.replace(/<[^>]*>?/gm, '') || 'No description available.';
-  const totalEpisodes = anime.streamingEpisodes?.length || anime.episodes || 12;
-  const studioName = anime.studios?.nodes?.[0]?.name || 'Unknown Studio';
-
   return (
-    <div className="space-y-6 sm:space-y-10 pb-16">
+    <div className="space-y-6 sm:space-y-10 pb-16 font-sans text-white">
       {/* Top Banner Backdrop */}
       <div className="relative w-full h-[220px] sm:h-[420px] bg-[#050507] rounded-2xl sm:rounded-3xl overflow-hidden shadow-2xl">
         <img
@@ -133,47 +169,71 @@ export default function DetailsPage() {
           </div>
         </div>
 
-        {/* Episode Catalog */}
-        <section className="space-y-3 pt-4">
-          <div className="flex items-center justify-between border-b border-slate-900 pb-3">
+        {/* Episode Catalog Section */}
+        <section className="space-y-4 pt-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-900 pb-3">
             <h2 className="text-base sm:text-xl font-extrabold text-white flex items-center gap-2">
               <Video className="w-4 h-4 text-purple-400" />
-              Episodes Catalog ({totalEpisodes} Total)
+              Episodes Catalog ({totalCount} Total)
             </h2>
+
+            <div className="flex items-center gap-2">
+              {/* Search Bar */}
+              <div className="relative">
+                <input
+                  type="text"
+                  placeholder="Search episode..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="bg-[#0D0D12] text-xs font-medium text-white placeholder-slate-500 pl-8 pr-3 py-1.5 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500"
+                />
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              </div>
+
+              {/* Range Selector */}
+              {searchQuery.trim() === '' && ranges.length > 1 && (
+                <div className="relative">
+                  <select
+                    value={rangeIndex}
+                    onChange={(e) => setRangeIndex(parseInt(e.target.value, 10))}
+                    className="bg-[#0D0D12] text-purple-300 font-black py-1.5 pl-3 pr-8 rounded-xl border border-slate-800 appearance-none cursor-pointer focus:outline-none focus:border-purple-500 text-xs"
+                  >
+                    {ranges.map((r, idx) => (
+                      <option key={r.label} value={idx}>
+                        Episodes {r.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="w-3.5 h-3.5 text-purple-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                </div>
+              )}
+            </div>
           </div>
 
+          {/* Episode Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-            {anime.streamingEpisodes && anime.streamingEpisodes.length > 0 ? (
-              anime.streamingEpisodes.map((ep, i) => {
-                const epNum = i + 1;
+            {displayedEpisodes.length === 0 ? (
+              <div className="col-span-full py-8 text-center text-xs text-slate-500">
+                No episodes found matching "{searchQuery}"
+              </div>
+            ) : (
+              displayedEpisodes.map((ep) => {
+                const thumbSrc = ep.thumbnail || cover;
                 return (
                   <Link
-                    key={epNum}
-                    to={`/watch/${anime.id}/${epNum}`}
-                    className="bg-[#0D0D12] hover:bg-slate-900 border border-slate-900 rounded-xl overflow-hidden flex items-center gap-2.5 p-2 transition group"
+                    key={ep.number}
+                    to={`/watch/${anime.id}/${ep.number}`}
+                    className="bg-[#0D0D12] hover:bg-slate-900 border border-slate-800 rounded-xl overflow-hidden flex items-center gap-2.5 p-2 transition group"
                   >
                     <div className="relative w-20 aspect-video rounded-lg overflow-hidden shrink-0 bg-slate-950">
-                      <img src={ep.thumbnail || cover} alt={ep.title} className="w-full h-full object-cover" />
+                      <img src={thumbSrc} alt={ep.title} className="w-full h-full object-cover" />
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <span className="text-[9px] font-bold text-purple-400 uppercase tracking-wider block">EPISODE {epNum}</span>
+                    <div className="min-w-0 flex-1 space-y-0.5">
+                      <span className="text-[9px] font-black text-purple-400 uppercase tracking-wider block">EPISODE {ep.number}</span>
                       <h4 className="text-xs font-bold text-slate-200 line-clamp-1 group-hover:text-white">
-                        {ep.title || `Episode ${epNum}`}
+                        {ep.title}
                       </h4>
                     </div>
-                  </Link>
-                );
-              })
-            ) : (
-              [...Array(totalEpisodes)].map((_, i) => {
-                const epNum = i + 1;
-                return (
-                  <Link
-                    key={epNum}
-                    to={`/watch/${anime.id}/${epNum}`}
-                    className="bg-[#0D0D12] hover:bg-purple-600 text-slate-300 hover:text-white font-bold text-xs py-2.5 rounded-xl border border-slate-900 text-center transition"
-                  >
-                    Episode {epNum}
                   </Link>
                 );
               })
