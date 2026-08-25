@@ -1,12 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase, isSupabaseConfigured } from '../../services/auth/supabaseClient';
-import { useAuth } from '../../context/AuthContext';
 import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw } from 'lucide-react';
 
 export default function SignupPage() {
   const navigate = useNavigate();
-  const { setGuestSession } = useAuth();
 
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
@@ -35,8 +33,8 @@ export default function SignupPage() {
       const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
 
       if (!isSupabaseConfigured()) {
-        setGuestSession(email, cleanUsername);
-        navigate('/', { replace: true });
+        setError('Supabase authentication is unconfigured or environment variables are missing.');
+        setLoading(false);
         return;
       }
 
@@ -53,25 +51,24 @@ export default function SignupPage() {
       });
 
       if (authError) {
+        console.error('[AUTH SIGNUP]', authError);
         if (authError.message.toLowerCase().includes('already registered')) {
-          setError('An account with this email already exists.');
-          return;
+          setError('An account with this email address already exists. Please Sign In.');
+        } else {
+          setError(authError.message);
         }
-        setGuestSession(email, cleanUsername);
-        navigate('/', { replace: true });
         return;
       }
 
       // If user requires email confirmation
       if (data.user && !data.session) {
         setVerificationSent(true);
-      } else {
+      } else if (data.session) {
         navigate('/', { replace: true });
       }
     } catch (err: any) {
-      const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
-      setGuestSession(email, cleanUsername);
-      navigate('/', { replace: true });
+      console.error('[AUTH SIGNUP CATCH]', err);
+      setError(err?.message || 'Unable to create account. Please check your network or try again.');
     } finally {
       setLoading(false);
     }
@@ -90,17 +87,16 @@ export default function SignupPage() {
       });
       setResendSuccess(true);
       setTimeout(() => setResendSuccess(false), 4000);
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Resend error:', err);
     } finally {
       setResending(false);
     }
   };
 
-  // If email verification link was sent
   if (verificationSent) {
     return (
-      <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
         <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl text-center">
           <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/40 rounded-full flex items-center justify-center mx-auto text-purple-400">
             <Mail className="w-8 h-8" />
@@ -114,7 +110,7 @@ export default function SignupPage() {
           </div>
 
           {resendSuccess && (
-            <div className="bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs p-3 rounded-xl flex items-center justify-center gap-1.5">
+            <div className="bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs p-3 rounded-xl flex items-center justify-center gap-1.5 font-bold">
               <CheckCircle className="w-4 h-4" /> Verification email resent successfully!
             </div>
           )}
@@ -142,7 +138,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl">
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
@@ -154,7 +150,7 @@ export default function SignupPage() {
         </div>
 
         {error && (
-          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center">
+          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center leading-relaxed font-bold">
             {error}
           </div>
         )}
@@ -169,7 +165,7 @@ export default function SignupPage() {
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="anime_fan99"
-                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs"
+                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs font-medium"
               />
               <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>
@@ -184,7 +180,7 @@ export default function SignupPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@domain.com"
-                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs"
+                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs font-medium"
               />
               <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>
@@ -200,7 +196,7 @@ export default function SignupPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs"
+                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs font-medium"
               />
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>
@@ -216,7 +212,7 @@ export default function SignupPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs"
+                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs font-medium"
               />
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>

@@ -38,9 +38,8 @@ export default function LoginPage() {
 
     try {
       if (!isSupabaseConfigured()) {
-        const username = email.split('@')[0] || 'Member';
-        setGuestSession(email, username);
-        navigate(redirectUrl, { replace: true });
+        setError('Supabase authentication is unconfigured or environment variables are missing.');
+        setLoading(false);
         return;
       }
 
@@ -50,10 +49,13 @@ export default function LoginPage() {
       });
 
       if (authError) {
+        console.error('[AUTH LOGIN]', authError);
         if (authError.message.toLowerCase().includes('email not confirmed')) {
           setError('Please check your email inbox and click the verification link before signing in.');
+        } else if (authError.message.toLowerCase().includes('invalid login credentials')) {
+          setError('Invalid email or password. Please verify your credentials or Sign Up.');
         } else {
-          setError('Invalid email or password. If you do not have an account, please Sign Up first.');
+          setError(authError.message);
         }
         return;
       }
@@ -62,14 +64,15 @@ export default function LoginPage() {
         navigate(redirectUrl, { replace: true });
       }
     } catch (err: any) {
-      setError('Unable to sign in. Please check your credentials or create a new account.');
+      console.error('[AUTH LOGIN CATCH]', err);
+      setError(err?.message || 'Unable to sign in. Please check your credentials or create a new account.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl">
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
@@ -88,7 +91,7 @@ export default function LoginPage() {
         )}
 
         {error && (
-          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center leading-relaxed">
+          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center leading-relaxed font-bold">
             {error}
           </div>
         )}
@@ -103,7 +106,7 @@ export default function LoginPage() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@domain.com"
-                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs"
+                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs font-medium"
               />
               <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>
@@ -123,7 +126,7 @@ export default function LoginPage() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs"
+                className="w-full bg-[#050507] text-white placeholder-slate-500 pl-10 pr-4 py-3 rounded-xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs font-medium"
               />
               <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
             </div>
