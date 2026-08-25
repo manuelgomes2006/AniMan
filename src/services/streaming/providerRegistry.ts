@@ -1,12 +1,12 @@
 import { ProviderConfig, ProviderHealth, ProviderStatus } from './providerTypes';
 
 /**
- * Verified Authorized Embed Hosts Allowlist (Empty - All streaming provider data removed)
+ * Domain Allowlist for Verified Provider Embed Hosts
  */
 export const ALLOWED_EMBED_HOSTS: string[] = [];
 
 /**
- * Centralized Provider Configuration Registry (Empty - All streaming provider data removed)
+ * Registered Provider Adapter Configurations
  */
 export const VIDEO_PROVIDERS: ProviderConfig[] = [];
 
@@ -14,7 +14,7 @@ const PREFERRED_PROVIDER_KEY = 'aniworld_preferred_provider';
 const HEALTH_STORAGE_KEY = 'aniworld_provider_health';
 
 /**
- * Domain Allowlist & HTTPS Validator Function
+ * Domain Allowlist & HTTPS Security Validator
  */
 export function isAllowedEmbedUrl(url: string, providerId?: string): boolean {
   if (!url || typeof url !== 'string') return false;
@@ -34,9 +34,6 @@ export function isAllowedEmbedUrl(url: string, providerId?: string): boolean {
 
 export const validateEmbedUrl = isAllowedEmbedUrl;
 
-/**
- * Lightweight Provider Health Tracking
- */
 export function getProviderHealth(): Record<string, ProviderHealth> {
   try {
     const raw = localStorage.getItem(HEALTH_STORAGE_KEY);

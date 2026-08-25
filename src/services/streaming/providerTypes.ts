@@ -8,18 +8,20 @@ export type ProviderStatus =
   | 'requires_authentication'
   | 'not_verified';
 
-export interface StreamingSource {
-  providerId: string;
+export interface EpisodeSource {
+  episodeId: string;
+  provider: string;
   providerName: string;
+  language: AudioVariant;
+  type: 'iframe' | 'hls' | 'file';
   url: string;
-  type: 'embed' | 'hls';
   quality?: string;
-  isHLS?: boolean;
-  isVerified?: boolean;
   status: ProviderStatus;
+  isVerified?: boolean;
   allowedDomains?: string[];
-  subtitles?: { url: string; lang: string }[];
 }
+
+export type StreamingSource = EpisodeSource;
 
 export interface StreamingServerOption {
   id: string;
@@ -38,25 +40,25 @@ export interface NormalizedStreamResponse {
   animeId: number;
   episodeNumber: number;
   variant: AudioVariant;
-  firstValidSource: StreamingSource | null;
-  sources: StreamingSource[];
+  firstValidSource: EpisodeSource | null;
+  sources: EpisodeSource[];
   servers: StreamingServerOption[];
   resolvedAt: number;
 }
 
-export interface VideoProvider {
+export interface ProviderAdapter {
   id: string;
   name: string;
   allowedDomains: string[];
   status: ProviderStatus;
-  getEmbedUrl(
+  getEpisodeSources(
     animeId: number,
-    title: string,
-    episode: number,
-    variant: AudioVariant,
-    malId?: number
-  ): Promise<string | null>;
-  isAvailable(): Promise<boolean>;
+    episodeNumber: number,
+    language: AudioVariant,
+    malId?: number,
+    title?: string
+  ): Promise<EpisodeSource[]>;
+  healthCheck?(): Promise<boolean>;
 }
 
 export interface ProviderConfig {
@@ -70,27 +72,23 @@ export interface ProviderConfig {
   requiresAuth?: boolean;
 }
 
-export interface EpisodeSourceItem {
-  providerId: string;
-  providerName: string;
-  embedUrl: string;
-  language: AudioVariant;
-  quality?: string;
-  isVerified: boolean;
-  status: ProviderStatus;
-}
-
-export interface EpisodeSources {
-  episodeId: string;
-  animeId: number;
-  episodeNumber: number;
-  sources: EpisodeSourceItem[];
-}
-
 export interface ProviderHealth {
   providerId: string;
   successCount: number;
   failureCount: number;
   lastSuccess?: string;
   lastFailure?: string;
+}
+
+export interface ProviderResolutionLog {
+  provider: string;
+  status: 'success' | 'failed' | 'no_source' | 'blocked_by_provider' | 'offline';
+  reason?: string;
+  urlType?: string;
+}
+
+export interface EpisodeDebugResponse {
+  episodeId: string;
+  catalogSource: string;
+  providerResolution: ProviderResolutionLog[];
 }

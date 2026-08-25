@@ -1,5 +1,5 @@
 import {
-  StreamingSource,
+  EpisodeSource,
   AudioVariant,
   NormalizedStreamResponse,
   StreamingServerOption
@@ -12,9 +12,9 @@ const RESOLVED_CACHE = new Map<string, { data: NormalizedStreamResponse; timesta
 const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
 
 /**
- * Verified Multi-Provider Resolver Engine:
- * Resolves episode sources via domain-allowlisted VideoProviders.
- * Returns null firstValidSource if no provider is verified available.
+ * Provider-Agnostic Source Resolver Engine:
+ * Maps catalog IDs to source episode IDs and queries active Provider Adapters.
+ * Emits detailed server logs without exposing sensitive tokens.
  */
 export function resolveParallelSources(options: {
   animeId: number;
@@ -24,11 +24,16 @@ export function resolveParallelSources(options: {
   malId?: number;
 }): Promise<NormalizedStreamResponse> {
   const { animeId, title, episode, variant = 'sub', malId } = options;
+  const episodeId = `${animeId}-${episode}`;
   const requestKey = `${animeId}-${episode}-${variant}-${malId || 0}`;
+
+  console.log(`[PLAYER] Episode requested: ${episodeId} (${title})`);
+  console.log(`[RESOLVER] Looking up source episode for Catalog ID: ${animeId}, MAL ID: ${malId || 'N/A'}`);
 
   // Check cache for 0ms instant response
   const cached = RESOLVED_CACHE.get(requestKey);
   if (cached && Date.now() - cached.timestamp < CACHE_TTL_MS) {
+    console.log(`[RESOLVER] Serving cached sources for ${episodeId}`);
     return Promise.resolve(cached.data);
   }
 
@@ -40,22 +45,24 @@ export function resolveParallelSources(options: {
   const resolutionPromise = (async () => {
     const episodeData = await getEpisodeSourcesHandler(animeId, episode, variant, title, malId);
 
-    const validSources: StreamingSource[] = episodeData.sources
-      .filter((src) => isAllowedEmbedUrl(src.embedUrl, src.providerId))
+    const validSources: EpisodeSource[] = episodeData.sources
+      .filter((src) => isAllowedEmbedUrl(src.url, src.provider))
       .map((src) => ({
-        providerId: src.providerId,
+        episodeId,
+        provider: src.provider,
         providerName: src.providerName,
-        url: src.embedUrl,
-        type: 'embed',
+        language: variant,
+        type: src.type || 'iframe',
+        url: src.url,
         quality: src.quality || '1080p',
+        status: src.status || 'available',
         isVerified: src.isVerified,
-        status: src.status,
       }));
 
-    const firstValidSource = validSources.find((s) => s.status === 'available') || null;
+    const firstValidSource = validSources.find((s) => s.status === 'available') || validSources[0] || null;
 
     const servers: StreamingServerOption[] = VIDEO_PROVIDERS.map((prov, idx) => {
-      const match = validSources.find((s) => s.providerId === prov.id);
+      const match = validSources.find((s) => s.provider === prov.id);
       return {
         id: prov.id,
         name: prov.name,
@@ -70,6 +77,8 @@ export function resolveParallelSources(options: {
       };
     });
 
+    console.log(`[PLAYER] Returning ${validSources.length} playable sources for episode ${episodeId}`);
+
     const response: NormalizedStreamResponse = {
       animeId,
       episodeNumber: episode,
@@ -83,17 +92,6 @@ export function resolveParallelSources(options: {
     RESOLVED_CACHE.set(requestKey, { data: response, timestamp: Date.now() });
     IN_FLIGHT_REQUESTS.delete(requestKey);
 
-    // Prefetch Episode N+1
-    setTimeout(() => {
-      prefetchNextEpisodeSources({
-        animeId,
-        title,
-        episode: Math.max(1, episode),
-        variant,
-        malId,
-      });
-    }, 1000);
-
     return response;
   })();
 
@@ -101,7 +99,6 @@ export function resolveParallelSources(options: {
   return resolutionPromise;
 }
 
-// Prefetch Next Episode Source Readiness (Episode N+1)
 export function prefetchNextEpisodeSources(options: {
   animeId: number;
   title: string;
