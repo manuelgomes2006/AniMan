@@ -3,12 +3,23 @@ import { ProviderConfig, ProviderHealth, ProviderStatus } from './providerTypes'
 /**
  * Domain Allowlist for Verified Provider Embed Hosts
  */
-export const ALLOWED_EMBED_HOSTS: string[] = [];
+export const ALLOWED_EMBED_HOSTS: string[] = ['megaplay.buzz'];
 
 /**
  * Registered Provider Adapter Configurations
  */
-export const VIDEO_PROVIDERS: ProviderConfig[] = [];
+export const VIDEO_PROVIDERS: ProviderConfig[] = [
+  {
+    id: 'megaplay',
+    name: 'MegaPlay HD',
+    enabled: true,
+    priority: 1,
+    allowedDomains: ['megaplay.buzz'],
+    status: 'available',
+    verified: true,
+    requiresAuth: false,
+  },
+];
 
 const PREFERRED_PROVIDER_KEY = 'aniworld_preferred_provider';
 const HEALTH_STORAGE_KEY = 'aniworld_provider_health';
@@ -24,9 +35,22 @@ export function isAllowedEmbedUrl(url: string, providerId?: string): boolean {
     if (parsed.protocol !== 'https:') return false;
 
     const hostname = parsed.hostname.toLowerCase();
-    return ALLOWED_EMBED_HOSTS.some(
+    const isAllowlisted = ALLOWED_EMBED_HOSTS.some(
       (host) => hostname === host || hostname.endsWith(`.${host}`)
     );
+
+    if (!isAllowlisted) return false;
+
+    if (providerId) {
+      const config = VIDEO_PROVIDERS.find((p) => p.id === providerId);
+      if (config) {
+        return config.allowedDomains.some(
+          (domain) => hostname === domain || hostname.endsWith(`.${domain}`)
+        );
+      }
+    }
+
+    return true;
   } catch {
     return false;
   }
@@ -87,11 +111,11 @@ export function recordProviderFailure(providerId: string): void {
 }
 
 export function getRankedProviders(): ProviderConfig[] {
-  return [];
+  return [...VIDEO_PROVIDERS].filter((p) => p.enabled && p.status === 'available');
 }
 
 export function getPreferredProviderId(): string {
-  return localStorage.getItem(PREFERRED_PROVIDER_KEY) || '';
+  return localStorage.getItem(PREFERRED_PROVIDER_KEY) || 'megaplay';
 }
 
 export function setPreferredProviderId(providerId: string): void {
