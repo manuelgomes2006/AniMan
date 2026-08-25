@@ -21,7 +21,6 @@ export default function LoginPage() {
   const [verifiedSuccess, setVerifiedSuccess] = useState(isVerified);
 
   useEffect(() => {
-    // Handle Supabase Auth hash tokens (e.g. #access_token=...&type=signup)
     if (window.location.hash.includes('access_token') || window.location.hash.includes('type=signup')) {
       setVerifiedSuccess(true);
       supabase.auth.getSession().then(({ data: { session } }) => {
@@ -37,36 +36,44 @@ export default function LoginPage() {
     setLoading(true);
     setError(null);
 
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      setError('Please enter both your email address and password.');
+      setLoading(false);
+      return;
+    }
+
     try {
-      // 1. Try Local Account Backup First
-      const verifiedLocal = verifyLocalAccount(email, password);
+      // 1. Check Local Accounts First (Mobile & Offline Compatibility)
+      const verifiedLocal = verifyLocalAccount(cleanEmail, cleanPassword);
       if (verifiedLocal) {
         setGuestSession(verifiedLocal.email, verifiedLocal.username);
         navigate(redirectUrl, { replace: true });
         return;
       }
 
-      // 2. Try Supabase Cloud Auth
+      // 2. Query Supabase Cloud Auth
       const { data, error: authError } = await supabase.auth.signInWithPassword({
-        email,
-        password
+        email: cleanEmail,
+        password: cleanPassword
       });
 
       if (authError) {
         console.warn('[AUTH LOGIN NOTICE]', authError);
         const msg = authError.message.toLowerCase();
 
-        if (msg.includes('email not confirmed')) {
-          // If email confirmation is pending on Supabase, sign user in with credentials
-          const username = email.split('@')[0] || 'Member';
-          setGuestSession(email, username);
-          navigate(redirectUrl, { replace: true });
-          return;
-        }
-
-        if (msg.includes('invalid api key') || msg.includes('apikey') || msg.includes('jwt') || msg.includes('unauthorized')) {
-          const username = email.split('@')[0] || 'Member';
-          setGuestSession(email, username);
+        // On mobile or unconfigured key, grant access with normalized email
+        if (
+          msg.includes('invalid api key') ||
+          msg.includes('apikey') ||
+          msg.includes('jwt') ||
+          msg.includes('unauthorized') ||
+          msg.includes('email not confirmed')
+        ) {
+          const username = cleanEmail.split('@')[0] || 'Member';
+          setGuestSession(cleanEmail, username);
           navigate(redirectUrl, { replace: true });
           return;
         }
@@ -79,14 +86,14 @@ export default function LoginPage() {
       if (data.session) {
         navigate(redirectUrl, { replace: true });
       } else {
-        const username = email.split('@')[0] || 'Member';
-        setGuestSession(email, username);
+        const username = cleanEmail.split('@')[0] || 'Member';
+        setGuestSession(cleanEmail, username);
         navigate(redirectUrl, { replace: true });
       }
     } catch (err: any) {
       console.warn('[AUTH LOGIN CATCH]', err);
-      const username = email.split('@')[0] || 'Member';
-      setGuestSession(email, username);
+      const username = cleanEmail.split('@')[0] || 'Member';
+      setGuestSession(cleanEmail, username);
       navigate(redirectUrl, { replace: true });
     } finally {
       setLoading(false);
@@ -94,8 +101,8 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
-      <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl">
+    <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans">
+      <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-6 sm:p-8 rounded-3xl shadow-2xl">
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
             <span>Ani</span>
@@ -125,6 +132,10 @@ export default function LoginPage() {
               <input
                 type="email"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@domain.com"
@@ -145,6 +156,9 @@ export default function LoginPage() {
               <input
                 type="password"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -157,7 +171,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
           >
             <LogIn className="w-4 h-4" />
             {loading ? 'Signing In...' : 'Sign In'}
@@ -172,7 +186,7 @@ export default function LoginPage() {
 
         <button
           onClick={signInWithGoogle}
-          className="w-full py-2.5 bg-[#050507] hover:bg-slate-900 text-slate-200 font-bold text-xs rounded-xl border border-slate-800 transition flex items-center justify-center gap-2 cursor-pointer"
+          className="w-full py-3 bg-[#050507] hover:bg-slate-900 active:bg-slate-800 text-slate-200 font-bold text-xs rounded-xl border border-slate-800 transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
         >
           <span>Continue with Google</span>
         </button>

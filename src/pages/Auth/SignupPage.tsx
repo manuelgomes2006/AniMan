@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { supabase } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { registerLocalAccount, accountExists } from '../../services/auth/localAuthStore';
+import { registerLocalAccount } from '../../services/auth/localAuthStore';
 import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw } from 'lucide-react';
 
 export default function SignupPage() {
@@ -24,12 +24,21 @@ export default function SignupPage() {
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (password !== confirmPassword) {
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim() || cleanEmail.split('@')[0] || 'Member';
+    const cleanPassword = password.trim();
+
+    if (!cleanEmail || !cleanPassword) {
+      setError('Please enter a valid email address and password.');
+      return;
+    }
+
+    if (cleanPassword !== confirmPassword.trim()) {
       setError('Passwords do not match.');
       return;
     }
 
-    if (password.length < 6) {
+    if (cleanPassword.length < 6) {
       setError('Password must be at least 6 characters long.');
       return;
     }
@@ -38,14 +47,12 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
-
-      // Register local account backup
-      registerLocalAccount(email, password, cleanUsername);
+      // Register local account backup for mobile & offline compatibility
+      registerLocalAccount(cleanEmail, cleanPassword, cleanUsername);
 
       const { data, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
+        email: cleanEmail,
+        password: cleanPassword,
         options: {
           emailRedirectTo: `${window.location.origin}/login?verified=true`,
           data: {
@@ -68,18 +75,18 @@ export default function SignupPage() {
 
       // If Supabase session returned immediately
       if (data?.session) {
-        setGuestSession(email, cleanUsername);
+        setGuestSession(cleanEmail, cleanUsername);
         navigate('/', { replace: true });
         return;
       }
 
-      // If email confirmation is required or Supabase offline
+      // Automatically authenticate session for mobile users
+      setGuestSession(cleanEmail, cleanUsername);
       setVerificationSent(true);
     } catch (err: any) {
       console.warn('[AUTH SIGNUP CATCH]', err);
-      const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
-      registerLocalAccount(email, password, cleanUsername);
-      setGuestSession(email, cleanUsername);
+      registerLocalAccount(cleanEmail, cleanPassword, cleanUsername);
+      setGuestSession(cleanEmail, cleanUsername);
       navigate('/', { replace: true });
     } finally {
       setLoading(false);
@@ -87,12 +94,13 @@ export default function SignupPage() {
   };
 
   const handleResendVerification = async () => {
-    if (!email) return;
+    const cleanEmail = email.trim().toLowerCase();
+    if (!cleanEmail) return;
     setResending(true);
     try {
       await supabase.auth.resend({
         type: 'signup',
-        email,
+        email: cleanEmail,
         options: {
           emailRedirectTo: `${window.location.origin}/login?verified=true`
         }
@@ -107,47 +115,48 @@ export default function SignupPage() {
   };
 
   const handleDirectProceed = () => {
-    const cleanUsername = username.trim() || email.split('@')[0] || 'Member';
-    setGuestSession(email, cleanUsername);
+    const cleanEmail = email.trim().toLowerCase();
+    const cleanUsername = username.trim() || cleanEmail.split('@')[0] || 'Member';
+    setGuestSession(cleanEmail, cleanUsername);
     navigate('/', { replace: true });
   };
 
   if (verificationSent) {
     return (
-      <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
-        <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl text-center">
+      <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans">
+        <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-6 sm:p-8 rounded-3xl shadow-2xl text-center">
           <div className="w-16 h-16 bg-purple-600/20 border border-purple-500/40 rounded-full flex items-center justify-center mx-auto text-purple-400">
             <Mail className="w-8 h-8" />
           </div>
 
           <div className="space-y-2">
-            <h2 className="text-xl font-black text-white">Account Created Successfully! 🎉</h2>
+            <h2 className="text-xl font-black text-white">Account Created! 🎉</h2>
             <p className="text-xs text-slate-300 leading-relaxed">
-              We've sent a verification link to <span className="font-bold text-purple-400">{email}</span>. You can verify your email or proceed directly into AniWorld now.
+              Your account <span className="font-bold text-purple-400">{email}</span> is ready. Click below to stream on AniWorld.
             </p>
           </div>
 
           {resendSuccess && (
             <div className="bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs p-3 rounded-xl flex items-center justify-center gap-1.5 font-bold">
-              <CheckCircle className="w-4 h-4" /> Verification email resent successfully!
+              <CheckCircle className="w-4 h-4" /> Verification link sent!
             </div>
           )}
 
           <div className="space-y-3 pt-2">
             <button
               onClick={handleDirectProceed}
-              className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition cursor-pointer"
+              className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition cursor-pointer touch-manipulation"
             >
-              Proceed to AniWorld Home 🚀
+              Start Streaming Now 🚀
             </button>
 
             <button
               onClick={handleResendVerification}
               disabled={resending}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
             >
               <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
-              {resending ? 'Resending Link...' : 'Resend Verification Link'}
+              {resending ? 'Sending Link...' : 'Send Email Verification Link'}
             </button>
 
             <Link
@@ -163,8 +172,8 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
-      <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl">
+    <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans">
+      <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-6 sm:p-8 rounded-3xl shadow-2xl">
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
             <span>Ani</span>
@@ -187,6 +196,9 @@ export default function SignupPage() {
               <input
                 type="text"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 placeholder="anime_fan99"
@@ -202,6 +214,10 @@ export default function SignupPage() {
               <input
                 type="email"
                 required
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
+                inputMode="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="name@domain.com"
@@ -218,6 +234,9 @@ export default function SignupPage() {
                 type="password"
                 required
                 minLength={6}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="••••••••"
@@ -234,6 +253,9 @@ export default function SignupPage() {
                 type="password"
                 required
                 minLength={6}
+                autoCapitalize="none"
+                autoCorrect="off"
+                spellCheck={false}
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="••••••••"
@@ -246,7 +268,7 @@ export default function SignupPage() {
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
           >
             <UserPlus className="w-4 h-4" />
             {loading ? 'Creating Account...' : 'Create Account'}
@@ -255,8 +277,8 @@ export default function SignupPage() {
 
         <p className="text-center text-xs text-slate-400 pt-2">
           Already have an account?{' '}
-          <Link to="/login" className="text-purple-400 hover:underline font-bold">
-            Sign In
+          <Link to="/signup" className="text-purple-400 hover:underline font-bold">
+            Sign Up
           </Link>
         </p>
       </div>
