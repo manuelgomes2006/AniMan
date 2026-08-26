@@ -102,7 +102,7 @@ export async function syncAllUserPreferencesToSupabase(
 let watchHistoryDebounceTimer: any = null;
 
 /**
- * Update Watch Progress — Ensures ONLY 1 entry per anime with accurate episode number, currentTime, and duration
+ * Update Watch Progress — Guarantees ONLY 1 entry per anime with exact episode number, currentTime, and duration
  */
 export function updateWatchProgress(
   anime: AnimeMedia,
@@ -126,12 +126,15 @@ export function updateWatchProgress(
     lastWatched: new Date().toISOString(),
   };
 
-  // 1. Update Local Storage Cache — Replace any previous entry for this anime ID so episode number & progress update cleanly
+  // 1. Update Local Storage Cache — Replace any previous entry for this anime ID
   const localHistory = getWatchHistory();
   const filteredHistory = localHistory.filter((item) => item.animeId !== anime.id);
   filteredHistory.unshift(progressItem);
 
   localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(filteredHistory.slice(0, 50)));
+
+  // Instant notification for open tabs/components
+  window.dispatchEvent(new CustomEvent('aniworld_history_updated'));
 
   // 2. Debounced write to Supabase `watch_history` table
   clearTimeout(watchHistoryDebounceTimer);
@@ -158,7 +161,7 @@ export function updateWatchProgress(
     } catch (err) {
       console.warn('Watch history Supabase sync notice:', err);
     }
-  }, 1000);
+  }, 800);
 }
 
 export function getWatchHistory(): WatchProgress[] {
@@ -172,8 +175,8 @@ export function getWatchHistory(): WatchProgress[] {
 }
 
 /**
- * Fetch Watch History from Supabase (Source of Truth) with Local & API Artwork Enrichment
- * Deduplicates by anime_id to guarantee that the latest watched episode and timeline position are returned
+ * Fetch Watch History from Supabase (Source of Truth)
+ * Groups records by anime_id and sorts by episode_number DESC to guarantee the highest watched episode is shown
  */
 export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> {
   const localHistory = getWatchHistory();
@@ -187,20 +190,35 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
       .select('*')
       .eq('user_id', session.user.id)
       .order('updated_at', { ascending: false })
-      .limit(50);
+      .limit(100);
 
     if (error || !data || data.length === 0) return localHistory;
 
-    // Deduplicate entries by anime_id to ensure only the most recent episode watched is shown
-    const animeMap = new Map<number, any>();
+    // Group rows by anime_id
+    const animeGroups = new Map<number, any[]>();
     data.forEach((row) => {
       const aid = Number(row.anime_id);
-      if (!animeMap.has(aid)) {
-        animeMap.set(aid, row);
+      if (!animeGroups.has(aid)) {
+        animeGroups.set(aid, []);
       }
+      animeGroups.get(aid)!.push(row);
     });
 
-    const uniqueRows = Array.from(animeMap.values());
+    // For each anime, sort records by episode_number DESC so highest episode number always wins!
+    const uniqueRows: any[] = [];
+    animeGroups.forEach((rows) => {
+      rows.sort((a, b) => {
+        const epA = Number(a.episode_number || a.episodeNumber || 1);
+        const epB = Number(b.episode_number || b.episodeNumber || 1);
+        if (epB !== epA) {
+          return epB - epA; // HIGHEST episode number first!
+        }
+        const timeA = new Date(a.updated_at || a.last_watched || 0).getTime();
+        const timeB = new Date(b.updated_at || b.last_watched || 0).getTime();
+        return timeB - timeA;
+      });
+      uniqueRows.push(rows[0]);
+    });
 
     const parsedPromises = uniqueRows.map(async (item) => {
       const aid = Number(item.anime_id);

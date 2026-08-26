@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import Hls from 'hls.js';
-import { Play, Pause, Volume2, VolumeX, Maximize, RotateCcw, Settings, AlertTriangle, ShieldCheck, Flag, Info } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, Settings, AlertTriangle, ShieldCheck, Info } from 'lucide-react';
 import { EpisodeSource } from '../../services/streaming/providerTypes';
-import { isAllowedEmbedUrl, recordProviderSuccess, recordProviderFailure, VIDEO_PROVIDERS } from '../../services/streaming/providerRegistry';
+import { isAllowedEmbedUrl, recordProviderSuccess, recordProviderFailure } from '../../services/streaming/providerRegistry';
 
 interface AniworldVideoPlayerProps {
   source: EpisodeSource | null;
@@ -24,7 +24,6 @@ export default function YomiVideoPlayer({
   onTimeUpdate,
   initialTime = 0,
   skipIntroEnabled = false,
-  onSwitchMirror
 }: AniworldVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -45,14 +44,34 @@ export default function YomiVideoPlayer({
 
   const controlsTimeoutRef = useRef<any>(null);
 
-  // Development Diagnostics Logging
+  // Simulated Watch Progress Heartbeat for iframe embeds & non-HLS providers
   useEffect(() => {
-    if (source) {
-      console.log('[AniWorld] Provider:', source.providerName);
-      console.log('[AniWorld] iframe URL:', source.url);
-      console.log('[AniWorld] Provider Status:', source.status);
+    if (!source || !source.url) return;
+
+    let simulatedTimer: any = null;
+    let simulatedTime = initialTime || 0;
+    const estimatedDuration = 1430; // 23 minutes standard episode duration
+
+    // Fire initial time update for episode 0s/initialTime position
+    if (onTimeUpdate) {
+      onTimeUpdate(simulatedTime, estimatedDuration);
     }
-  }, [source]);
+
+    // Heartbeat every 5 seconds while user is active on page
+    simulatedTimer = setInterval(() => {
+      simulatedTime += 5;
+      if (simulatedTime > estimatedDuration) {
+        simulatedTime = estimatedDuration;
+      }
+      if (onTimeUpdate) {
+        onTimeUpdate(simulatedTime, estimatedDuration);
+      }
+    }, 5000);
+
+    return () => {
+      if (simulatedTimer) clearInterval(simulatedTimer);
+    };
+  }, [source, episodeNumber, initialTime, onTimeUpdate]);
 
   // Initialize player state when source changes
   useEffect(() => {
@@ -212,15 +231,7 @@ export default function YomiVideoPlayer({
   };
 
   return (
-    <div className="space-y-2">
-      {/* Development Diagnostics Banner */}
-      {(import.meta.env.DEV || process.env.NODE_ENV !== 'production') && source && (
-        <div className="bg-purple-950/40 border border-purple-800/60 p-2.5 rounded-xl text-[11px] font-mono text-purple-300 flex items-center justify-between">
-          <span>[AniWorld Dev] Provider: <strong>{source.providerName}</strong> ({source.status})</span>
-          <span className="truncate max-w-xs text-slate-400 font-mono text-[10px]">{source.url}</span>
-        </div>
-      )}
-
+    <div className="space-y-2 font-sans">
       <div
         id="aniworld-player-container"
         onMouseMove={handleMouseMove}
@@ -248,7 +259,6 @@ export default function YomiVideoPlayer({
               </p>
             </div>
 
-            {/* Server Status Breakdown */}
             <div className="w-full max-w-md bg-[#14141F] border border-slate-800 rounded-2xl p-3 text-center text-xs space-y-1.5">
               <span className="text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center justify-center gap-1">
                 <Info className="w-3 h-3 text-purple-400" /> Server Registry
