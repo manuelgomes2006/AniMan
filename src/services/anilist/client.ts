@@ -423,6 +423,55 @@ export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<A
   }
 }
 
+/**
+ * Fetch most recently released episodes directly sorted by TIME_DESC
+ * Guarantees that Page 1 returns the newest aired broadcast episodes with exact episode numbers
+ */
+export async function getRecentlyAiredEpisodes(perPage = 24): Promise<AnimeMedia[]> {
+  const nowSecs = Math.floor(Date.now() / 1000);
+  const query = `
+    query ($nowSecs: Int, $page: Int, $perPage: Int) {
+      Page (page: $page, perPage: $perPage) {
+        airingSchedules (airingAt_lesser: $nowSecs, sort: TIME_DESC) {
+          id
+          airingAt
+          episode
+          media {
+            ${MEDIA_FRAGMENT}
+          }
+        }
+      }
+    }
+  `;
+
+  try {
+    const data = await fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
+      nowSecs: nowSecs + 3600, // include episodes released up to 1h from now
+      page: 1,
+      perPage: perPage * 2
+    });
+
+    const items = data.Page?.airingSchedules || [];
+    const uniqueMap = new Map<number, AnimeMedia>();
+
+    items.forEach(item => {
+      if (item && item.media && !uniqueMap.has(item.media.id)) {
+        uniqueMap.set(item.media.id, {
+          ...item.media,
+          latestEpisodeNumber: item.episode
+        });
+      }
+    });
+
+    const result = Array.from(uniqueMap.values()).slice(0, perPage);
+    if (result.length > 0) return result;
+    throw new Error('No recent aired episodes found');
+  } catch (err) {
+    console.warn('Failed to fetch recent aired episodes:', err);
+    return [];
+  }
+}
+
 export interface SearchOptions {
   search?: string;
   genre?: string;

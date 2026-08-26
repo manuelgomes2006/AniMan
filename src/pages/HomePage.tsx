@@ -6,7 +6,7 @@ import {
   getPopularAnime,
   getTopRatedAnime,
   getCurrentlyAiringAnime,
-  getAiringSchedule
+  getRecentlyAiredEpisodes
 } from '../services/anilist/client';
 import { fetchWatchHistoryFromSupabase } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
@@ -59,33 +59,12 @@ export default function HomePage() {
   useEffect(() => {
     let isSubscribed = true;
 
-    // Load schedule data from getAiringSchedule (coming out or already aired) & update persistent cache
+    // Fetch the absolute newest aired episodes sorted by TIME_DESC & update persistent cache
     const loadNewEpisodesData = () => {
-      const nowSecs = Math.floor(Date.now() / 1000);
-      const startOfWeek = nowSecs - 7 * 86400;
-      const endOfWeek = nowSecs + 7 * 86400;
-
-      getAiringSchedule(startOfWeek, endOfWeek).then(scheduleItems => {
+      getRecentlyAiredEpisodes(24).then(latestReleasedList => {
         if (!isSubscribed) return;
 
-        // Take all valid schedule items (both already aired and coming out)
-        // Sort descending by airingAt so the most recent and upcoming releases are featured
-        const sortedItems = scheduleItems
-          .filter(item => item && item.media)
-          .sort((a, b) => b.airingAt - a.airingAt);
-
-        const uniqueAnimeMap = new Map<number, AnimeMedia>();
-        sortedItems.forEach(item => {
-          if (!uniqueAnimeMap.has(item.media.id)) {
-            uniqueAnimeMap.set(item.media.id, {
-              ...item.media,
-              latestEpisodeNumber: item.episode
-            });
-          }
-        });
-
-        const latestReleasedList = Array.from(uniqueAnimeMap.values());
-        if (latestReleasedList.length > 0) {
+        if (latestReleasedList && latestReleasedList.length > 0) {
           setNewEpisodes(latestReleasedList);
           try {
             localStorage.setItem('aniworld_new_episodes', JSON.stringify(latestReleasedList));
