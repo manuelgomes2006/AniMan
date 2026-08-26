@@ -167,8 +167,11 @@ export default function WatchPage() {
 
   // Real-time playback position update to Watch History
   const handleTimeUpdate = (cur: number, dur: number) => {
-    if (anime && cur > 2) {
-      updateWatchProgress(anime, currentEpNum, cur, dur || 1430);
+    const defaultDur = anime?.duration ? anime.duration * 60 : 1440;
+    const actualDuration = (dur && dur > 60) ? dur : defaultDur;
+
+    if (anime && cur >= 0) {
+      updateWatchProgress(anime, currentEpNum, cur, actualDuration);
     }
   };
 
@@ -256,6 +259,7 @@ export default function WatchPage() {
             title={title}
             episodeNumber={currentEpNum}
             initialTime={resumeTime || 0}
+            mediaDuration={anime?.duration}
             onTimeUpdate={handleTimeUpdate}
             skipIntroEnabled={profile?.preferences?.skipIntro || false}
             skipOutroEnabled={profile?.preferences?.skipOutro || false}

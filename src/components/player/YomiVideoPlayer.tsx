@@ -11,6 +11,7 @@ interface AniworldVideoPlayerProps {
   onEnded?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   initialTime?: number;
+  mediaDuration?: number; // Media duration in minutes (e.g. 24, 45, 120)
   skipIntroEnabled?: boolean;
   skipOutroEnabled?: boolean;
   onSwitchMirror?: () => void;
@@ -23,6 +24,7 @@ export default function YomiVideoPlayer({
   onEnded,
   onTimeUpdate,
   initialTime = 0,
+  mediaDuration,
   skipIntroEnabled = false,
 }: AniworldVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -44,34 +46,35 @@ export default function YomiVideoPlayer({
 
   const controlsTimeoutRef = useRef<any>(null);
 
-  // Simulated Watch Progress Heartbeat for iframe embeds & non-HLS providers
+  // Simulated Watch Progress Heartbeat for iframe embeds & non-HLS providers using exact media duration
   useEffect(() => {
     if (!source || !source.url) return;
 
     let simulatedTimer: any = null;
     let simulatedTime = initialTime || 0;
-    const estimatedDuration = 1430; // 23 minutes standard episode duration
+    // Calculate total duration in seconds from mediaDuration or default to 1440s (24 mins)
+    const totalDurationSeconds = (mediaDuration && mediaDuration > 0 ? mediaDuration * 60 : 0) || 1440;
 
-    // Fire initial time update for episode 0s/initialTime position
+    // Fire initial time update for episode position
     if (onTimeUpdate) {
-      onTimeUpdate(simulatedTime, estimatedDuration);
+      onTimeUpdate(simulatedTime, totalDurationSeconds);
     }
 
     // Heartbeat every 5 seconds while user is active on page
     simulatedTimer = setInterval(() => {
       simulatedTime += 5;
-      if (simulatedTime > estimatedDuration) {
-        simulatedTime = estimatedDuration;
+      if (simulatedTime > totalDurationSeconds) {
+        simulatedTime = totalDurationSeconds;
       }
       if (onTimeUpdate) {
-        onTimeUpdate(simulatedTime, estimatedDuration);
+        onTimeUpdate(simulatedTime, totalDurationSeconds);
       }
     }, 5000);
 
     return () => {
       if (simulatedTimer) clearInterval(simulatedTimer);
     };
-  }, [source, episodeNumber, initialTime, onTimeUpdate]);
+  }, [source, episodeNumber, initialTime, mediaDuration, onTimeUpdate]);
 
   // Initialize player state when source changes
   useEffect(() => {
@@ -163,7 +166,7 @@ export default function YomiVideoPlayer({
   const handleTimeUpdate = () => {
     if (!videoRef.current) return;
     const cur = videoRef.current.currentTime;
-    const dur = videoRef.current.duration || 0;
+    const dur = videoRef.current.duration || (mediaDuration ? mediaDuration * 60 : 1440);
     setCurrentTime(cur);
     setDuration(dur);
     if (onTimeUpdate) onTimeUpdate(cur, dur);
