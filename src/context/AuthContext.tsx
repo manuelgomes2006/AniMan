@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
-import { fetchWatchHistoryFromSupabase, fetchWatchlistFromSupabase } from '../services/userStore';
+import { fetchWatchHistoryFromSupabase, fetchWatchlistFromSupabase, getUserAudioPreference } from '../services/userStore';
 
 export interface UserPreferences {
   preferredAudio: 'sub' | 'dub';
@@ -30,6 +30,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updateUserPreferences: (newPrefs: Partial<UserPreferences>) => Promise<void>;
   deleteAccount: () => Promise<boolean>;
 }
 
@@ -74,6 +75,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('[AuthContext] Preferences fetch error:', prefErr.message);
       }
 
+      // If user_preferences row does NOT exist yet in Supabase DB, auto-create it now
+      if (!prefData) {
+        const defaultAudio = getUserAudioPreference() || 'sub';
+        await supabase.from('user_preferences').upsert({
+          user_id: currentUser.id,
+          preferred_audio: defaultAudio,
+          autoplay: true,
+          autoplay_next: true,
+          skip_intro: false,
+          skip_outro: false,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' }).catch((e) => console.warn('Auto-create user_preferences notice:', e));
+      }
+
       const username = profileData?.username || currentUser.user_metadata?.username || email.split('@')[0] || 'User';
       const displayName = profileData?.display_name || currentUser.user_metadata?.display_name || username;
       
@@ -84,7 +99,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         rawAvatar = `${rawAvatar}?v=${updatedAtTS}`;
       }
 
-      const cloudAudio = prefData?.preferred_audio === 'dub' ? 'dub' : 'sub';
+      const cloudAudio = prefData?.preferred_audio === 'dub' ? 'dub' : (prefData?.preferred_audio === 'sub' ? 'sub' : getUserAudioPreference());
       // Sync local storage preference with Cloud DB source of truth
       try {
         localStorage.setItem('aniworld_preferred_audio', cloudAudio);
@@ -255,6 +270,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, loadProfile]);
 
+  const updateUserPreferences = useCallback(async (newPrefs: Partial<UserPreferences>) => {
+    if (!user?.id) return;
+
+    // 1. Calculate updated preferences
+    const currentPreferences = profile?.preferences || {
+      preferredAudio: getUserAudioPreference() || 'sub',
+      autoplay: true,
+      autoplayNext: true,
+      skipIntro: false,
+      skipOutro: false,
+    };
+
+    const updated: UserPreferences = {
+      ...currentPreferences,
+      ...newPrefs,
+      updatedAt: new Date().toISOString()
+    };
+
+    // 2. Optimistic update for local AuthContext state
+    setProfile((prev) => prev ? { ...prev, preferences: updated } : null);
+
+    // 3. Update local storage
+    if (newPrefs.preferredAudio) {
+      try {
+        localStorage.setItem('aniworld_preferred_audio', newPrefs.preferredAudio);
+      } catch {}
+    }
+
+    // 4. Update Supabase Cloud DB
+    if (isSupabaseConfigured()) {
+      try {
+        const payload = {
+          user_id: user.id,
+          preferred_audio: updated.preferredAudio,
+          autoplay: updated.autoplay,
+          autoplay_next: updated.autoplayNext,
+          skip_intro: updated.skipIntro,
+          skip_outro: updated.skipOutro,
+          updated_at: new Date().toISOString()
+        };
+
+        const { error } = await supabase.from('user_preferences').upsert(payload, { onConflict: 'user_id' });
+        if (error) {
+          console.error('[updateUserPreferences DB Error]:', error.message);
+        }
+      } catch (err) {
+        console.error('[updateUserPreferences Exception]:', err);
+      }
+    }
+  }, [profile, user]);
+
   const deleteAccount = useCallback(async (): Promise<boolean> => {
     if (!user || !isSupabaseConfigured()) {
       throw new Error('No authenticated user session found');
@@ -285,9 +351,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signOut,
       refreshProfile,
+      updateUserPreferences,
       deleteAccount
     }),
-    [user, session, profile, loading, signInWithGoogle, signOut, refreshProfile, deleteAccount]
+    [user, session, profile, loading, signInWithGoogle, signOut, refreshProfile, updateUserPreferences, deleteAccount]
   );
 
   return (

@@ -5,7 +5,7 @@ import { getNormalizedEpisodes, NormalizedEpisode } from '../services/episodes/e
 import { resolveParallelSources, prefetchNextEpisodeSources } from '../services/streaming/resolver';
 import { NormalizedStreamResponse, StreamingSource } from '../services/streaming/providerTypes';
 import { useAuth } from '../context/AuthContext';
-import { addToWatchlist, getWatchlist, updateWatchProgress, getWatchHistory, getUserAudioPreference, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
+import { addToWatchlist, getWatchlist, updateWatchProgress, getWatchHistory, getUserAudioPreference, setUserAudioPreference } from '../services/userStore';
 
 import YomiVideoPlayer from '../components/player/YomiVideoPlayer';
 import ServerSelector from '../components/player/ServerSelector';
@@ -20,7 +20,7 @@ import { AnimeMedia } from '../types/anime';
 export default function WatchPage() {
   const { id, episode } = useParams<{ id: string; episode: string }>();
   const navigate = useNavigate();
-  const { profile, refreshProfile } = useAuth();
+  const { profile, updateUserPreferences } = useAuth();
 
   const animeId = parseInt(id || '151807', 10);
   const currentEpNum = parseInt(episode || '1', 10);
@@ -31,16 +31,9 @@ export default function WatchPage() {
   const [activeSourceIndex, setActiveSourceIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Sync Audio Preference with Profile Preferences or Local Preference
+  // Sync Audio Preference with Profile Preferences or Local Preference on initial load
   const initialAudio = profile?.preferences?.preferredAudio || getUserAudioPreference();
   const [audioVariant, setAudioVariant] = useState<'sub' | 'dub'>(initialAudio);
-
-  // Automatically update active audio variant when profile loads from Supabase
-  useEffect(() => {
-    if (profile?.preferences?.preferredAudio) {
-      setAudioVariant(profile.preferences.preferredAudio);
-    }
-  }, [profile?.preferences?.preferredAudio]);
 
   const [streamError, setStreamError] = useState(false);
   const [inWatchlist, setInWatchlist] = useState(false);
@@ -110,17 +103,7 @@ export default function WatchPage() {
   const handleAudioChange = async (variant: 'sub' | 'dub') => {
     setAudioVariant(variant);
     await setUserAudioPreference(variant);
-
-    if (profile?.id) {
-      await syncAllUserPreferencesToSupabase(profile.id, {
-        preferredAudio: variant,
-        autoplay: profile.preferences?.autoplay ?? true,
-        autoplayNext: profile.preferences?.autoplayNext ?? true,
-        skipIntro: profile.preferences?.skipIntro ?? false,
-        skipOutro: profile.preferences?.skipOutro ?? false,
-      }).catch(() => {});
-      await refreshProfile().catch(() => {});
-    }
+    await updateUserPreferences({ preferredAudio: variant });
   };
 
   const handleSelectEpisode = (epNum: number) => {
