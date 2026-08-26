@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 import { fetchWatchHistoryFromSupabase, fetchWatchlistFromSupabase } from '../services/userStore';
@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const clearLocalUserData = () => {
+  const clearLocalUserData = useCallback(() => {
     try {
       localStorage.removeItem('aniworld_active_session');
       localStorage.removeItem('aniworld_registered_accounts');
@@ -50,10 +50,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('aniworld_preferred_audio');
       sessionStorage.clear();
     } catch {}
-  };
+  }, []);
 
   // Fetch real User Profile and Preferences from Supabase Database
-  const loadProfile = async (currentUser: User) => {
+  const loadProfile = useCallback(async (currentUser: User) => {
     if (!currentUser || !currentUser.id || !isSupabaseConfigured()) {
       setProfile(null);
       return;
@@ -107,7 +107,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('[AuthContext] Load Profile Exception:', err);
     }
-  };
+  }, []);
 
   useEffect(() => {
     let isSubscribed = true;
@@ -162,7 +162,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       isSubscribed = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [clearLocalUserData, loadProfile]);
 
   // 3. Real-Time Multi-Device Database Sync Subscription
   useEffect(() => {
@@ -214,9 +214,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         supabase.removeChannel(channel);
       }
     };
-  }, [user?.id]);
+  }, [user, loadProfile]);
 
-  const signInWithGoogle = async () => {
+  const signInWithGoogle = useCallback(async () => {
     if (!isSupabaseConfigured()) return;
     await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -224,9 +224,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         redirectTo: `${window.location.origin}/`
       }
     });
-  };
+  }, []);
 
-  const signOut = async () => {
+  const signOut = useCallback(async () => {
     setLoading(true);
     try {
       if (isSupabaseConfigured()) {
@@ -241,20 +241,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setLoading(false);
     }
-  };
+  }, [clearLocalUserData]);
 
-  const refreshProfile = async () => {
+  const refreshProfile = useCallback(async () => {
     if (user) {
       await loadProfile(user);
     }
-  };
+  }, [user, loadProfile]);
 
-  const deleteAccount = async (): Promise<boolean> => {
+  const deleteAccount = useCallback(async (): Promise<boolean> => {
     if (!user || !isSupabaseConfigured()) {
       throw new Error('No authenticated user session found');
     }
 
-    // Call PostgreSQL transactional delete_user_account RPC
     const { error: rpcError } = await supabase.rpc('delete_user_account');
 
     if (rpcError) {
@@ -262,28 +261,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(rpcError.message || 'Account deletion failed');
     }
 
-    // Clear local data & sign out session on current device
     clearLocalUserData();
     await supabase.auth.signOut().catch(() => {});
     setUser(null);
     setSession(null);
     setProfile(null);
     return true;
-  };
+  }, [user, clearLocalUserData]);
+
+  // Memoize Context Provider value to prevent unnecessary re-renders
+  const contextValue = useMemo(
+    () => ({
+      user,
+      session,
+      profile,
+      loading,
+      signInWithGoogle,
+      signOut,
+      refreshProfile,
+      deleteAccount
+    }),
+    [user, session, profile, loading, signInWithGoogle, signOut, refreshProfile, deleteAccount]
+  );
 
   return (
-    <AuthContext.Provider
-      value={{
-        user,
-        session,
-        profile,
-        loading,
-        signInWithGoogle,
-        signOut,
-        refreshProfile,
-        deleteAccount
-      }}
-    >
+    <AuthContext.Provider value={contextValue}>
       {children}
     </AuthContext.Provider>
   );

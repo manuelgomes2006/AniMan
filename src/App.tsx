@@ -5,13 +5,14 @@ import SkeletonLoader from './components/shared/SkeletonLoader';
 import ProtectedRoute from './components/shared/ProtectedRoute';
 import { AuthProvider } from './context/AuthContext';
 
-// Public Auth Pages
-import LoginPage from './pages/Auth/LoginPage';
-import SignupPage from './pages/Auth/SignupPage';
-import ForgotPasswordPage from './pages/Auth/ForgotPasswordPage';
-import ResetPasswordPage from './pages/Auth/ResetPasswordPage';
+// Lazy-load ALL public auth pages for minimum initial bundle footprint
+const LoginPage = lazy(() => import('./pages/Auth/LoginPage'));
+const SignupPage = lazy(() => import('./pages/Auth/SignupPage'));
+const ForgotPasswordPage = lazy(() => import('./pages/Auth/ForgotPasswordPage'));
+const ResetPasswordPage = lazy(() => import('./pages/Auth/ResetPasswordPage'));
+const DebugPlayerPage = lazy(() => import('./pages/DebugPlayerPage'));
 
-// Lazy Loaded Main Pages
+// Lazy-load ALL main application routes
 const HomePage = lazy(() => import('./pages/HomePage'));
 const BrowsePage = lazy(() => import('./pages/BrowsePage'));
 const DetailsPage = lazy(() => import('./pages/DetailsPage'));
@@ -19,7 +20,6 @@ const WatchPage = lazy(() => import('./pages/WatchPage'));
 const WatchlistPage = lazy(() => import('./pages/WatchlistPage'));
 const SchedulePage = lazy(() => import('./pages/SchedulePage'));
 const ProfilePage = lazy(() => import('./pages/ProfilePage'));
-const DebugPlayerPage = lazy(() => import('./pages/DebugPlayerPage'));
 
 export default function App() {
   return (
