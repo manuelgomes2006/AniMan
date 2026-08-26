@@ -47,23 +47,23 @@ export default function HomePage() {
   useEffect(() => {
     let isSubscribed = true;
 
-    // Load schedule data specifically filtering ALREADY RELEASED episodes for "New Episodes"
+    // Load schedule data taking anime that is coming out or has already aired for "New Episodes"
     const loadNewEpisodesData = () => {
       const nowSecs = Math.floor(Date.now() / 1000);
       const startOfWeek = nowSecs - 7 * 86400;
-      const endOfWeek = nowSecs + 86400;
+      const endOfWeek = nowSecs + 7 * 86400;
 
       getAiringSchedule(startOfWeek, endOfWeek).then(scheduleItems => {
         if (!isSubscribed) return;
 
-        // Filter ONLY episodes that HAVE ALREADY AIRED / RELEASED (airingAt <= nowSecs + 1800)
-        // Sort descending by airingAt so the most recent releases come first
-        const releasedItems = scheduleItems
-          .filter(item => item && item.media && item.airingAt <= nowSecs + 1800)
+        // Take all valid schedule items (both already aired and coming out)
+        // Sort descending by airingAt so the most recent and upcoming releases are featured
+        const sortedItems = scheduleItems
+          .filter(item => item && item.media)
           .sort((a, b) => b.airingAt - a.airingAt);
 
         const uniqueAnimeMap = new Map<number, AnimeMedia>();
-        releasedItems.forEach(item => {
+        sortedItems.forEach(item => {
           if (!uniqueAnimeMap.has(item.media.id)) {
             uniqueAnimeMap.set(item.media.id, {
               ...item.media,
