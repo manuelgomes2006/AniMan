@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { getAnimeDetails } from '../services/anilist/client';
 import { getNormalizedEpisodes, NormalizedEpisode } from '../services/episodes/episodes';
-import { setWatchlistCategory, getWatchlistItem } from '../services/userStore';
+import { addToWatchlist, removeFromWatchlist, getWatchlistItem } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
 import {
   Play, Plus, Check, Star, Video, Loader2, Search, ChevronDown
@@ -43,10 +43,27 @@ export default function DetailsPage() {
     loadDetails();
   }, [id]);
 
+  useEffect(() => {
+    const handleWatchlistChange = () => {
+      if (anime) {
+        setInWatchlist(Boolean(getWatchlistItem(anime.id)));
+      }
+    };
+    window.addEventListener('aniworld_watchlist_updated', handleWatchlistChange);
+    return () => {
+      window.removeEventListener('aniworld_watchlist_updated', handleWatchlistChange);
+    };
+  }, [anime]);
+
   const handleToggleWatchlist = () => {
     if (!anime) return;
-    const updated = setWatchlistCategory(anime, 'watching');
-    setInWatchlist(Boolean(updated));
+    if (inWatchlist) {
+      removeFromWatchlist(anime.id);
+      setInWatchlist(false);
+    } else {
+      addToWatchlist(anime, 'watching');
+      setInWatchlist(true);
+    }
   };
 
   const title = anime?.title?.english || anime?.title?.romaji || anime?.title?.native || 'Anime';
@@ -162,10 +179,14 @@ export default function DetailsPage() {
 
               <button
                 onClick={handleToggleWatchlist}
-                className="flex items-center gap-2 font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl sm:rounded-2xl bg-[#0D0D12] border border-slate-800 text-slate-300 hover:text-white"
+                className={`flex items-center gap-2 font-semibold text-xs sm:text-sm px-5 py-3 rounded-xl sm:rounded-2xl border transition cursor-pointer ${
+                  inWatchlist
+                    ? 'bg-purple-950/60 border-purple-600 text-purple-300 hover:bg-rose-950/80 hover:border-rose-600 hover:text-rose-300'
+                    : 'bg-[#0D0D12] border-slate-800 text-slate-300 hover:text-white'
+                }`}
               >
                 {inWatchlist ? <Check className="w-4 h-4 text-purple-400" /> : <Plus className="w-4 h-4 text-slate-300" />}
-                {inWatchlist ? 'In Watchlist' : 'Add to List'}
+                {inWatchlist ? 'Remove from List' : 'Add to List'}
               </button>
             </div>
           </div>

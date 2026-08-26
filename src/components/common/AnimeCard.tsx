@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Play, Star, Plus, Check } from 'lucide-react';
 import { AnimeMedia } from '../../types/anime';
-import { setWatchlistCategory, getWatchlistItem } from '../../services/userStore';
+import { addToWatchlist, removeFromWatchlist, getWatchlistItem } from '../../services/userStore';
 import OptimizedImage from './OptimizedImage';
 
 interface AnimeCardProps {
@@ -29,11 +29,27 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
 
   const [inWatchlist, setInWatchlist] = useState(Boolean(getWatchlistItem(anime.id)));
 
+  useEffect(() => {
+    const handleWatchlistChange = () => {
+      setInWatchlist(Boolean(getWatchlistItem(anime.id)));
+    };
+    window.addEventListener('aniworld_watchlist_updated', handleWatchlistChange);
+    return () => {
+      window.removeEventListener('aniworld_watchlist_updated', handleWatchlistChange);
+    };
+  }, [anime.id]);
+
   const handleToggleWatchlist = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    const updated = setWatchlistCategory(anime, 'watching');
-    setInWatchlist(Boolean(updated));
+
+    if (inWatchlist) {
+      removeFromWatchlist(anime.id);
+      setInWatchlist(false);
+    } else {
+      addToWatchlist(anime, 'watching');
+      setInWatchlist(true);
+    }
   };
 
   // HiAnime-Style Latest Episode Card Variant
@@ -96,10 +112,6 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
 
   // Continue Watching Card Variant
   if (variant === 'progress' && progressData) {
-    const percentage = progressData.duration > 0
-      ? Math.min(100, Math.round((progressData.currentTime / progressData.duration) * 100))
-      : 25;
-
     return (
       <Link
         to={`/watch/${anime.id}/${progressData.episodeNumber}`}
@@ -143,15 +155,15 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
 
         <div className="absolute inset-0 bg-gradient-to-t from-[#0D0D12] via-transparent to-transparent opacity-80" />
 
-        {/* Watchlist Toggle */}
+        {/* Watchlist Toggle Button — Adds to list on Plus (+), Removes from list on Check (✓) */}
         <button
           onClick={handleToggleWatchlist}
           className={`absolute top-1.5 right-1.5 z-20 p-1 rounded-full backdrop-blur-md transition-all active:scale-90 cursor-pointer ${
             inWatchlist
-              ? 'bg-purple-600 text-white shadow-md'
+              ? 'bg-purple-600 text-white shadow-md hover:bg-rose-600'
               : 'bg-black/60 text-slate-300 hover:text-white border border-slate-700/60'
           }`}
-          title={inWatchlist ? 'In Watchlist' : 'Add to List'}
+          title={inWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
         >
           {inWatchlist ? <Check className="w-2.5 h-2.5" /> : <Plus className="w-2.5 h-2.5" />}
         </button>
