@@ -25,7 +25,19 @@ export default function HomePage() {
   const [popular, setPopular] = useState<AnimeMedia[]>([]);
   const [topRated, setTopRated] = useState<AnimeMedia[]>([]);
   const [airing, setAiring] = useState<AnimeMedia[]>([]);
-  const [newEpisodes, setNewEpisodes] = useState<AnimeMedia[]>([]);
+  
+  // Persistent 0ms initial state for New Episodes from localStorage cache
+  const [newEpisodes, setNewEpisodes] = useState<AnimeMedia[]>(() => {
+    try {
+      const cached = localStorage.getItem('aniworld_new_episodes');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [];
+  });
+
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -47,7 +59,7 @@ export default function HomePage() {
   useEffect(() => {
     let isSubscribed = true;
 
-    // Load schedule data taking anime that is coming out or has already aired for "New Episodes"
+    // Load schedule data from getAiringSchedule (coming out or already aired) & update persistent cache
     const loadNewEpisodesData = () => {
       const nowSecs = Math.floor(Date.now() / 1000);
       const startOfWeek = nowSecs - 7 * 86400;
@@ -75,6 +87,9 @@ export default function HomePage() {
         const latestReleasedList = Array.from(uniqueAnimeMap.values());
         if (latestReleasedList.length > 0) {
           setNewEpisodes(latestReleasedList);
+          try {
+            localStorage.setItem('aniworld_new_episodes', JSON.stringify(latestReleasedList));
+          } catch {}
         }
       }).catch(err => console.warn('Schedule load error for new episodes:', err));
     };
@@ -211,7 +226,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 4: New Episodes (Strictly Released Episode Numbers Sorted by Most Recent Airing) */}
+      {/* SECTION 4: New Episodes (Broadcast Schedule Feed with Permanent Cache & 60s Live Refresh) */}
       {latestEpisodesList.length > 0 && (
         <CarouselRow
           title="New Episodes"
