@@ -118,18 +118,9 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
           <h4 className="font-extrabold text-xs text-white line-clamp-1 group-hover:text-purple-400 transition">
             {title}
           </h4>
-          <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
+          <span className="text-[10px] text-slate-400 font-semibold block mt-1">
             Episode {progressData.episodeNumber}
           </span>
-          <span className="text-[10px] text-purple-400 font-semibold block mt-0.5">
-            {progressData.timeLeft || '15m left'}
-          </span>
-          <div className="w-full bg-slate-900 h-1 rounded-full mt-1.5 overflow-hidden">
-            <div
-              className="bg-purple-500 h-full rounded-full transition-all duration-300"
-              style={{ width: `${percentage}%` }}
-            />
-          </div>
         </div>
 
         <div className="w-7 h-7 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg shrink-0 transform group-hover:scale-110 transition-transform">
