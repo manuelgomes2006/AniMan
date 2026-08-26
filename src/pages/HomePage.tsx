@@ -130,6 +130,11 @@ export default function HomePage() {
     // Auto-refresh released schedule data every 60s so newly launched episodes pop up live!
     const scheduleTimer = setInterval(loadNewEpisodesData, 60000);
 
+    // Lightweight 5s cross-device poll timer when user is logged in
+    const crossDeviceTimer = setInterval(() => {
+      if (user) loadHistory();
+    }, 5000);
+
     // Listen for real-time watch history updates and profile auth changes
     const handleHistoryUpdate = () => {
       if (isSubscribed) loadHistory();
@@ -137,12 +142,15 @@ export default function HomePage() {
 
     window.addEventListener('aniworld_history_updated', handleHistoryUpdate);
     window.addEventListener('aniworld_profile_updated', handleHistoryUpdate);
+    window.addEventListener('focus', handleHistoryUpdate);
 
     return () => {
       isSubscribed = false;
       clearInterval(scheduleTimer);
+      clearInterval(crossDeviceTimer);
       window.removeEventListener('aniworld_history_updated', handleHistoryUpdate);
       window.removeEventListener('aniworld_profile_updated', handleHistoryUpdate);
+      window.removeEventListener('focus', handleHistoryUpdate);
     };
   }, [user]);
 

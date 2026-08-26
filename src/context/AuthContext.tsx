@@ -210,10 +210,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
         )
         .on(
+          'broadcast',
+          { event: 'watch_history_signal' },
+          async (payload) => {
+            console.log('[Supabase Broadcast] Instant cross-device watch signal received:', payload);
+            const freshHistory = await fetchWatchHistoryFromSupabase();
+            window.dispatchEvent(new CustomEvent('aniworld_history_updated', { detail: freshHistory }));
+          }
+        )
+        .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'watchlist', filter: `user_id=eq.${user.id}` },
           async (payload) => {
             console.log('[Supabase Realtime] Multi-device watchlist updated:', payload);
+            const freshWatchlist = await fetchWatchlistFromSupabase();
+            window.dispatchEvent(new CustomEvent('aniworld_watchlist_updated', { detail: freshWatchlist }));
+          }
+        )
+        .on(
+          'broadcast',
+          { event: 'watchlist_signal' },
+          async (payload) => {
+            console.log('[Supabase Broadcast] Instant cross-device watchlist signal received:', payload);
             const freshWatchlist = await fetchWatchlistFromSupabase();
             window.dispatchEvent(new CustomEvent('aniworld_watchlist_updated', { detail: freshWatchlist }));
           }

@@ -161,6 +161,13 @@ export function updateWatchProgress(
           last_watched: new Date().toISOString()
         }, { onConflict: 'user_id,anime_id,episode_id' });
 
+        // Send instant cross-device WebSocket Broadcast signal to PC / Tablet / Phone
+        supabase.channel(`realtime-user-sync-${session.user.id}`).send({
+          type: 'broadcast',
+          event: 'watch_history_signal',
+          payload: progressItem
+        }).catch(() => {});
+
         window.dispatchEvent(new CustomEvent('aniworld_history_updated'));
       }
     } catch (err) {
