@@ -374,8 +374,32 @@ export async function getTopRatedAnime(page = 1, perPage = 12): Promise<AnimeMed
 }
 
 export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<AnimeMedia[]> {
+  const date = new Date();
+  const month = date.getMonth();
+  const year = date.getFullYear();
+  let season = 'WINTER';
+  if (month >= 2 && month <= 4) season = 'SPRING';
+  else if (month >= 5 && month <= 7) season = 'SUMMER';
+  else if (month >= 8 && month <= 10) season = 'FALL';
+
   try {
     const query = `
+      query ($page: Int, $perPage: Int, $season: MediaSeason, $seasonYear: Int) {
+        Page (page: $page, perPage: $perPage) {
+          media (type: ANIME, status: RELEASING, season: $season, seasonYear: $seasonYear, sort: POPULARITY_DESC) {
+            ${MEDIA_FRAGMENT}
+          }
+        }
+      }
+    `;
+    const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage, season, seasonYear: year });
+    if (data.Page.media && data.Page.media.length >= 6) {
+      registerTitlesInDictionary(data.Page.media);
+      return data.Page.media;
+    }
+    
+    // Fallback if seasonal filter yields < 6 items: query all releasing anime sorted by popularity
+    const fallbackQuery = `
       query ($page: Int, $perPage: Int) {
         Page (page: $page, perPage: $perPage) {
           media (type: ANIME, status: RELEASING, sort: POPULARITY_DESC) {
@@ -384,9 +408,9 @@ export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<A
         }
       }
     `;
-    const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
-    registerTitlesInDictionary(data.Page.media);
-    return data.Page.media;
+    const fallbackData = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(fallbackQuery, { page, perPage });
+    registerTitlesInDictionary(fallbackData.Page.media);
+    return fallbackData.Page.media;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'airing', page, limit: perPage });
