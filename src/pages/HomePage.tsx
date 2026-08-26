@@ -112,7 +112,6 @@ export default function HomePage() {
       getCurrentlyAiringAnime(1, 24).then(data => {
         if (isSubscribed) {
           setAiring(data);
-          setNewEpisodes(prev => prev.length > 0 ? prev : data);
         }
       });
     }
