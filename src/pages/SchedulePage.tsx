@@ -60,8 +60,9 @@ export default function SchedulePage() {
       setLoading(true);
       try {
         const now = Math.floor(Date.now() / 1000);
-        const startOfWeek = now - 5 * 86400;
-        const endOfWeek = now + 5 * 86400;
+        // Fetch 4 days past and 4 days future to cover all local timezone offsets completely
+        const startOfWeek = now - 4 * 86400;
+        const endOfWeek = now + 4 * 86400;
 
         const data = await getAiringSchedule(startOfWeek, endOfWeek);
         setScheduleItems(data);
@@ -76,31 +77,33 @@ export default function SchedulePage() {
 
   const nowTimestamp = Math.floor(Date.now() / 1000);
 
+  // Helper: Exact Local Calendar Day Matcher (handles all timezones accurately)
+  const isSameCalendarDay = (timestampA: number, timestampB: number) => {
+    const dateA = new Date(timestampA * 1000);
+    const dateB = new Date(timestampB * 1000);
+    return (
+      dateA.getFullYear() === dateB.getFullYear() &&
+      dateA.getMonth() === dateB.getMonth() &&
+      dateA.getDate() === dateB.getDate()
+    );
+  };
+
   // Get tomorrow & day after tomorrow objects
   const tomorrowObj = weekDays.find(d => d.isTomorrow);
   const dayAfterTomorrowObj = weekDays.find(d => d.isDayAfterTomorrow);
 
   // Tomorrow schedule items
   const tomorrowItems = tomorrowObj
-    ? scheduleItems.filter(
-        item => item.airingAt >= tomorrowObj.dateTimestamp && item.airingAt < tomorrowObj.dateTimestamp + 86400
-      )
+    ? scheduleItems.filter(item => isSameCalendarDay(item.airingAt, tomorrowObj.dateTimestamp))
     : [];
 
   // Day after tomorrow schedule items
   const dayAfterTomorrowItems = dayAfterTomorrowObj
-    ? scheduleItems.filter(
-        item =>
-          item.airingAt >= dayAfterTomorrowObj.dateTimestamp &&
-          item.airingAt < dayAfterTomorrowObj.dateTimestamp + 86400
-      )
+    ? scheduleItems.filter(item => isSameCalendarDay(item.airingAt, dayAfterTomorrowObj.dateTimestamp))
     : [];
 
   // Filter airing items by currently selected day
-  const daySchedule = scheduleItems.filter(item => {
-    const endOfDayTimestamp = selectedDayTimestamp + 86400;
-    return item.airingAt >= selectedDayTimestamp && item.airingAt < endOfDayTimestamp;
-  });
+  const daySchedule = scheduleItems.filter(item => isSameCalendarDay(item.airingAt, selectedDayTimestamp));
 
   const selectedDayObj = weekDays.find(d => d.dateTimestamp === selectedDayTimestamp) || weekDays[0];
 
