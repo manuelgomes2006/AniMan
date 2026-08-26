@@ -16,7 +16,7 @@ import CarouselRow from '../components/common/CarouselRow';
 import SkeletonLoader from '../components/shared/SkeletonLoader';
 import AnimeCard from '../components/common/AnimeCard';
 
-import { TrendingUp, Sparkles, Flame, Clock, ThumbsUp } from 'lucide-react';
+import { TrendingUp, Sparkles, Flame, Clock, Tv } from 'lucide-react';
 
 export default function HomePage() {
   const { profile } = useAuth();
@@ -24,7 +24,6 @@ export default function HomePage() {
   const [popular, setPopular] = useState<AnimeMedia[]>([]);
   const [topRated, setTopRated] = useState<AnimeMedia[]>([]);
   const [airing, setAiring] = useState<AnimeMedia[]>([]);
-  const [recommended, setRecommended] = useState<AnimeMedia[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -35,7 +34,7 @@ export default function HomePage() {
     return 'Good evening';
   };
 
-  const username = profile?.displayName || profile?.username || 'Manuel';
+  const username = profile?.displayName || profile?.username || 'Member';
 
   const loadHistory = () => {
     fetchWatchHistoryFromSupabase().then(historyData => {
@@ -67,10 +66,7 @@ export default function HomePage() {
       });
 
       getTopRatedAnime(1, 24).then(data => {
-        if (isSubscribed) {
-          setTopRated(data);
-          setRecommended(data.slice().reverse());
-        }
+        if (isSubscribed) setTopRated(data);
       });
 
       getCurrentlyAiringAnime(1, 24).then(data => {
@@ -105,14 +101,14 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 2. Hero Carousel Container */}
+      {/* 2. Hero Carousel Banner */}
       {loading ? (
         <SkeletonLoader type="hero" />
       ) : (
         trending.length > 0 && <HeroCarousel items={trending.slice(0, 5)} />
       )}
 
-      {/* 3. Continue Watching Row (Loaded from Supabase watch_history) */}
+      {/* SECTION 1: Continue Watching */}
       {watchHistory.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -132,18 +128,6 @@ export default function HomePage() {
                 coverImage: { large: hist.coverImage, extraLarge: hist.coverImage, medium: hist.coverImage }
               };
 
-              const dur = hist.duration && hist.duration > 60 ? hist.duration : 1430;
-              const cur = Math.min(dur, Math.max(0, hist.currentTime));
-              const remainingSecs = Math.max(0, dur - cur);
-              const remainingMins = Math.ceil(remainingSecs / 60);
-
-              let timeLeftFormatted = `${remainingMins}m left`;
-              if (remainingSecs <= 0 || cur >= dur * 0.95) {
-                timeLeftFormatted = '1m left';
-              } else if (remainingSecs < 60) {
-                timeLeftFormatted = '< 1m left';
-              }
-
               return (
                 <AnimeCard
                   key={`${hist.animeId}-${hist.episodeNumber}`}
@@ -151,9 +135,8 @@ export default function HomePage() {
                   variant="progress"
                   progressData={{
                     episodeNumber: hist.episodeNumber,
-                    currentTime: cur,
-                    duration: dur,
-                    timeLeft: timeLeftFormatted
+                    currentTime: hist.currentTime,
+                    duration: hist.duration
                   }}
                 />
               );
@@ -162,16 +145,16 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* 4. Recommended For You */}
-      {recommended.length > 0 && (
+      {/* SECTION 2: Most Popular Anime */}
+      {popular.length > 0 && (
         <CarouselRow
-          title="Recommended For You"
-          items={recommended}
-          icon={<ThumbsUp className="w-4 h-4 text-purple-400" />}
+          title="Most Popular Anime"
+          items={popular}
+          icon={<TrendingUp className="w-4 h-4 text-purple-400" />}
         />
       )}
 
-      {/* 5. Trending Now Horizontally Scrollable Carousel */}
+      {/* SECTION 3: Trending Now */}
       {trending.length > 0 && (
         <CarouselRow
           title="Trending Now"
@@ -180,34 +163,34 @@ export default function HomePage() {
         />
       )}
 
-      {/* 6. Latest Episodes Horizontally Scrollable Carousel */}
+      {/* SECTION 4: New Episodes */}
       {airing.length > 0 && (
         <CarouselRow
-          title="Latest Episodes"
+          title="New Episodes"
           items={airing}
           variant="latest"
           icon={<Sparkles className="w-4 h-4 text-purple-400" />}
           actionLink={
-            <Link to="/browse" className="text-xs font-extrabold text-purple-400 hover:underline mr-2">
+            <Link to="/browse?tab=latest" className="text-xs font-extrabold text-purple-400 hover:underline mr-2">
               View All →
             </Link>
           }
         />
       )}
 
-      {/* 7. Most Popular Horizontally Scrollable Carousel */}
-      {popular.length > 0 && (
+      {/* SECTION 5: Currently Airing */}
+      {airing.length > 0 && (
         <CarouselRow
-          title="Most Popular"
-          items={popular}
-          icon={<TrendingUp className="w-4 h-4 text-purple-400" />}
+          title="Currently Airing"
+          items={airing}
+          icon={<Tv className="w-4 h-4 text-purple-400" />}
         />
       )}
 
-      {/* 8. Top Rated Horizontally Scrollable Carousel */}
+      {/* SECTION 6: All Time Popular */}
       {topRated.length > 0 && (
         <CarouselRow
-          title="Top Rated Anime"
+          title="All Time Popular"
           items={topRated}
           icon={<Sparkles className="w-4 h-4 text-purple-400" />}
         />
