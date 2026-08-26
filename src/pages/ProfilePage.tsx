@@ -3,8 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
-import { isUsernameTaken } from '../services/auth/localAuthStore';
-import { User, Settings, Check, Bookmark, Clock, Volume2, LogOut, Trash2, Heart, ShieldAlert, Loader2, AlertCircle } from 'lucide-react';
+import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -62,16 +61,10 @@ export default function ProfilePage() {
     setErrorMsg(null);
 
     const cleanUsername = username.trim().toLowerCase();
-    const cleanEmail = (profile?.email || 'user@aniworld.io').trim().toLowerCase();
+    const cleanEmail = (profile?.email || '').trim().toLowerCase();
 
-    // 1. Validate Username Uniqueness
+    // 1. Validate Username Uniqueness via Supabase Database
     if (profile && cleanUsername !== profile.username.toLowerCase()) {
-      if (isUsernameTaken(cleanUsername)) {
-        setErrorMsg(`Username '@${cleanUsername}' is already taken by another user.`);
-        setSaving(false);
-        return;
-      }
-
       if (isSupabaseConfigured()) {
         const { data: existing } = await supabase
           .from('profiles')
@@ -87,32 +80,10 @@ export default function ProfilePage() {
       }
     }
 
-    // 2. Save audio preference in local store
+    // 2. Save audio preference in local player store
     setUserAudioPreference(preferredAudio);
 
-    // 3. Build complete updated profile object
-    const updatedProfile = {
-      id: profile?.id || 'usr_active',
-      username: cleanUsername,
-      displayName: displayName.trim(),
-      avatarUrl: avatarUrl.trim(),
-      email: cleanEmail,
-      preferences: {
-        preferredAudio,
-        preferredQuality,
-        autoplay,
-        autoplayNext,
-        skipIntro,
-        skipOutro
-      }
-    };
-
-    // Save to local active session
-    try {
-      localStorage.setItem('aniworld_active_session', JSON.stringify(updatedProfile));
-    } catch {}
-
-    // 4. Sync to Supabase Database (Profiles & User Preferences) using Email as Primary Source
+    // 3. Sync to Supabase Database (Profiles & User Preferences)
     if (isSupabaseConfigured() && profile?.id) {
       try {
         await supabase.from('profiles').upsert({

@@ -1,69 +1,11 @@
-const ACCOUNTS_STORAGE_KEY = 'aniworld_registered_accounts';
+/**
+ * Note: Authentication is handled strictly via Supabase Auth (auth.users and session persistence).
+ * Fake/localStorage authentication has been removed as per security specifications.
+ */
 
-export interface LocalRegisteredAccount {
-  email: string;
-  username: string;
-  passwordHash: string;
-  createdAt: string;
-}
-
-export function getRegisteredAccounts(): LocalRegisteredAccount[] {
+export function clearLocalAuthCache(): void {
   try {
-    const raw = localStorage.getItem(ACCOUNTS_STORAGE_KEY);
-    if (!raw) return [];
-    return JSON.parse(raw);
-  } catch {
-    return [];
-  }
-}
-
-export function isUsernameTaken(username: string): boolean {
-  const accounts = getRegisteredAccounts();
-  const normalizedUsername = username.trim().toLowerCase();
-  return accounts.some((a) => a.username.trim().toLowerCase() === normalizedUsername);
-}
-
-export function registerLocalAccount(email: string, password: string, username: string): LocalRegisteredAccount {
-  const accounts = getRegisteredAccounts();
-  const normalizedEmail = email.trim().toLowerCase();
-  const normalizedUsername = username.trim().toLowerCase() || normalizedEmail.split('@')[0];
-
-  const existing = accounts.find((a) => a.email === normalizedEmail);
-  if (existing) {
-    return existing;
-  }
-
-  const newAcc: LocalRegisteredAccount = {
-    email: normalizedEmail,
-    username: normalizedUsername,
-    passwordHash: btoa(password),
-    createdAt: new Date().toISOString(),
-  };
-
-  accounts.push(newAcc);
-  try {
-    localStorage.setItem(ACCOUNTS_STORAGE_KEY, JSON.stringify(accounts));
-  } catch (err) {
-    console.warn('Local account registration notice:', err);
-  }
-
-  return newAcc;
-}
-
-export function verifyLocalAccount(email: string, password: string): LocalRegisteredAccount | null {
-  const accounts = getRegisteredAccounts();
-  const normalizedEmail = email.trim().toLowerCase();
-  const hash = btoa(password);
-
-  const matched = accounts.find(
-    (a) => a.email === normalizedEmail && a.passwordHash === hash
-  );
-
-  return matched || null;
-}
-
-export function accountExists(email: string): boolean {
-  const accounts = getRegisteredAccounts();
-  const normalizedEmail = email.trim().toLowerCase();
-  return accounts.some((a) => a.email === normalizedEmail);
+    localStorage.removeItem('aniworld_active_session');
+    localStorage.removeItem('aniworld_registered_accounts');
+  } catch {}
 }

@@ -30,11 +30,9 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   deleteAccount: () => Promise<void>;
-  setGuestSession: (email?: string, username?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-const LOCAL_SESSION_KEY = 'aniworld_active_session';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -42,121 +40,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Local Guest / Active Session Generator & Persistence Helper
-  const getGuestProfile = (email = 'user@aniworld.io', name = 'Member'): UserProfileData => ({
-    id: `usr_${email.replace(/[^a-zA-Z0-9]/g, '_')}`,
-    username: name,
-    displayName: name,
-    avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
-    email,
-    preferences: {
-      preferredAudio: 'sub',
-      preferredQuality: 'auto',
-      autoplay: true,
-      autoplayNext: true,
-      skipIntro: false,
-      skipOutro: false,
-    }
-  });
-
-  const setGuestSession = (email = 'user@aniworld.io', username = 'Member') => {
-    const prof = getGuestProfile(email, username);
-    try {
-      localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(prof));
-    } catch {}
-    setProfile(prof);
-    setUser({ id: prof.id, email: prof.email, app_metadata: {}, user_metadata: {}, aud: '', created_at: '' } as any);
-  };
-
-  const clearAllUserData = () => {
-    try {
-      localStorage.removeItem(LOCAL_SESSION_KEY);
-      localStorage.removeItem('aniworld_watch_history');
-      localStorage.removeItem('aniworld_watchlist');
-    } catch {}
-  };
-
-  const restoreLocalSessionIfPresent = () => {
-    try {
-      const local = localStorage.getItem(LOCAL_SESSION_KEY);
-      if (local) {
-        const prof = JSON.parse(local);
-        if (prof && prof.id) {
-          setProfile(prof);
-          setUser({ id: prof.id, email: prof.email || 'user@aniworld.io' } as any);
-          return true;
-        }
-      }
-    } catch {}
-    return false;
-  };
-
-  // Load User Profile and Preferences using Email as Single Source of Truth
+  // Fetch real User Profile and Preferences from Supabase Database (profiles & user_preferences)
   const loadProfile = async (currentUser: User) => {
+    if (!currentUser || !currentUser.id || !isSupabaseConfigured()) {
+      setProfile(null);
+      return;
+    }
+
     try {
-      const email = (currentUser.email || 'user@aniworld.io').trim().toLowerCase();
+      const email = currentUser.email || '';
 
-      if (!isSupabaseConfigured()) {
-        if (!restoreLocalSessionIfPresent()) {
-          setProfile(getGuestProfile(email));
-        }
-        return;
+      const [{ data: profileData, error: profileErr }, { data: prefData }] = await Promise.all([
+        supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
+        supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).maybeSingle()
+      ]);
+
+      if (profileErr) {
+        console.error('[AuthContext] Profile fetch error:', profileErr.message);
       }
 
-      // 1. Fetch exact cloud profile by email
-      let profileData: any = null;
-      let prefData: any = null;
-
-      try {
-        const { data: profByEmail } = await supabase
-          .from('profiles')
-          .select('*')
-          .ilike('email', email)
-          .maybeSingle();
-        profileData = profByEmail;
-      } catch {}
-
-      if (!profileData) {
-        try {
-          const { data: profById } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', currentUser.id)
-            .maybeSingle();
-          profileData = profById;
-        } catch {}
-      }
-
-      const effectiveUserId = profileData?.id || currentUser.id;
-
-      // 2. Fetch user preferences by effectiveUserId
-      try {
-        const { data: prefRow } = await supabase
-          .from('user_preferences')
-          .select('*')
-          .eq('user_id', effectiveUserId)
-          .maybeSingle();
-        prefData = prefRow;
-      } catch {}
-
-      const metaUsername = currentUser.user_metadata?.username || currentUser.user_metadata?.display_name || email.split('@')[0];
-      const metaDisplayName = currentUser.user_metadata?.display_name || metaUsername;
-
-      const username = profileData?.username || metaUsername;
-      const displayName = profileData?.display_name || metaDisplayName;
-      const avatarUrl = profileData?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
-
-      // Auto-heal missing profile row in database if missing
-      if (!profileData) {
-        await supabase.from('profiles').upsert({
-          id: effectiveUserId,
-          email: email,
-          username: username.toLowerCase(),
-          display_name: displayName,
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' }).catch(() => {});
-      }
+      const username = profileData?.username || currentUser.user_metadata?.username || email.split('@')[0] || 'User';
+      const displayName = profileData?.display_name || currentUser.user_metadata?.display_name || username;
+      const avatarUrl = profileData?.avatar_url || currentUser.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
 
       const preferences: UserPreferences = {
         preferredAudio: prefData?.preferred_audio === 'dub' ? 'dub' : 'sub',
@@ -168,7 +73,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       const loadedProfile: UserProfileData = {
-        id: effectiveUserId,
+        id: currentUser.id,
         username,
         displayName,
         avatarUrl,
@@ -176,57 +81,40 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         preferences
       };
 
-      // OVERWRITE local session with the TRUE Cloud profile from Supabase Database
       setProfile(loadedProfile);
-      try {
-        localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
-      } catch {}
     } catch (err) {
-      console.warn('[AuthContext] Load Profile Notice:', err);
+      console.error('[AuthContext] Load Profile Exception:', err);
     }
   };
 
   useEffect(() => {
     let isSubscribed = true;
 
-    // ⚡ 1. Synchronously restore local session immediately to avoid black screen on mobile
-    const hasLocalSession = restoreLocalSessionIfPresent();
-    if (hasLocalSession) {
-      setLoading(false);
-    }
-
-    // ⚡ 2. Safety Timeout: Ensure loading never hangs on mobile networks
-    const safetyTimeout = setTimeout(() => {
-      if (isSubscribed) {
-        setLoading(false);
-      }
-    }, 1200);
-
-    // 3. Revalidate Session via Supabase Auth
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // 1. Initial Session Check from Supabase Auth
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!isSubscribed) return;
       setSession(session);
+
       if (session?.user) {
         setUser(session.user);
-        loadProfile(session.user).finally(() => {
-          if (isSubscribed) setLoading(false);
-        });
+        await loadProfile(session.user);
       } else {
-        if (!hasLocalSession) {
-          restoreLocalSessionIfPresent();
-        }
-        setLoading(false);
+        setUser(null);
+        setProfile(null);
       }
-    }).catch(() => {
       if (isSubscribed) {
-        restoreLocalSessionIfPresent();
         setLoading(false);
       }
-    }).finally(() => {
-      clearTimeout(safetyTimeout);
+    }).catch((err) => {
+      console.error('[AuthContext] Initial Session Check Failed:', err);
+      if (isSubscribed) {
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+      }
     });
 
-    // 4. Real-Time Auth State Listener
+    // 2. Real-Time Supabase Auth State Change Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!isSubscribed) return;
       setSession(session);
@@ -235,35 +123,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session.user);
         await loadProfile(session.user);
       } else {
-        const hasLocal = restoreLocalSessionIfPresent();
-        if (!hasLocal) {
-          setProfile(null);
-          setUser(null);
-        }
+        setUser(null);
+        setProfile(null);
       }
       setLoading(false);
     });
 
     return () => {
       isSubscribed = false;
-      clearTimeout(safetyTimeout);
       subscription.unsubscribe();
     };
   }, []);
 
-  // 5. Real-Time Multi-Device Database Sync Subscription
+  // 3. Real-Time Multi-Device Database Sync Subscription
   useEffect(() => {
     if (!user?.id || !isSupabaseConfigured()) return;
 
     let channel: any = null;
     try {
       channel = supabase
-        .channel(`multi-device-sync-${user.id}`)
+        .channel(`realtime-user-sync-${user.id}`)
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
           () => {
-            console.log('[Multi-Device Sync] Profile updated on another device');
             loadProfile(user);
             window.dispatchEvent(new CustomEvent('aniworld_profile_updated'));
           }
@@ -272,7 +155,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'user_preferences', filter: `user_id=eq.${user.id}` },
           () => {
-            console.log('[Multi-Device Sync] Preferences updated on another device');
             loadProfile(user);
             window.dispatchEvent(new CustomEvent('aniworld_profile_updated'));
           }
@@ -281,7 +163,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'watch_history', filter: `user_id=eq.${user.id}` },
           () => {
-            console.log('[Multi-Device Sync] Watch history updated on another device');
             fetchWatchHistoryFromSupabase();
             window.dispatchEvent(new CustomEvent('aniworld_history_updated'));
           }
@@ -290,7 +171,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'watchlist', filter: `user_id=eq.${user.id}` },
           () => {
-            console.log('[Multi-Device Sync] Watchlist updated on another device');
             fetchWatchlistFromSupabase();
             window.dispatchEvent(new CustomEvent('aniworld_watchlist_updated'));
           }
@@ -308,10 +188,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user?.id]);
 
   const signInWithGoogle = async () => {
-    if (!isSupabaseConfigured()) {
-      setGuestSession('google_user@aniworld.io', 'Google User');
-      return;
-    }
+    if (!isSupabaseConfigured()) return;
     await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -321,12 +198,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
-    clearAllUserData();
-    setUser(null);
-    setSession(null);
-    setProfile(null);
-    if (isSupabaseConfigured()) {
-      await supabase.auth.signOut().catch(() => {});
+    setLoading(true);
+    try {
+      if (isSupabaseConfigured()) {
+        await supabase.auth.signOut();
+      }
+    } catch (err) {
+      console.error('[AUTH SIGNOUT EXCEPTION]', err);
+    } finally {
+      setUser(null);
+      setSession(null);
+      setProfile(null);
+      setLoading(false);
     }
   };
 
@@ -365,8 +248,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         signInWithGoogle,
         signOut,
         refreshProfile,
-        deleteAccount,
-        setGuestSession
+        deleteAccount
       }}
     >
       {children}

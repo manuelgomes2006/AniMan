@@ -12,14 +12,14 @@ export interface AuthDiagnosticResult {
 
 /**
  * Development Auth Diagnostic Utility:
- * Verifies Supabase configuration, connection status, current auth session, profiles table access, and RLS policies.
+ * Verifies Supabase env variables, connection status, current session, profiles table access, and RLS.
  */
 export async function runAuthDiagnostic(): Promise<AuthDiagnosticResult> {
   const errors: string[] = [];
   const configValid = isSupabaseConfigured();
 
   if (!configValid) {
-    errors.push('SUPABASE_CONFIG_MISSING: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is unconfigured or invalid JWT.');
+    errors.push('SUPABASE_CONFIG_MISSING: VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing or invalid.');
     return {
       configValid: false,
       connected: false,
@@ -38,7 +38,7 @@ export async function runAuthDiagnostic(): Promise<AuthDiagnosticResult> {
     const { data: sessionData, error: sessionErr } = await supabase.auth.getSession();
 
     if (sessionErr) {
-      errors.push(`AUTH_SESSION_ERROR: ${sessionErr.message}`);
+      errors.push(`AUTH_LOGIN_FAILED: ${sessionErr.message}`);
     } else {
       connected = true;
       if (sessionData?.session?.user) {
@@ -49,9 +49,9 @@ export async function runAuthDiagnostic(): Promise<AuthDiagnosticResult> {
         // Verify profiles table query under RLS
         const { data: profile, error: profileErr } = await supabase
           .from('profiles')
-          .select('id, username')
+          .select('id, username, display_name')
           .eq('id', userId)
-          .single();
+          .maybeSingle();
 
         if (profileErr) {
           if (profileErr.code === 'PGRST116') {
@@ -61,11 +61,13 @@ export async function runAuthDiagnostic(): Promise<AuthDiagnosticResult> {
           }
         } else if (profile) {
           profileExists = true;
+        } else {
+          errors.push('PROFILE_NOT_FOUND: Profile row does not exist for authenticated user.');
         }
       }
     }
   } catch (err: any) {
-    errors.push(`DATABASE_CONNECTION_FAILED: ${err?.message || 'Network error'}`);
+    errors.push(`DATABASE_CONNECTION_FAILED: ${err?.message || 'Network connection failed'}`);
   }
 
   return {

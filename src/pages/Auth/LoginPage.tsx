@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { supabase, isSupabaseConfigured } from '../../services/auth/supabaseClient';
+import { supabase } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { verifyLocalAccount, accountExists } from '../../services/auth/localAuthStore';
-import { Mail, Lock, LogIn, CheckCircle, UserPlus, AlertCircle } from 'lucide-react';
+import { Mail, Lock, LogIn, CheckCircle, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signInWithGoogle, setGuestSession } = useAuth();
+  const { signInWithGoogle } = useAuth();
 
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get('redirect') || '/';
@@ -18,7 +17,6 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isNewUser, setIsNewUser] = useState(false);
   const [verifiedSuccess, setVerifiedSuccess] = useState(isVerified);
 
   useEffect(() => {
@@ -37,12 +35,6 @@ export default function LoginPage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
-    setIsNewUser(false);
-
-    // Clear any stale local profile cache from previous sessions
-    try {
-      localStorage.removeItem('aniworld_active_session');
-    } catch {}
 
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
@@ -54,84 +46,36 @@ export default function LoginPage() {
     }
 
     try {
-      // 1. Query Supabase Cloud Auth First
+      // Supabase Auth Authentication
       const { data, error: authError } = await supabase.auth.signInWithPassword({
         email: cleanEmail,
         password: cleanPassword
       });
 
-      if (!authError && data?.session) {
-        // Old user logged in successfully -> Website opens immediately
-        navigate(redirectUrl, { replace: true });
-        return;
-      }
-
-      // 2. Check Registered Local Accounts Backup Second
-      const verifiedLocal = verifyLocalAccount(cleanEmail, cleanPassword);
-      if (verifiedLocal) {
-        setGuestSession(verifiedLocal.email, verifiedLocal.username);
-        navigate(redirectUrl, { replace: true });
-        return;
-      }
-
-      // 3. Handle Authentication Errors Gracefully
       if (authError) {
+        console.error('[AUTH LOGIN]', authError);
+
         const msg = authError.message.toLowerCase();
-
         if (msg.includes('email not confirmed')) {
-          setError('Your email verification is pending. Please check your inbox and complete verification before signing in.');
-          setLoading(false);
-          return;
-        }
-
-        // Check if account exists in database to distinguish wrong password from non-existent user
-        let userExistsInDb = accountExists(cleanEmail);
-
-        if (!userExistsInDb && isSupabaseConfigured()) {
-          try {
-            const { data: profileRow } = await supabase
-              .from('profiles')
-              .select('id')
-              .ilike('email', cleanEmail)
-              .maybeSingle();
-
-            if (profileRow) {
-              userExistsInDb = true;
-            }
-          } catch {}
-        }
-
-        if (userExistsInDb) {
-          // Account exists in database -> Password issue
-          setIsNewUser(false);
-          setError('Incorrect password for this account. Please check your password or click "Forgot password?".');
+          setError('Your email verification is pending. Please check your inbox and click the confirmation link before logging in.');
+        } else if (msg.includes('invalid login credentials')) {
+          setError('Invalid login credentials. Please check your email and password.');
         } else {
-          // Account does not exist -> New user
-          setIsNewUser(true);
-          setError('No account found for this email address. Please Sign Up to create an account first.');
+          setError(authError.message);
         }
-      } else {
-        setIsNewUser(true);
-        setError('No account found for this email address. Please Sign Up to create an account first.');
+        setLoading(false);
+        return;
+      }
+
+      if (data?.session) {
+        navigate(redirectUrl, { replace: true });
       }
     } catch (err: any) {
-      console.warn('[AUTH LOGIN ERROR]', err);
-      const verifiedLocal = verifyLocalAccount(cleanEmail, cleanPassword);
-      if (verifiedLocal) {
-        setGuestSession(verifiedLocal.email, verifiedLocal.username);
-        navigate(redirectUrl, { replace: true });
-        return;
-      }
-      setIsNewUser(true);
-      setError('No account found for this email address. Please Sign Up to create an account first.');
+      console.error('[AUTH LOGIN EXCEPTION]', err);
+      setError(err?.message || 'Authentication failed. Please try again.');
     } finally {
       setLoading(false);
     }
-  };
-
-  const handleGoToSignup = () => {
-    const cleanEmail = email.trim().toLowerCase();
-    navigate(`/signup?email=${encodeURIComponent(cleanEmail)}`);
   };
 
   return (
@@ -143,7 +87,7 @@ export default function LoginPage() {
             <span className="text-purple-400">World</span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Welcome Back 👋</h2>
-          <p className="text-xs text-slate-400">Sign in to your AniWorld account on any device.</p>
+          <p className="text-xs text-slate-400">Sign in to your AniWorld account to stream seamlessly.</p>
         </div>
 
         {verifiedSuccess && (
@@ -154,22 +98,11 @@ export default function LoginPage() {
         )}
 
         {error && (
-          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-4 rounded-2xl leading-relaxed space-y-3">
+          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-4 rounded-2xl leading-relaxed">
             <div className="flex items-center gap-2 font-extrabold text-rose-200">
               <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
               <span>{error}</span>
             </div>
-
-            {isNewUser && (
-              <button
-                type="button"
-                onClick={handleGoToSignup}
-                className="w-full py-2.5 bg-purple-600 hover:bg-purple-500 text-white font-black text-xs rounded-xl shadow-lg transition flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>Go to Sign Up Page</span>
-              </button>
-            )}
           </div>
         )}
 

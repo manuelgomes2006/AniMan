@@ -1,14 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
-import { supabase, isSupabaseConfigured } from '../../services/auth/supabaseClient';
-import { useAuth } from '../../context/AuthContext';
-import { registerLocalAccount, isUsernameTaken, accountExists } from '../../services/auth/localAuthStore';
-import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw, KeyRound, ArrowRight } from 'lucide-react';
+import { supabase } from '../../services/auth/supabaseClient';
+import { Mail, Lock, User, UserPlus, CheckCircle, RefreshCw, KeyRound, ArrowRight, AlertCircle } from 'lucide-react';
 
 export default function SignupPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setGuestSession } = useAuth();
 
   const searchParams = new URLSearchParams(location.search);
   const initialEmail = searchParams.get('email') || '';
@@ -60,38 +57,7 @@ export default function SignupPage() {
     setError(null);
 
     try {
-      // 1. Check Local Unique Username & Email
-      if (isUsernameTaken(cleanUsername)) {
-        setError(`Username '@${cleanUsername}' is already taken. Please choose a unique username.`);
-        setLoading(false);
-        return;
-      }
-
-      if (accountExists(cleanEmail)) {
-        setError('An account with this email address already exists. Please Sign In.');
-        setLoading(false);
-        return;
-      }
-
-      // 2. Check Supabase Database Unique Username
-      if (isSupabaseConfigured()) {
-        const { data: existingUser } = await supabase
-          .from('profiles')
-          .select('username')
-          .eq('username', cleanUsername)
-          .maybeSingle();
-
-        if (existingUser) {
-          setError(`Username '@${cleanUsername}' is already taken. Please choose a unique username.`);
-          setLoading(false);
-          return;
-        }
-      }
-
-      // 3. Register Local Account Backup
-      registerLocalAccount(cleanEmail, cleanPassword, cleanUsername);
-
-      // 4. Register User with Supabase Auth
+      // Supabase Auth Registration
       const { data, error: authError } = await supabase.auth.signUp({
         email: cleanEmail,
         password: cleanPassword,
@@ -99,28 +65,33 @@ export default function SignupPage() {
           emailRedirectTo: `${window.location.origin}/login?verified=true`,
           data: {
             username: cleanUsername,
-            display_name: username.trim(), // Display Name can be same across users
+            display_name: username.trim(),
           }
         }
       });
 
       if (authError) {
-        console.warn('[AUTH SIGNUP NOTICE]', authError);
+        console.error('[AUTH SIGNUP ERROR]', authError);
         const msg = authError.message.toLowerCase();
 
         if (msg.includes('already registered') || msg.includes('user already exists')) {
           setError('An account with this email address already exists. Please Sign In.');
-          setLoading(false);
-          return;
+        } else {
+          setError(authError.message);
         }
+        setLoading(false);
+        return;
       }
 
-      // 5. Move to Step of Verification
-      setStepOfVerification(true);
+      // If user session is established immediately (or confirmation email sent)
+      if (data?.session) {
+        navigate('/', { replace: true });
+      } else {
+        setStepOfVerification(true);
+      }
     } catch (err: any) {
-      console.warn('[AUTH SIGNUP CATCH]', err);
-      registerLocalAccount(cleanEmail, cleanPassword, cleanUsername);
-      setStepOfVerification(true);
+      console.error('[AUTH SIGNUP CATCH]', err);
+      setError(err?.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -138,7 +109,6 @@ export default function SignupPage() {
     setOtpError(null);
 
     const cleanEmail = email.trim().toLowerCase();
-    const cleanUsername = username.trim().toLowerCase() || cleanEmail.split('@')[0];
 
     try {
       const { data, error: verifyErr } = await supabase.auth.verifyOtp({
@@ -148,22 +118,20 @@ export default function SignupPage() {
       });
 
       if (verifyErr) {
-        console.warn('[OTP VERIFICATION NOTICE]', verifyErr);
-        setGuestSession(cleanEmail, cleanUsername);
-        navigate('/', { replace: true });
+        console.error('[OTP VERIFICATION ERROR]', verifyErr);
+        setOtpError(verifyErr.message || 'Invalid or expired verification code.');
+        setVerifyingOtp(false);
         return;
       }
 
       if (data?.session) {
         navigate('/', { replace: true });
       } else {
-        setGuestSession(cleanEmail, cleanUsername);
-        navigate('/', { replace: true });
+        navigate('/login?verified=true', { replace: true });
       }
     } catch (err: any) {
-      console.warn('[OTP VERIFICATION CATCH]', err);
-      setGuestSession(cleanEmail, cleanUsername);
-      navigate('/', { replace: true });
+      console.error('[OTP VERIFICATION CATCH]', err);
+      setOtpError(err?.message || 'Verification failed. Please try again.');
     } finally {
       setVerifyingOtp(false);
     }
@@ -173,28 +141,29 @@ export default function SignupPage() {
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) return;
     setResending(true);
+    setOtpError(null);
+
     try {
-      await supabase.auth.resend({
+      const { error: resendErr } = await supabase.auth.resend({
         type: 'signup',
         email: cleanEmail,
         options: {
           emailRedirectTo: `${window.location.origin}/login?verified=true`
         }
       });
-      setResendSuccess(true);
-      setTimeout(() => setResendSuccess(false), 4000);
+
+      if (resendErr) {
+        setOtpError(resendErr.message);
+      } else {
+        setResendSuccess(true);
+        setTimeout(() => setResendSuccess(false), 4000);
+      }
     } catch (err: any) {
-      console.warn('Resend error:', err);
+      console.error('Resend error:', err);
+      setOtpError(err?.message || 'Failed to resend verification code.');
     } finally {
       setResending(false);
     }
-  };
-
-  const handleCompleteVerification = () => {
-    const cleanEmail = email.trim().toLowerCase();
-    const cleanUsername = username.trim().toLowerCase() || cleanEmail.split('@')[0];
-    setGuestSession(cleanEmail, cleanUsername);
-    navigate('/', { replace: true });
   };
 
   if (stepOfVerification) {
@@ -208,7 +177,7 @@ export default function SignupPage() {
           <div className="space-y-2">
             <h2 className="text-xl font-black text-white">Step of Verification 📧</h2>
             <p className="text-xs text-slate-300 leading-relaxed">
-              We've sent a 6-digit verification code to <span className="font-bold text-purple-400">{email}</span>. Enter the code below or click the verification link in your email to open the website.
+              We've sent a verification code / link to <span className="font-bold text-purple-400">{email}</span>. Enter the code below or click the verification link in your email.
             </p>
           </div>
 
@@ -219,8 +188,9 @@ export default function SignupPage() {
           )}
 
           {otpError && (
-            <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl font-bold">
-              {otpError}
+            <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl font-bold flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{otpError}</span>
             </div>
           )}
 
@@ -246,7 +216,7 @@ export default function SignupPage() {
               disabled={verifyingOtp}
               className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
             >
-              <span>{verifyingOtp ? 'Verifying Code...' : 'Verify & Open Website'}</span>
+              <span>{verifyingOtp ? 'Verifying Code...' : 'Verify Code'}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </form>
@@ -258,12 +228,12 @@ export default function SignupPage() {
           </div>
 
           <div className="space-y-3 pt-1">
-            <button
-              onClick={handleCompleteVerification}
-              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white font-extrabold text-xs rounded-xl transition cursor-pointer touch-manipulation"
+            <Link
+              to="/login?verified=true"
+              className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-white font-extrabold text-xs rounded-xl transition flex items-center justify-center cursor-pointer touch-manipulation"
             >
-              Confirmed Email Link? Open Website 🚀
-            </button>
+              Already Clicked Email Confirmation Link? Sign In 🚀
+            </Link>
 
             <button
               onClick={handleResendVerification}
@@ -271,7 +241,7 @@ export default function SignupPage() {
               className="w-full py-2.5 bg-[#050507] hover:bg-slate-900 text-slate-400 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
             >
               <RefreshCw className={`w-4 h-4 ${resending ? 'animate-spin' : ''}`} />
-              {resending ? 'Sending Code...' : 'Resend Verification Code'}
+              {resending ? 'Sending Code...' : 'Resend Verification Email'}
             </button>
           </div>
         </div>
@@ -288,19 +258,20 @@ export default function SignupPage() {
             <span className="text-purple-400">World</span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Create an Account</h2>
-          <p className="text-xs text-slate-400">Sign up with a unique username and email to get started.</p>
+          <p className="text-xs text-slate-400">Sign up with your username and email to get started.</p>
         </div>
 
         {error && (
-          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3 rounded-xl text-center leading-relaxed font-bold">
-            {error}
+          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-4 rounded-2xl leading-relaxed flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <span>{error}</span>
           </div>
         )}
 
         <form onSubmit={handleSignup} className="space-y-4">
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
-              Unique Username <span className="text-purple-400 font-normal">(Required Unique Handle)</span>
+              Username <span className="text-purple-400 font-normal">(Required Handle)</span>
             </label>
             <div className="relative">
               <input
@@ -320,7 +291,7 @@ export default function SignupPage() {
 
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1">
-              Email Address <span className="text-purple-400 font-normal">(Required Unique Email)</span>
+              Email Address <span className="text-purple-400 font-normal">(Required Email)</span>
             </label>
             <div className="relative">
               <input
@@ -383,7 +354,7 @@ export default function SignupPage() {
             className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 active:bg-purple-700 text-white font-extrabold text-xs rounded-xl shadow-lg shadow-purple-950/60 transition flex items-center justify-center gap-2 cursor-pointer touch-manipulation"
           >
             <UserPlus className="w-4 h-4" />
-            {loading ? 'Creating Account...' : 'Continue to Step of Verification'}
+            {loading ? 'Creating Account...' : 'Sign Up'}
           </button>
         </form>
 
