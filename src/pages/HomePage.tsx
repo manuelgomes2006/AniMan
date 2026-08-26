@@ -47,22 +47,23 @@ export default function HomePage() {
   useEffect(() => {
     let isSubscribed = true;
 
-    // Load live Airing Schedule data for "New Episodes" and auto-refresh every 60s
-    const loadScheduleData = () => {
+    // Load schedule data specifically filtering ALREADY RELEASED episodes for "New Episodes"
+    const loadNewEpisodesData = () => {
       const nowSecs = Math.floor(Date.now() / 1000);
       const startOfWeek = nowSecs - 7 * 86400;
-      const endOfWeek = nowSecs + 7 * 86400;
+      const endOfWeek = nowSecs + 86400;
 
       getAiringSchedule(startOfWeek, endOfWeek).then(scheduleItems => {
         if (!isSubscribed) return;
 
-        // Sort schedule items by airingAt DESC (most recent releases & upcoming entries first)
-        const sortedItems = [...scheduleItems]
-          .filter(item => item && item.media)
+        // Filter ONLY episodes that HAVE ALREADY AIRED / RELEASED (airingAt <= nowSecs + 1800)
+        // Sort descending by airingAt so the most recent releases come first
+        const releasedItems = scheduleItems
+          .filter(item => item && item.media && item.airingAt <= nowSecs + 1800)
           .sort((a, b) => b.airingAt - a.airingAt);
 
         const uniqueAnimeMap = new Map<number, AnimeMedia>();
-        sortedItems.forEach(item => {
+        releasedItems.forEach(item => {
           if (!uniqueAnimeMap.has(item.media.id)) {
             uniqueAnimeMap.set(item.media.id, {
               ...item.media,
@@ -85,7 +86,7 @@ export default function HomePage() {
       });
 
       // 2. Fetch Live Airing Schedule for "New Episodes" tab
-      loadScheduleData();
+      loadNewEpisodesData();
 
       // 3. Trending Now: Recent visits in present day/week (sort: TRENDING_DESC)
       getTrendingAnime(1, 24).then(data => {
@@ -109,14 +110,17 @@ export default function HomePage() {
 
       // 6. Currently Airing: Popular releasing series of current active season
       getCurrentlyAiringAnime(1, 24).then(data => {
-        if (isSubscribed) setAiring(data);
+        if (isSubscribed) {
+          setAiring(data);
+          setNewEpisodes(prev => prev.length > 0 ? prev : data);
+        }
       });
     }
 
     loadHomeData();
 
-    // Auto-refresh schedule data every 60s so new episode releases update automatically in real-time!
-    const scheduleTimer = setInterval(loadScheduleData, 60000);
+    // Auto-refresh released schedule data every 60s so newly launched episodes pop up live!
+    const scheduleTimer = setInterval(loadNewEpisodesData, 60000);
 
     // Listen for real-time watch history updates
     const handleHistoryUpdate = () => {
@@ -208,7 +212,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 4: New Episodes (Live Auto-Updating Schedule Cards with Latest Released Episode Numbers) */}
+      {/* SECTION 4: New Episodes (Strictly Released Episode Numbers Sorted by Most Recent Airing) */}
       {latestEpisodesList.length > 0 && (
         <CarouselRow
           title="New Episodes"
