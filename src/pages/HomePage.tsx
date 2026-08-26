@@ -5,8 +5,7 @@ import {
   getTrendingAnime,
   getPopularAnime,
   getTopRatedAnime,
-  getCurrentlyAiringAnime,
-  getRecentlyAiredEpisodes
+  getCurrentlyAiringAnime
 } from '../services/anilist/client';
 import { fetchWatchHistoryFromSupabase } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
@@ -25,7 +24,6 @@ export default function HomePage() {
   const [popular, setPopular] = useState<AnimeMedia[]>([]);
   const [topRated, setTopRated] = useState<AnimeMedia[]>([]);
   const [airing, setAiring] = useState<AnimeMedia[]>([]);
-  const [newEpisodes, setNewEpisodes] = useState<{ anime: AnimeMedia; episodeNumber: number }[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -53,7 +51,8 @@ export default function HomePage() {
         if (isSubscribed) setWatchHistory(historyData);
       });
 
-      // 2. Trending Now (based on recent weekly/daily visit & viewing momentum: TRENDING_DESC)
+      // 2. High-speed progressive stream loading for 0ms initial render
+      // Trending Now: Recent visits in present day/week (sort: TRENDING_DESC)
       getTrendingAnime(1, 24).then(data => {
         if (isSubscribed) {
           setTrending(data);
@@ -63,24 +62,19 @@ export default function HomePage() {
         if (isSubscribed) setLoading(false);
       });
 
-      // 3. Most Popular (based on total lifetime views/popularity: POPULARITY_DESC)
+      // Most Popular: Total lifetime views & popularity (sort: POPULARITY_DESC)
       getPopularAnime(1, 24).then(data => {
         if (isSubscribed) setPopular(data);
       });
 
-      // 4. All Time Popular (based on highest overall rating: SCORE_DESC)
+      // All Time Popular: Rated based on average user score (sort: SCORE_DESC)
       getTopRatedAnime(1, 24).then(data => {
         if (isSubscribed) setTopRated(data);
       });
 
-      // 5. Currently Airing Series (status: RELEASING)
+      // Currently Airing & New Episodes: Releasing series
       getCurrentlyAiringAnime(1, 24).then(data => {
         if (isSubscribed) setAiring(data);
-      });
-
-      // 6. New Episodes (airingSchedules sort: TIME_DESC live from AniList GraphQL)
-      getRecentlyAiredEpisodes(1, 24).then(data => {
-        if (isSubscribed) setNewEpisodes(data);
       });
     }
 
@@ -101,7 +95,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-16 font-sans">
-      {/* Personalized Greeting Header */}
+      {/* 1. Personalized Greeting Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900/80 pb-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
@@ -111,7 +105,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* Hero Carousel Banner */}
+      {/* 2. Hero Carousel Banner */}
       {loading ? (
         <SkeletonLoader type="hero" />
       ) : (
@@ -155,7 +149,7 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* SECTION 2: Most Popular (Based on lifetime views & popularity) */}
+      {/* SECTION 2: Most Popular (Lifetime total views & popularity) */}
       {popular.length > 0 && (
         <CarouselRow
           title="Most Popular"
@@ -164,7 +158,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 3: Trending Now (Based on recent weekly/daily visit & viewing momentum) */}
+      {/* SECTION 3: Trending Now (Total views/visits in present day, yesterday & past week) */}
       {trending.length > 0 && (
         <CarouselRow
           title="Trending Now"
@@ -173,11 +167,11 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 4: New Episodes (Fetched live via AniList GraphQL airingSchedules sort: TIME_DESC) */}
-      {newEpisodes.length > 0 && (
+      {/* SECTION 4: New Episodes (Latest released anime episodes) */}
+      {airing.length > 0 && (
         <CarouselRow
           title="New Episodes"
-          latestItems={newEpisodes}
+          items={airing}
           variant="latest"
           icon={<Sparkles className="w-4 h-4 text-purple-400" />}
           actionLink={
@@ -188,7 +182,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 5: Currently Airing (Currently releasing anime series) */}
+      {/* SECTION 5: Currently Airing (Currently airing anime series) */}
       {airing.length > 0 && (
         <CarouselRow
           title="Currently Airing"
@@ -197,7 +191,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 6: All Time Popular (Based on highest rating & score) */}
+      {/* SECTION 6: All Time Popular (Highest rated anime based on user score) */}
       {topRated.length > 0 && (
         <CarouselRow
           title="All Time Popular"

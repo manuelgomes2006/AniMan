@@ -5,8 +5,7 @@ import { AnimeMedia } from '../../types/anime';
 
 interface CarouselRowProps {
   title: string;
-  items?: AnimeMedia[];
-  latestItems?: { anime: AnimeMedia; episodeNumber: number }[];
+  items: AnimeMedia[];
   icon?: React.ReactNode;
   variant?: 'standard' | 'latest';
   actionLink?: React.ReactNode;
@@ -15,7 +14,6 @@ interface CarouselRowProps {
 export default function CarouselRow({
   title,
   items,
-  latestItems,
   icon,
   variant = 'standard',
   actionLink
@@ -29,8 +27,7 @@ export default function CarouselRow({
     }
   };
 
-  const hasData = (latestItems && latestItems.length > 0) || (items && items.length > 0);
-  if (!hasData) return null;
+  if (!items || items.length === 0) return null;
 
   return (
     <section className="space-y-3 group relative">
@@ -71,23 +68,14 @@ export default function CarouselRow({
         ref={rowRef}
         className="flex items-center gap-3 overflow-x-auto scrollbar-none scroll-smooth touch-pan-x py-1 px-0.5"
       >
-        {latestItems && latestItems.length > 0
-          ? latestItems.map((item, idx) => (
-              <AnimeCard
-                key={`latest-${item.anime.id}-${idx}`}
-                anime={item.anime}
-                variant="latest"
-                episodeNumber={item.episodeNumber}
-              />
-            ))
-          : items?.map((item, idx) => (
-              <AnimeCard
-                key={`${item.id}-${idx}`}
-                anime={item}
-                variant={variant}
-                episodeNumber={item.nextAiringEpisode?.episode ? Math.max(1, item.nextAiringEpisode.episode - 1) : 1}
-              />
-            ))}
+        {items.map((item, idx) => (
+          <AnimeCard
+            key={`${item.id}-${idx}`}
+            anime={item}
+            variant={variant}
+            episodeNumber={item.nextAiringEpisode?.episode ? item.nextAiringEpisode.episode - 1 : 12}
+          />
+        ))}
       </div>
     </section>
   );
