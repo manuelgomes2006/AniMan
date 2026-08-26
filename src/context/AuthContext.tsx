@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback, useMemo } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
-import { fetchWatchHistoryFromSupabase, fetchWatchlistFromSupabase, getUserAudioPreference } from '../services/userStore';
+import { fetchWatchHistoryFromSupabase, fetchWatchlistFromSupabase } from '../services/userStore';
 
 export interface UserPreferences {
   preferredAudio: 'sub' | 'dub';
@@ -30,7 +30,6 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  updateUserPreferences: (newPrefs: Partial<UserPreferences>) => Promise<void>;
   deleteAccount: () => Promise<boolean>;
 }
 
@@ -48,12 +47,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.removeItem('aniworld_registered_accounts');
       localStorage.removeItem('aniworld_watch_history');
       localStorage.removeItem('aniworld_watchlist');
-      localStorage.removeItem('aniworld_preferred_audio');
       sessionStorage.clear();
     } catch {}
   }, []);
 
-  // Fetch real User Profile and Preferences from Supabase Database
+  // Fetch real User Profile and Preferences from Supabase Database & Auth Metadata
   const loadProfile = useCallback(async (currentUser: User) => {
     if (!currentUser || !currentUser.id || !isSupabaseConfigured()) {
       setProfile(null);
@@ -75,20 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('[AuthContext] Preferences fetch error:', prefErr.message);
       }
 
-      // If user_preferences row does NOT exist yet in Supabase DB, auto-create it now
-      if (!prefData) {
-        const defaultAudio = getUserAudioPreference() || 'sub';
-        await supabase.from('user_preferences').upsert({
-          user_id: currentUser.id,
-          preferred_audio: defaultAudio,
-          autoplay: true,
-          autoplay_next: true,
-          skip_intro: false,
-          skip_outro: false,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' }).catch((e) => console.warn('Auto-create user_preferences notice:', e));
-      }
-
       const username = profileData?.username || currentUser.user_metadata?.username || email.split('@')[0] || 'User';
       const displayName = profileData?.display_name || currentUser.user_metadata?.display_name || username;
       
@@ -99,18 +83,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         rawAvatar = `${rawAvatar}?v=${updatedAtTS}`;
       }
 
-      const cloudAudio = prefData?.preferred_audio === 'dub' ? 'dub' : (prefData?.preferred_audio === 'sub' ? 'sub' : getUserAudioPreference());
-      // Sync local storage preference with Cloud DB source of truth
-      try {
-        localStorage.setItem('aniworld_preferred_audio', cloudAudio);
-      } catch {}
+      // Multi-layer Fail-Safe Preferred Audio resolution (DB -> User Metadata -> Local Storage)
+      const rawAudioPref = (
+        prefData?.preferred_audio ||
+        currentUser.user_metadata?.preferred_audio ||
+        localStorage.getItem('aniworld_preferred_audio') ||
+        'sub'
+      ).toString().toLowerCase().trim();
+
+      const preferredAudio: 'sub' | 'dub' = rawAudioPref === 'dub' ? 'dub' : 'sub';
+
+      // Keep local player storage in 100% sync
+      localStorage.setItem('aniworld_preferred_audio', preferredAudio);
 
       const preferences: UserPreferences = {
-        preferredAudio: cloudAudio,
-        autoplay: prefData?.autoplay ?? true,
-        autoplayNext: prefData?.autoplay_next ?? true,
-        skipIntro: prefData?.skip_intro ?? false,
-        skipOutro: prefData?.skip_outro ?? false,
+        preferredAudio,
+        autoplay: prefData?.autoplay ?? currentUser.user_metadata?.autoplay ?? true,
+        autoplayNext: prefData?.autoplay_next ?? currentUser.user_metadata?.autoplay_next ?? true,
+        skipIntro: prefData?.skip_intro ?? currentUser.user_metadata?.skip_intro ?? false,
+        skipOutro: prefData?.skip_outro ?? currentUser.user_metadata?.skip_outro ?? false,
         updatedAt: prefData?.updated_at || undefined,
       };
 
@@ -270,57 +261,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, loadProfile]);
 
-  const updateUserPreferences = useCallback(async (newPrefs: Partial<UserPreferences>) => {
-    if (!user?.id) return;
-
-    // 1. Calculate updated preferences
-    const currentPreferences = profile?.preferences || {
-      preferredAudio: getUserAudioPreference() || 'sub',
-      autoplay: true,
-      autoplayNext: true,
-      skipIntro: false,
-      skipOutro: false,
-    };
-
-    const updated: UserPreferences = {
-      ...currentPreferences,
-      ...newPrefs,
-      updatedAt: new Date().toISOString()
-    };
-
-    // 2. Optimistic update for local AuthContext state
-    setProfile((prev) => prev ? { ...prev, preferences: updated } : null);
-
-    // 3. Update local storage
-    if (newPrefs.preferredAudio) {
-      try {
-        localStorage.setItem('aniworld_preferred_audio', newPrefs.preferredAudio);
-      } catch {}
-    }
-
-    // 4. Update Supabase Cloud DB
-    if (isSupabaseConfigured()) {
-      try {
-        const payload = {
-          user_id: user.id,
-          preferred_audio: updated.preferredAudio,
-          autoplay: updated.autoplay,
-          autoplay_next: updated.autoplayNext,
-          skip_intro: updated.skipIntro,
-          skip_outro: updated.skipOutro,
-          updated_at: new Date().toISOString()
-        };
-
-        const { error } = await supabase.from('user_preferences').upsert(payload, { onConflict: 'user_id' });
-        if (error) {
-          console.error('[updateUserPreferences DB Error]:', error.message);
-        }
-      } catch (err) {
-        console.error('[updateUserPreferences Exception]:', err);
-      }
-    }
-  }, [profile, user]);
-
   const deleteAccount = useCallback(async (): Promise<boolean> => {
     if (!user || !isSupabaseConfigured()) {
       throw new Error('No authenticated user session found');
@@ -351,10 +291,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signInWithGoogle,
       signOut,
       refreshProfile,
-      updateUserPreferences,
       deleteAccount
     }),
-    [user, session, profile, loading, signInWithGoogle, signOut, refreshProfile, updateUserPreferences, deleteAccount]
+    [user, session, profile, loading, signInWithGoogle, signOut, refreshProfile, deleteAccount]
   );
 
   return (

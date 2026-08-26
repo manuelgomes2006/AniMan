@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
-import { getWatchlist, setUserAudioPreference } from '../services/userStore';
+import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
 import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Volume2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { profile, signOut, updateUserPreferences, refreshProfile, deleteAccount } = useAuth();
+  const { profile, signOut, refreshProfile, deleteAccount } = useAuth();
 
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -88,7 +88,7 @@ export default function ProfilePage() {
       }
 
       // 2. Save audio preference in local player store
-      await setUserAudioPreference(preferredAudio);
+      setUserAudioPreference(preferredAudio);
 
       // 3. Update profiles table in Supabase Cloud DB (only valid profile columns)
       if (isSupabaseConfigured() && profile?.id) {
@@ -116,8 +116,8 @@ export default function ProfilePage() {
           }
         }).catch(() => {});
 
-        // 4. Update user_preferences table in Supabase Cloud DB & AuthContext state
-        await updateUserPreferences({
+        // 4. Update user_preferences table in Supabase Cloud DB
+        await syncAllUserPreferencesToSupabase(profile.id, {
           preferredAudio,
           autoplay,
           autoplayNext,
