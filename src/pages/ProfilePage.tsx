@@ -1,13 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
-import { getWatchlist } from '../services/userStore';
+import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
 import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Volume2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { profile, signOut, refreshProfile, deleteAccount, loading: authLoading } = useAuth();
+  const { profile, signOut, refreshProfile, deleteAccount } = useAuth();
 
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
@@ -21,9 +21,6 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Track if profile has populated the form to prevent wiping user edits while typing
-  const hasLoadedProfile = useRef(false);
 
   // Double Confirmation Delete Account Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -39,13 +36,11 @@ export default function ProfilePage() {
     favorites: 0
   });
 
-  // Populate form state whenever a valid profile is loaded
   useEffect(() => {
-    if (profile && (!hasLoadedProfile.current || !username)) {
-      hasLoadedProfile.current = true;
-      setDisplayName(profile.displayName || profile.username || '');
-      setUsername(profile.username || '');
-      setAvatarUrl(profile.avatarUrl || '');
+    if (profile) {
+      setDisplayName(profile.displayName || profile.username);
+      setUsername(profile.username);
+      setAvatarUrl(profile.avatarUrl);
       setPreferredAudio(profile.preferences?.preferredAudio || 'sub');
       setAutoplay(profile.preferences?.autoplay ?? true);
       setAutoplayNext(profile.preferences?.autoplayNext ?? true);
@@ -69,86 +64,79 @@ export default function ProfilePage() {
     setSavedSuccess(false);
 
     const cleanUsername = username.trim().toLowerCase();
-    const cleanDisplayName = displayName.trim() || cleanUsername;
-    const cleanAvatarUrl = avatarUrl.trim();
 
     try {
-      if (!profile?.id || !isSupabaseConfigured()) {
-        throw new Error('User session not found or database client is unavailable.');
-      }
-
       // 1. Validate Username Uniqueness via Supabase Database if username changed
-      if (cleanUsername !== profile.username.toLowerCase()) {
-        const { data: existing, error: checkError } = await supabase
-          .from('profiles')
-          .select('id, username')
-          .eq('username', cleanUsername)
-          .maybeSingle();
+      if (profile && cleanUsername !== profile.username.toLowerCase()) {
+        if (isSupabaseConfigured()) {
+          const { data: existing, error: checkError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .eq('username', cleanUsername)
+            .maybeSingle();
 
-        if (checkError) {
-          console.error('[Username Check Notice]', checkError.message);
-        } else if (existing && existing.id !== profile.id) {
-          setErrorMsg(`Username '@${cleanUsername}' is already taken by another user.`);
-          setSaving(false);
-          return;
+          if (checkError) {
+            throw new Error(`Username check error: ${checkError.message}`);
+          }
+
+          if (existing && existing.id !== profile.id) {
+            setErrorMsg(`Username '@${cleanUsername}' is already taken by another user.`);
+            setSaving(false);
+            return;
+          }
         }
       }
 
-      const updatedAt = new Date().toISOString();
+      // 2. Save audio preference in local player store
+      await setUserAudioPreference(preferredAudio);
 
-      // 2. Update profiles table in Supabase Cloud DB
-      const { error: profileError } = await supabase.from('profiles').upsert({
-        id: profile.id,
-        username: cleanUsername,
-        display_name: cleanDisplayName,
-        avatar_url: cleanAvatarUrl,
-        updated_at: updatedAt
-      }, { onConflict: 'id' });
+      // 3. Update profiles table in Supabase Cloud DB (only valid profile columns)
+      if (isSupabaseConfigured() && profile?.id) {
+        const updatedAt = new Date().toISOString();
 
-      if (profileError) {
-        console.error('[Supabase Profile Update Error]', profileError);
-        throw new Error(profileError.message || 'Failed to update profile in database');
-      }
-
-      // 3. Update user_preferences table in Supabase Cloud DB
-      const { error: prefError } = await supabase.from('user_preferences').upsert({
-        user_id: profile.id,
-        preferred_audio: preferredAudio,
-        autoplay,
-        autoplay_next: autoplayNext,
-        skip_intro: skipIntro,
-        skip_outro: skipOutro,
-        updated_at: updatedAt
-      }, { onConflict: 'user_id' });
-
-      if (prefError) {
-        console.error('[Supabase Preferences Update Error]', prefError);
-        throw new Error(prefError.message || 'Failed to update preferences in database');
-      }
-
-      // 4. Update Supabase Auth Metadata
-      await supabase.auth.updateUser({
-        data: {
+        const { error: profileError } = await supabase.from('profiles').upsert({
+          id: profile.id,
           username: cleanUsername,
-          display_name: cleanDisplayName,
-          avatar_url: cleanAvatarUrl
+          display_name: displayName.trim(),
+          avatar_url: avatarUrl.trim(),
+          updated_at: updatedAt
+        }, { onConflict: 'id' });
+
+        if (profileError) {
+          console.error('[Supabase Profile Update Error]', profileError);
+          throw new Error(profileError.message || 'Failed to update profile in database');
         }
-      }).catch(() => {});
 
-      // 5. Update local storage audio preference
-      localStorage.setItem('aniworld_preferred_audio', preferredAudio);
+        // Sync metadata back to Supabase Auth User Metadata
+        await supabase.auth.updateUser({
+          data: {
+            username: cleanUsername,
+            display_name: displayName.trim(),
+            avatar_url: avatarUrl.trim()
+          }
+        }).catch(() => {});
 
-      // 6. Re-fetch cloud profile from database and reset load lock
-      hasLoadedProfile.current = false;
-      await refreshProfile();
+        // 4. Update user_preferences table in Supabase Cloud DB
+        await syncAllUserPreferencesToSupabase(profile.id, {
+          preferredAudio,
+          autoplay,
+          autoplayNext,
+          skipIntro,
+          skipOutro
+        });
 
+        // 5. Re-fetch cloud profile from database to confirm UI matches DB
+        await refreshProfile();
+      }
+
+      setSaving(false);
       setSavedSuccess(true);
       setTimeout(() => setSavedSuccess(false), 3500);
     } catch (err: any) {
       console.error('[SETTINGS SAVE ERROR]', err);
       setErrorMsg(err?.message || 'Failed to save changes to database. Please try again.');
-    } finally {
       setSaving(false);
+      setSavedSuccess(false);
     }
   };
 
@@ -189,32 +177,24 @@ export default function ProfilePage() {
     }
   };
 
-  if (authLoading && !profile) {
-    return (
-      <div className="flex items-center justify-center py-20">
-        <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
-      </div>
-    );
-  }
-
   return (
-    <div className="max-w-4xl mx-auto space-y-8 pb-16 font-sans text-white">
+    <div className="max-w-4xl mx-auto space-y-8 pb-16 font-sans">
       {/* 1. Profile Header & Avatar Card */}
       <div className="bg-[#0D0D12] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
           <img
-            src={avatarUrl || profile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'}
-            alt={username || 'Profile'}
+            src={avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'}
+            alt={profile?.username || 'Profile'}
             className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-purple-500/40 shadow-xl"
           />
           <div className="space-y-1">
             <div className="flex items-center justify-center sm:justify-start gap-2">
-              <h1 className="text-xl sm:text-2xl font-black text-white">{displayName || username || 'Member'}</h1>
+              <h1 className="text-xl sm:text-2xl font-black text-white">{displayName || username}</h1>
               <span className="bg-purple-600/30 text-purple-400 text-[10px] font-extrabold px-2.5 py-0.5 rounded-full border border-purple-500/40 uppercase">
                 Member
               </span>
             </div>
-            <p className="text-xs text-slate-400 font-medium">@{username || 'user'} • {profile?.email}</p>
+            <p className="text-xs text-slate-400 font-medium">@{username} • {profile?.email}</p>
           </div>
         </div>
 

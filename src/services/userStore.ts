@@ -30,21 +30,28 @@ export function getUserAudioPreference(): 'sub' | 'dub' {
   return saved === 'dub' ? 'dub' : 'sub';
 }
 
-export function setUserAudioPreference(preference: 'sub' | 'dub'): void {
+export async function setUserAudioPreference(preference: 'sub' | 'dub'): Promise<boolean> {
   localStorage.setItem(STORAGE_KEYS.PREFERRED_AUDIO, preference);
 
-  // Sync to Supabase Database
-  supabase.auth.getSession().then(({ data: { session } }) => {
-    if (session?.user) {
-      supabase.from('user_preferences').upsert({
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.user?.id) {
+      const { error } = await supabase.from('user_preferences').upsert({
         user_id: session.user.id,
         preferred_audio: preference,
         updated_at: new Date().toISOString()
-      }, { onConflict: 'user_id' }).then(({ error }) => {
-        if (error) console.error('[Supabase Sync Audio Error]:', error.message);
-      });
+      }, { onConflict: 'user_id' });
+
+      if (error) {
+        console.error('[Supabase Sync Audio Error]:', error.message);
+        return false;
+      }
     }
-  });
+    return true;
+  } catch (err) {
+    console.error('[setUserAudioPreference Exception]:', err);
+    return false;
+  }
 }
 
 export async function syncAllUserPreferencesToSupabase(
@@ -74,6 +81,9 @@ export async function syncAllUserPreferencesToSupabase(
     console.error('[UserPreferences Database Upsert Error]:', error.message);
     throw error;
   }
+
+  // Update local storage preference
+  localStorage.setItem(STORAGE_KEYS.PREFERRED_AUDIO, prefs.preferredAudio);
   return true;
 }
 

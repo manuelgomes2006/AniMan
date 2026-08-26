@@ -109,15 +109,15 @@ export default function WatchPage() {
 
   const handleAudioChange = async (variant: 'sub' | 'dub') => {
     setAudioVariant(variant);
-    setUserAudioPreference(variant);
+    await setUserAudioPreference(variant);
 
     if (profile?.id) {
       await syncAllUserPreferencesToSupabase(profile.id, {
         preferredAudio: variant,
-        autoplay: profile.preferences?.autoplay,
-        autoplayNext: profile.preferences?.autoplayNext,
-        skipIntro: profile.preferences?.skipIntro,
-        skipOutro: profile.preferences?.skipOutro,
+        autoplay: profile.preferences?.autoplay ?? true,
+        autoplayNext: profile.preferences?.autoplayNext ?? true,
+        skipIntro: profile.preferences?.skipIntro ?? false,
+        skipOutro: profile.preferences?.skipOutro ?? false,
       }).catch(() => {});
       await refreshProfile().catch(() => {});
     }
