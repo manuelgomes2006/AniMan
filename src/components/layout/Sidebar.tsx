@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, Compass, Flame, Bookmark, History, User, Settings, Moon } from 'lucide-react';
+import { Home, Compass, Flame, Bookmark, History, User } from 'lucide-react';
 
 export default function Sidebar() {
   const location = useLocation();
@@ -40,16 +40,6 @@ export default function Sidebar() {
             </Link>
           );
         })}
-      </div>
-
-      {/* Bottom Settings & Theme Action */}
-      <div className="flex flex-col items-center gap-2">
-        <button
-          className="w-9 h-9 rounded-xl bg-[#0D0D12] text-slate-400 hover:text-white border border-slate-800 flex items-center justify-center transition hover:border-purple-500/40 cursor-pointer"
-          title="Toggle Dark Theme"
-        >
-          <Moon className="w-4 h-4" />
-        </button>
       </div>
     </aside>
   );

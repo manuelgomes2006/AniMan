@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Search, Bell, Menu, Tv, Bookmark, User, Settings, LogOut } from 'lucide-react';
+import { Search, Menu, Tv, Bookmark, User, Settings, LogOut } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import MobileDrawer from './MobileDrawer';
 import MobileSearchModal from '../common/MobileSearchModal';
@@ -12,9 +12,8 @@ interface NavbarProps {
 
 export default function Navbar({ onOpenSearch }: NavbarProps) {
   const location = useLocation();
-  const { profile, signOut } = useAuth();
+  const { profile } = useAuth();
   
-  const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [isMobileSearchOpen, setIsMobileSearchOpen] = useState(false);
@@ -22,11 +21,9 @@ export default function Navbar({ onOpenSearch }: NavbarProps) {
   const isActive = (path: string) => location.pathname === path;
 
   const username = profile?.displayName || profile?.username || 'Member';
-  const email = profile?.email || 'user@aniworld.io';
   const avatarUrl = profile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
 
   const handleOpenProfileModal = () => {
-    setShowProfileMenu(false);
     setIsProfileModalOpen(true);
   };
 
@@ -93,14 +90,6 @@ export default function Navbar({ onOpenSearch }: NavbarProps) {
               <kbd className="hidden sm:inline-block ml-auto bg-slate-900 text-[10px] text-slate-500 px-1.5 py-0.5 rounded border border-slate-800 font-mono">
                 /
               </kbd>
-            </button>
-
-            <button
-              className="p-2 text-slate-400 hover:text-white hover:bg-slate-900 rounded-xl relative transition"
-              title="Notifications"
-            >
-              <Bell className="w-4 h-4" />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
             </button>
 
             {/* Profile Avatar Circle Button */}
