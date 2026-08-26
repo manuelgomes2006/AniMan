@@ -203,17 +203,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'watch_history', filter: `user_id=eq.${user.id}` },
-          () => {
-            fetchWatchHistoryFromSupabase();
-            window.dispatchEvent(new CustomEvent('aniworld_history_updated'));
+          async (payload) => {
+            console.log('[Supabase Realtime] Multi-device watch progress updated:', payload);
+            const freshHistory = await fetchWatchHistoryFromSupabase();
+            window.dispatchEvent(new CustomEvent('aniworld_history_updated', { detail: freshHistory }));
           }
         )
         .on(
           'postgres_changes',
           { event: '*', schema: 'public', table: 'watchlist', filter: `user_id=eq.${user.id}` },
-          () => {
-            fetchWatchlistFromSupabase();
-            window.dispatchEvent(new CustomEvent('aniworld_watchlist_updated'));
+          async (payload) => {
+            console.log('[Supabase Realtime] Multi-device watchlist updated:', payload);
+            const freshWatchlist = await fetchWatchlistFromSupabase();
+            window.dispatchEvent(new CustomEvent('aniworld_watchlist_updated', { detail: freshWatchlist }));
           }
         )
         .subscribe();
