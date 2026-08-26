@@ -7,7 +7,7 @@ import {
   getTopRatedAnime,
   getCurrentlyAiringAnime
 } from '../services/anilist/client';
-import { fetchWatchHistoryFromSupabase, getWatchHistory } from '../services/userStore';
+import { fetchWatchHistoryFromSupabase } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
 import { WatchProgress } from '../types/user';
 
@@ -35,18 +35,19 @@ export default function HomePage() {
     return 'Good evening';
   };
 
-  const username = profile?.displayName || profile?.username || 'Member';
+  const username = profile?.displayName || profile?.username || 'Manuel';
+
+  const loadHistory = () => {
+    fetchWatchHistoryFromSupabase().then(historyData => {
+      setWatchHistory(historyData);
+    });
+  };
 
   useEffect(() => {
     let isSubscribed = true;
 
     async function loadHomeData() {
-      // 1. Load initial watch history
-      const localHist = getWatchHistory();
-      if (isSubscribed && localHist.length > 0) {
-        setWatchHistory(localHist);
-      }
-
+      // 1. Instant non-blocking watch history load
       fetchWatchHistoryFromSupabase().then(historyData => {
         if (isSubscribed) setWatchHistory(historyData);
       });
@@ -79,12 +80,9 @@ export default function HomePage() {
 
     loadHomeData();
 
-    // Real-Time Watch History Event Listener
+    // Listen for real-time watch history updates
     const handleHistoryUpdate = () => {
-      const updatedLocal = getWatchHistory();
-      if (isSubscribed) {
-        setWatchHistory(updatedLocal);
-      }
+      if (isSubscribed) loadHistory();
     };
 
     window.addEventListener('aniworld_history_updated', handleHistoryUpdate);
@@ -114,7 +112,7 @@ export default function HomePage() {
         trending.length > 0 && <HeroCarousel items={trending.slice(0, 5)} />
       )}
 
-      {/* 3. Continue Watching Row (Dynamic real-time progress) */}
+      {/* 3. Continue Watching Row (Loaded from Supabase watch_history) */}
       {watchHistory.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -124,9 +122,6 @@ export default function HomePage() {
                 Continue Watching
               </h2>
             </div>
-            <Link to="/watchlist?tab=history" className="text-xs font-extrabold text-purple-400 hover:underline">
-              View History →
-            </Link>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
@@ -136,10 +131,8 @@ export default function HomePage() {
                 title: { romaji: hist.title, english: hist.title },
                 coverImage: { large: hist.coverImage, extraLarge: hist.coverImage, medium: hist.coverImage }
               };
-
               const remainingSecs = Math.max(0, hist.duration - hist.currentTime);
               const remainingMins = Math.max(1, Math.round(remainingSecs / 60));
-              const timeLeftText = hist.duration > 0 ? `${remainingMins}m left` : 'Resume';
 
               return (
                 <AnimeCard
@@ -150,7 +143,7 @@ export default function HomePage() {
                     episodeNumber: hist.episodeNumber,
                     currentTime: hist.currentTime,
                     duration: hist.duration,
-                    timeLeft: timeLeftText
+                    timeLeft: `${remainingMins}m left`
                   }}
                 />
               );
