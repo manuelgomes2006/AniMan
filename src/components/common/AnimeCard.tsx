@@ -54,7 +54,7 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
 
   // HiAnime-Style Latest Episode Card Variant
   if (variant === 'latest') {
-    const epNum = episodeNumber || 1;
+    const epNum = episodeNumber || anime.latestEpisodeNumber || (anime.nextAiringEpisode?.episode ? Math.max(1, anime.nextAiringEpisode.episode - 1) : 1);
     return (
       <div className="group relative bg-[#0D0D12] rounded-xl overflow-hidden border border-slate-900/90 hover:border-purple-500/50 transition-all duration-300 flex flex-col shadow-md w-[115px] sm:w-[135px] md:w-[155px] lg:w-[165px] shrink-0 gpu-accelerated active:scale-95">
         <Link to={`/watch/${anime.id}/${epNum}`} className="relative aspect-[2/3] overflow-hidden bg-slate-950 block">

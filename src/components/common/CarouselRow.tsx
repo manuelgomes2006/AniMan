@@ -73,7 +73,7 @@ export default function CarouselRow({
             key={`${item.id}-${idx}`}
             anime={item}
             variant={variant}
-            episodeNumber={item.nextAiringEpisode?.episode ? item.nextAiringEpisode.episode - 1 : 12}
+            episodeNumber={item.latestEpisodeNumber || (item.nextAiringEpisode?.episode ? Math.max(1, item.nextAiringEpisode.episode - 1) : 1)}
           />
         ))}
       </div>

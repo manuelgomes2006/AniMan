@@ -5,7 +5,8 @@ import {
   getTrendingAnime,
   getPopularAnime,
   getTopRatedAnime,
-  getCurrentlyAiringAnime
+  getCurrentlyAiringAnime,
+  getAiringSchedule
 } from '../services/anilist/client';
 import { fetchWatchHistoryFromSupabase } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
@@ -24,6 +25,7 @@ export default function HomePage() {
   const [popular, setPopular] = useState<AnimeMedia[]>([]);
   const [topRated, setTopRated] = useState<AnimeMedia[]>([]);
   const [airing, setAiring] = useState<AnimeMedia[]>([]);
+  const [newEpisodes, setNewEpisodes] = useState<AnimeMedia[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,8 +53,49 @@ export default function HomePage() {
         if (isSubscribed) setWatchHistory(historyData);
       });
 
-      // 2. High-speed progressive stream loading for 0ms initial render
-      // Trending Now: Recent visits in present day/week (sort: TRENDING_DESC)
+      // 2. Fetch Airing Release Schedule for "New Episodes" column
+      const nowSecs = Math.floor(Date.now() / 1000);
+      const startOfWeek = nowSecs - 7 * 86400;
+      const endOfWeek = nowSecs + 7 * 86400;
+
+      getAiringSchedule(startOfWeek, endOfWeek).then(scheduleItems => {
+        if (!isSubscribed) return;
+
+        // Filter releases that have ALREADY aired or are airing right now (airingAt <= nowSecs + 3600)
+        // Sort descending by airingAt so the most recent releases come first
+        const releasedItems = scheduleItems
+          .filter(item => item.airingAt <= nowSecs + 3600 && item.media)
+          .sort((a, b) => b.airingAt - a.airingAt);
+
+        const uniqueAnimeMap = new Map<number, AnimeMedia>();
+        releasedItems.forEach(item => {
+          if (!uniqueAnimeMap.has(item.media.id)) {
+            uniqueAnimeMap.set(item.media.id, {
+              ...item.media,
+              latestEpisodeNumber: item.episode
+            });
+          }
+        });
+
+        // Fallback: If released list is small, include all schedule items sorted by airingAt
+        if (uniqueAnimeMap.size < 12) {
+          scheduleItems.forEach(item => {
+            if (item.media && !uniqueAnimeMap.has(item.media.id)) {
+              uniqueAnimeMap.set(item.media.id, {
+                ...item.media,
+                latestEpisodeNumber: item.episode
+              });
+            }
+          });
+        }
+
+        const latestReleasedList = Array.from(uniqueAnimeMap.values());
+        if (latestReleasedList.length > 0) {
+          setNewEpisodes(latestReleasedList);
+        }
+      }).catch(err => console.warn('Schedule load error for new episodes:', err));
+
+      // 3. Trending Now: Recent visits in present day/week (sort: TRENDING_DESC)
       getTrendingAnime(1, 24).then(data => {
         if (isSubscribed) {
           setTrending(data);
@@ -62,19 +105,22 @@ export default function HomePage() {
         if (isSubscribed) setLoading(false);
       });
 
-      // Most Popular: Total lifetime views & popularity (sort: POPULARITY_DESC)
+      // 4. Most Popular: Total lifetime views & popularity (sort: POPULARITY_DESC)
       getPopularAnime(1, 24).then(data => {
         if (isSubscribed) setPopular(data);
       });
 
-      // All Time Popular: Rated based on average user score (sort: SCORE_DESC)
+      // 5. All Time Popular: Rated based on average user score (sort: SCORE_DESC)
       getTopRatedAnime(1, 24).then(data => {
         if (isSubscribed) setTopRated(data);
       });
 
-      // Currently Airing & New Episodes: Releasing series
+      // 6. Currently Airing & New Episodes: Releasing series
       getCurrentlyAiringAnime(1, 24).then(data => {
-        if (isSubscribed) setAiring(data);
+        if (isSubscribed) {
+          setAiring(data);
+          setNewEpisodes(prev => prev.length > 0 ? prev : data);
+        }
       });
     }
 
@@ -92,6 +138,8 @@ export default function HomePage() {
       window.removeEventListener('aniworld_history_updated', handleHistoryUpdate);
     };
   }, []);
+
+  const latestEpisodesList = newEpisodes.length > 0 ? newEpisodes : airing;
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-16 font-sans">
@@ -167,11 +215,11 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 4: New Episodes (Latest released anime episodes) */}
-      {airing.length > 0 && (
+      {/* SECTION 4: New Episodes (Real-Time Airing Schedule Released Episode Numbers) */}
+      {latestEpisodesList.length > 0 && (
         <CarouselRow
           title="New Episodes"
-          items={airing}
+          items={latestEpisodesList}
           variant="latest"
           icon={<Sparkles className="w-4 h-4 text-purple-400" />}
           actionLink={
@@ -182,7 +230,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 5: Currently Airing (Currently airing anime series) */}
+      {/* SECTION 5: Currently Airing (Popular Anime of the Current Active Season) */}
       {airing.length > 0 && (
         <CarouselRow
           title="Currently Airing"

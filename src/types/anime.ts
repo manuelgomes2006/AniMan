@@ -65,6 +65,7 @@ export interface AnimeMedia {
     timeUntilAiring: number;
     episode: number;
   };
+  latestEpisodeNumber?: number;
   startDate?: {
     year?: number;
     month?: number;
