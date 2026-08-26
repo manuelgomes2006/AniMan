@@ -1,24 +1,63 @@
 import React, { useEffect, useState } from 'react';
 import { getAiringSchedule, AiringScheduleItem } from '../services/anilist/client';
-import AnimeCard from '../components/common/AnimeCard';
-import { Calendar, Clock, Loader2, Play } from 'lucide-react';
+import { Calendar, Clock, Loader2, Play, CheckCircle, Sparkles, AlertCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-export default function SchedulePage() {
-  const daysOfWeek = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const todayIndex = new Date().getDay();
+interface DayOption {
+  dayName: string;
+  dateStr: string;
+  dayIndex: number;
+  dateTimestamp: number; // Start of day timestamp
+  isToday: boolean;
+  isTomorrow: boolean;
+  isYesterday: boolean;
+}
 
-  const [selectedDayIndex, setSelectedDayIndex] = useState(todayIndex);
+export default function SchedulePage() {
   const [scheduleItems, setScheduleItems] = useState<AiringScheduleItem[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Generate 7-day relative sliding window (3 days past, Today, 3 days future)
+  const [weekDays, setWeekDays] = useState<DayOption[]>([]);
+  const [selectedDayTimestamp, setSelectedDayTimestamp] = useState<number>(0);
+
+  useEffect(() => {
+    const today = new Date();
+    const days: DayOption[] = [];
+
+    for (let i = -3; i <= 3; i++) {
+      const d = new Date(today);
+      d.setDate(today.getDate() + i);
+      d.setHours(0, 0, 0, 0);
+
+      const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+      const dateStr = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      const startOfDayTimestamp = Math.floor(d.getTime() / 1000);
+
+      days.push({
+        dayName,
+        dateStr,
+        dayIndex: d.getDay(),
+        dateTimestamp: startOfDayTimestamp,
+        isToday: i === 0,
+        isTomorrow: i === 1,
+        isYesterday: i === -1
+      });
+    }
+
+    setWeekDays(days);
+    const todayObj = days.find(d => d.isToday) || days[3];
+    setSelectedDayTimestamp(todayObj.dateTimestamp);
+  }, []);
 
   useEffect(() => {
     async function loadSchedule() {
       setLoading(true);
       try {
         const now = Math.floor(Date.now() / 1000);
-        const startOfWeek = now - 7 * 86400;
-        const endOfWeek = now + 7 * 86400;
+        // Request 5 days before to 5 days after
+        const startOfWeek = now - 5 * 86400;
+        const endOfWeek = now + 5 * 86400;
 
         const data = await getAiringSchedule(startOfWeek, endOfWeek);
         setScheduleItems(data);
@@ -31,11 +70,15 @@ export default function SchedulePage() {
     loadSchedule();
   }, []);
 
-  // Filter airing items by selected day of the week
+  const nowTimestamp = Math.floor(Date.now() / 1000);
+
+  // Filter airing items by selected startOfDayTimestamp (24h window)
   const daySchedule = scheduleItems.filter(item => {
-    const itemDay = new Date(item.airingAt * 1000).getDay();
-    return itemDay === selectedDayIndex;
+    const endOfDayTimestamp = selectedDayTimestamp + 86400;
+    return item.airingAt >= selectedDayTimestamp && item.airingAt < endOfDayTimestamp;
   });
+
+  const selectedDayObj = weekDays.find(d => d.dateTimestamp === selectedDayTimestamp) || weekDays[0];
 
   const formatAirTime = (timestamp: number) => {
     const date = new Date(timestamp * 1000);
@@ -43,41 +86,70 @@ export default function SchedulePage() {
   };
 
   return (
-    <div className="space-y-6 pb-16">
+    <div className="space-y-6 pb-16 font-sans">
       {/* Top Header */}
       <div className="border-b border-slate-900 pb-4">
         <h1 className="text-xl sm:text-3xl font-black text-white flex items-center gap-2 tracking-tight">
-          <Calendar className="w-5 h-5 text-purple-400" />
-          Airing Release Schedule
+          <Calendar className="w-6 h-6 text-purple-400" />
+          Weekly Anime Release Schedule
         </h1>
-        <p className="text-xs text-slate-400">Weekly broadcast times for currently releasing anime series.</p>
+        <p className="text-xs text-slate-400">
+          Track upcoming release times for tomorrow, past broadcasts, and live today releases.
+        </p>
       </div>
 
-      {/* Day Selector Tabs */}
-      <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
-        {daysOfWeek.map((dayName, idx) => {
-          const isToday = idx === todayIndex;
-          const isSelected = idx === selectedDayIndex;
+      {/* 7-Day Date Selector Bar */}
+      <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
+        {weekDays.map((day) => {
+          const isSelected = day.dateTimestamp === selectedDayTimestamp;
           return (
             <button
-              key={dayName}
-              onClick={() => setSelectedDayIndex(idx)}
-              className={`px-4 py-2 rounded-2xl text-xs font-extrabold whitespace-nowrap transition flex flex-col items-center gap-0.5 ${
+              key={day.dateTimestamp}
+              onClick={() => setSelectedDayTimestamp(day.dateTimestamp)}
+              className={`px-4 py-2.5 rounded-2xl text-xs font-extrabold whitespace-nowrap transition-all flex flex-col items-center gap-0.5 cursor-pointer min-w-[76px] ${
                 isSelected
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-950/60 ring-2 ring-purple-500/40'
-                  : 'bg-[#0D0D12] text-slate-400 hover:text-white border border-slate-800'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-950/60 ring-2 ring-purple-500/40 scale-105'
+                  : 'bg-[#0D0D12] text-slate-400 hover:text-white border border-slate-800/80 hover:border-slate-700'
               }`}
             >
-              <span>{dayName}</span>
-              {isToday && (
-                <span className="text-[9px] uppercase tracking-wider text-purple-300 font-black">
+              <div className="flex items-center gap-1">
+                <span>{day.dayName}</span>
+                <span className="text-[10px] opacity-80 font-normal">{day.dateStr}</span>
+              </div>
+              {day.isToday ? (
+                <span className="text-[9px] uppercase tracking-wider text-purple-200 font-black bg-purple-900/60 px-1.5 py-0.5 rounded-full">
                   Today
                 </span>
-              )}
+              ) : day.isTomorrow ? (
+                <span className="text-[9px] uppercase tracking-wider text-amber-300 font-black bg-amber-950/60 px-1.5 py-0.5 rounded-full">
+                  Tomorrow
+                </span>
+              ) : day.isYesterday ? (
+                <span className="text-[9px] uppercase tracking-wider text-slate-400 font-medium">
+                  Yesterday
+                </span>
+              ) : null}
             </button>
           );
         })}
       </div>
+
+      {/* Selected Day Info Badge */}
+      {selectedDayObj && (
+        <div className="flex items-center justify-between bg-[#0D0D12] border border-slate-800/80 px-4 py-2.5 rounded-2xl text-xs">
+          <div className="flex items-center gap-2 font-bold text-slate-300">
+            <Clock className="w-4 h-4 text-purple-400" />
+            <span>
+              Schedule for <strong className="text-white">{selectedDayObj.dayName}, {selectedDayObj.dateStr}</strong>
+              {selectedDayObj.isToday && <span className="text-purple-400 font-extrabold ml-1.5">(Today)</span>}
+              {selectedDayObj.isTomorrow && <span className="text-amber-400 font-extrabold ml-1.5">(Tomorrow)</span>}
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-400 font-semibold">
+            {daySchedule.length} release{daySchedule.length === 1 ? '' : 's'}
+          </span>
+        </div>
+      )}
 
       {/* Day Schedule Grid */}
       {loading ? (
@@ -85,50 +157,74 @@ export default function SchedulePage() {
           <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
         </div>
       ) : daySchedule.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
           {daySchedule.map((item) => {
             const title = item.media.title?.english || item.media.title?.romaji || 'Anime';
             const cover = item.media.coverImage?.large || item.media.coverImage?.extraLarge;
+            const hasAired = item.airingAt <= nowTimestamp;
+            const isAiringSoon = !hasAired && item.airingAt <= nowTimestamp + 86400;
+
             return (
               <div
                 key={item.id}
-                className="bg-[#0D0D12] border border-slate-800/80 rounded-2xl p-3 flex items-center gap-3.5 group hover:border-purple-500/50 transition"
+                className="bg-[#0D0D12] border border-slate-800/80 rounded-2xl p-3.5 flex items-center gap-3.5 group hover:border-purple-500/50 transition shadow-md"
               >
-                <Link to={`/anime/${item.media.id}`} className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden bg-slate-950 shrink-0">
+                <Link to={`/anime/${item.media.id}`} className="relative w-16 aspect-[3/4] rounded-xl overflow-hidden bg-slate-950 shrink-0 shadow-md">
                   <img src={cover} alt={title} className="w-full h-full object-cover group-hover:scale-105 transition" />
-                  <div className="absolute top-1 left-1 bg-purple-600 text-white text-[8px] font-black px-1 rounded">
+                  <div className="absolute top-1 left-1 bg-purple-600 text-white text-[8px] font-black px-1 rounded shadow">
                     EP {item.episode}
                   </div>
                 </Link>
 
-                <div className="flex-1 min-w-0">
+                <div className="flex-1 min-w-0 space-y-1">
                   <Link to={`/anime/${item.media.id}`} className="font-extrabold text-xs text-white line-clamp-1 group-hover:text-purple-400 transition">
                     {title}
                   </Link>
-                  <span className="text-[10px] text-purple-400 font-semibold block mt-0.5">
-                    Episode {item.episode}
-                  </span>
-                  <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-1">
-                    <Clock className="w-3 h-3 text-amber-400" />
-                    <span>Airs at {formatAirTime(item.airingAt)}</span>
+
+                  <div className="flex items-center gap-2 text-[10px]">
+                    <span className="text-purple-400 font-bold">Episode {item.episode}</span>
+                    <span>•</span>
+                    {hasAired ? (
+                      <span className="text-emerald-400 font-bold flex items-center gap-1 bg-emerald-950/40 border border-emerald-800/60 px-1.5 py-0.5 rounded-md">
+                        <CheckCircle className="w-2.5 h-2.5 text-emerald-400" /> Aired
+                      </span>
+                    ) : isAiringSoon ? (
+                      <span className="text-amber-300 font-bold flex items-center gap-1 bg-amber-950/40 border border-amber-800/60 px-1.5 py-0.5 rounded-md animate-pulse">
+                        <Sparkles className="w-2.5 h-2.5 text-amber-400" /> Airing Soon
+                      </span>
+                    ) : (
+                      <span className="text-indigo-300 font-bold bg-indigo-950/40 border border-indigo-800/60 px-1.5 py-0.5 rounded-md">
+                        Upcoming
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1 text-[10px] text-slate-400 pt-0.5">
+                    <Clock className="w-3 h-3 text-amber-400 shrink-0" />
+                    <span>Airs at <strong className="text-slate-200">{formatAirTime(item.airingAt)}</strong></span>
                   </div>
                 </div>
 
                 <Link
                   to={`/watch/${item.media.id}/${item.episode}`}
-                  className="w-8 h-8 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg hover:scale-110 transition shrink-0"
+                  className="w-9 h-9 rounded-full bg-purple-600 hover:bg-purple-500 text-white flex items-center justify-center shadow-lg hover:scale-105 transition shrink-0 cursor-pointer"
                   title="Watch Episode"
                 >
-                  <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+                  <Play className="w-4 h-4 fill-white ml-0.5" />
                 </Link>
               </div>
             );
           })}
         </div>
       ) : (
-        <div className="text-center py-20 bg-[#0D0D12] rounded-3xl border border-slate-900">
-          <Calendar className="w-10 h-10 text-slate-700 mx-auto mb-2" />
-          <p className="text-slate-400 text-sm font-medium">No anime releases scheduled for {daysOfWeek[selectedDayIndex]}.</p>
+        <div className="text-center py-20 bg-[#0D0D12] rounded-3xl border border-slate-900 space-y-2">
+          <Calendar className="w-10 h-10 text-slate-600 mx-auto mb-2" />
+          <p className="text-slate-300 text-sm font-bold">
+            No anime releases scheduled for {selectedDayObj ? `${selectedDayObj.dayName}, ${selectedDayObj.dateStr}` : 'this day'}.
+          </p>
+          <p className="text-slate-500 text-xs">
+            Check neighboring days or browse currently releasing series in the Browse tab.
+          </p>
         </div>
       )}
     </div>

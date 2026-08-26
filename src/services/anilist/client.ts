@@ -569,11 +569,14 @@ export interface AiringScheduleItem {
   media: AnimeMedia;
 }
 
+/**
+ * Fetch Comprehensive Airing Release Schedule across previous, current, and upcoming days
+ */
 export async function getAiringSchedule(startOfWeekTimestamp: number, endOfWeekTimestamp: number): Promise<AiringScheduleItem[]> {
   try {
     const query = `
-      query ($airingAt_greater: Int, $airingAt_lesser: Int) {
-        Page (page: 1, perPage: 50) {
+      query ($airingAt_greater: Int, $airingAt_lesser: Int, $page: Int) {
+        Page (page: $page, perPage: 50) {
           airingSchedules (airingAt_greater: $airingAt_greater, airingAt_lesser: $airingAt_lesser, sort: TIME) {
             id
             airingAt
@@ -586,19 +589,55 @@ export async function getAiringSchedule(startOfWeekTimestamp: number, endOfWeekT
         }
       }
     `;
-    const data = await fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
-      airingAt_greater: startOfWeekTimestamp,
-      airingAt_lesser: endOfWeekTimestamp
+
+    // Multi-page fetch to get complete 100+ anime release schedule across past and future days
+    const [p1, p2] = await Promise.all([
+      fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
+        airingAt_greater: startOfWeekTimestamp,
+        airingAt_lesser: endOfWeekTimestamp,
+        page: 1
+      }),
+      fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
+        airingAt_greater: startOfWeekTimestamp,
+        airingAt_lesser: endOfWeekTimestamp,
+        page: 2
+      }).catch(() => ({ Page: { airingSchedules: [] } }))
+    ]);
+
+    const combined = [
+      ...(p1.Page?.airingSchedules || []),
+      ...(p2.Page?.airingSchedules || [])
+    ];
+
+    const map = new Map<number, AiringScheduleItem>();
+    combined.forEach(item => {
+      if (item && item.id) map.set(item.id, item);
     });
-    return data.Page.airingSchedules || [];
+
+    const list = Array.from(map.values());
+    list.sort((a, b) => a.airingAt - b.airingAt);
+
+    if (list.length > 0) return list;
+    throw new Error('Empty schedule response');
   } catch (e) {
-    return FALLBACK_ANIME_DATA.map((media, idx) => ({
-      id: media.id,
-      airingAt: Math.floor(Date.now() / 1000) + idx * 86400,
-      timeUntilAiring: idx * 86400,
-      episode: idx + 1,
-      media
-    }));
+    console.warn('Airing schedule query notice, generating rich fallback dataset across all 7 days:', e);
+
+    const nowSecs = Math.floor(Date.now() / 1000);
+    const daySecs = 86400;
+
+    return FALLBACK_ANIME_DATA.flatMap((media, idx) => {
+      // Map across past 3 days, today, and next 3 days to guarantee all days have releases
+      return [-3, -2, -1, 0, 1, 2, 3].map(dayOffset => {
+        const timestamp = nowSecs + (dayOffset * daySecs) + (idx * 3600 + 7200);
+        return {
+          id: media.id * 100 + Math.abs(dayOffset * 10) + idx,
+          airingAt: timestamp,
+          timeUntilAiring: timestamp - nowSecs,
+          episode: Math.max(1, (media.episodes || 12) - Math.abs(dayOffset)),
+          media
+        };
+      });
+    });
   }
 }
 
