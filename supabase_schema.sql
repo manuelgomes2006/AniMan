@@ -58,14 +58,20 @@ CREATE TABLE IF NOT EXISTS public.favorites (
 CREATE TABLE IF NOT EXISTS public.user_preferences (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   preferred_audio TEXT DEFAULT 'sub' CHECK (preferred_audio IN ('sub', 'dub')),
+  preferred_language TEXT DEFAULT 'English',
   preferred_provider TEXT DEFAULT 'autoembed',
   preferred_quality TEXT DEFAULT 'auto',
   autoplay BOOLEAN DEFAULT TRUE,
   autoplay_next BOOLEAN DEFAULT TRUE,
+  auto_pause BOOLEAN DEFAULT FALSE,
   skip_intro BOOLEAN DEFAULT FALSE,
   skip_outro BOOLEAN DEFAULT FALSE,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+-- Ensure preference columns exist if table was created previously
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT 'English';
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS auto_pause BOOLEAN DEFAULT FALSE;
 
 -- 6. SEARCH HISTORY TABLE
 CREATE TABLE IF NOT EXISTS public.search_history (
@@ -188,18 +194,22 @@ BEGIN
   INSERT INTO public.user_preferences (
     user_id,
     preferred_audio,
+    preferred_language,
     preferred_quality,
     autoplay,
     autoplay_next,
+    auto_pause,
     skip_intro,
     skip_outro
   )
   VALUES (
     NEW.id,
     'sub',
+    'English',
     'auto',
     true,
     true,
+    false,
     false,
     false
   )
