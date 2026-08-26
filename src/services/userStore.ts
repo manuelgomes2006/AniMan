@@ -103,6 +103,7 @@ let watchHistoryDebounceTimer: any = null;
 
 /**
  * Update Watch Progress both in local cache and Supabase watch_history table
+ * Ensures 1 entry per anime with accurate episode number, time progress & timeline
  */
 export function updateWatchProgress(
   anime: AnimeMedia,
@@ -114,31 +115,35 @@ export function updateWatchProgress(
 
   const title = anime.title?.english || anime.title?.romaji || 'Untitled Anime';
   const coverImage = anime.coverImage?.large || anime.coverImage?.extraLarge || anime.coverImage?.medium || '';
-  const completed = duration > 0 ? currentTime >= duration * 0.9 : false;
+  const roundedCurrent = Math.round(currentTime);
+  const roundedDuration = Math.round(duration || 1440);
+  const completed = roundedDuration > 0 ? roundedCurrent >= roundedDuration * 0.9 : false;
 
   const progressItem: WatchProgress = {
     animeId: anime.id,
     title,
     coverImage,
     episodeNumber,
-    currentTime,
-    duration,
+    currentTime: roundedCurrent,
+    duration: roundedDuration,
     lastWatched: new Date().toISOString(),
   };
 
-  // 1. Update Local Storage Cache
+  // 1. Update Local Storage Cache - replace existing entry for this anime & bring to top
   const localHistory = getWatchHistory();
   const existingIdx = localHistory.findIndex(
-    (item) => item.animeId === anime.id && item.episodeNumber === episodeNumber
+    (item) => item.animeId === anime.id
   );
 
   if (existingIdx >= 0) {
-    localHistory[existingIdx] = progressItem;
-  } else {
-    localHistory.unshift(progressItem);
+    localHistory.splice(existingIdx, 1);
   }
+  localHistory.unshift(progressItem);
 
   localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(localHistory.slice(0, 50)));
+
+  // Dispatch real-time event for instant UI update across components
+  window.dispatchEvent(new CustomEvent('aniworld_history_updated'));
 
   // 2. Debounced write to Supabase `watch_history` table
   clearTimeout(watchHistoryDebounceTimer);
@@ -146,20 +151,29 @@ export function updateWatchProgress(
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
-        await supabase.from('watch_history').upsert({
+        const payload = {
           user_id: session.user.id,
-          anime_id: anime.id,
+          anime_id: String(anime.id),
           episode_number: episodeNumber,
-          current_time: currentTime,
-          duration: duration,
+          current_time: roundedCurrent,
+          duration: roundedDuration,
           completed: completed,
-          last_watched: new Date().toISOString()
-        }, { onConflict: 'user_id,anime_id,episode_number' });
+          last_watched: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        };
+
+        const { error } = await supabase
+          .from('watch_history')
+          .upsert(payload, { onConflict: 'user_id,anime_id' });
+
+        if (error) {
+          console.error('[WatchHistory Supabase Upsert Error]:', error.message);
+        }
       }
     } catch (err) {
       console.warn('Watch history Supabase sync notice:', err);
     }
-  }, 1500);
+  }, 1000);
 }
 
 export function getWatchHistory(): WatchProgress[] {
@@ -184,7 +198,7 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
 
     const { data, error } = await supabase
       .from('watch_history')
-      .select('*')
+      .select('user_id, anime_id, episode_number, current_time, duration, last_watched, updated_at')
       .eq('user_id', session.user.id)
       .order('last_watched', { ascending: false })
       .limit(50);
@@ -192,30 +206,35 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
     if (error || !data || data.length === 0) return localHistory;
 
     const parsedPromises = data.map(async (item) => {
-      const match = localHistory.find((l) => l.animeId === item.anime_id);
+      const animeIdNum = Number(item.anime_id);
+      const match = localHistory.find((l) => l.animeId === animeIdNum);
       let title = match?.title;
       let coverImage = match?.coverImage;
 
       // If missing from local cache, fetch metadata from AniList
       if (!title || !coverImage) {
         try {
-          const details = await getAnimeDetails(item.anime_id);
-          title = details.title?.english || details.title?.romaji || `Anime #${item.anime_id}`;
+          const details = await getAnimeDetails(animeIdNum);
+          title = details.title?.english || details.title?.romaji || `Anime #${animeIdNum}`;
           coverImage = details.coverImage?.large || details.coverImage?.extraLarge || details.coverImage?.medium || '';
         } catch {
-          title = `Anime #${item.anime_id}`;
+          title = `Anime #${animeIdNum}`;
           coverImage = 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80';
         }
       }
 
+      const epNum = Number(item.episode_number || 1);
+      const curTime = Number(item.current_time || 0);
+      const durTime = Number(item.duration || 1440);
+
       return {
-        animeId: item.anime_id,
-        title: title || `Anime #${item.anime_id}`,
+        animeId: animeIdNum,
+        title: title || `Anime #${animeIdNum}`,
         coverImage: coverImage || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80',
-        episodeNumber: item.episode_number,
-        currentTime: Number(item.current_time || 0),
-        duration: Number(item.duration || 0),
-        lastWatched: item.last_watched
+        episodeNumber: epNum,
+        currentTime: curTime,
+        duration: durTime,
+        lastWatched: item.last_watched || item.updated_at || new Date().toISOString()
       };
     });
 
