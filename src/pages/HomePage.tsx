@@ -8,7 +8,7 @@ import {
   getCurrentlyAiringAnime,
   getRecentlyAiredEpisodes
 } from '../services/anilist/client';
-import { fetchWatchHistoryFromSupabase } from '../services/userStore';
+import { fetchWatchHistoryFromSupabase, getWatchHistory } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
 import { WatchProgress } from '../types/user';
 
@@ -20,7 +20,7 @@ import AnimeCard from '../components/common/AnimeCard';
 import { TrendingUp, Sparkles, Flame, Clock, Tv, Star } from 'lucide-react';
 
 export default function HomePage() {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [trending, setTrending] = useState<AnimeMedia[]>([]);
   const [popular, setPopular] = useState<AnimeMedia[]>([]);
   const [topRated, setTopRated] = useState<AnimeMedia[]>([]);
@@ -38,7 +38,11 @@ export default function HomePage() {
     return [];
   });
 
-  const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
+  // Persistent 0ms initial state for Continue Watching from local storage
+  const [watchHistory, setWatchHistory] = useState<WatchProgress[]>(() => {
+    return getWatchHistory();
+  });
+
   const [loading, setLoading] = useState(true);
 
   const getGreeting = () => {
@@ -51,8 +55,21 @@ export default function HomePage() {
   const username = profile?.displayName || profile?.username || 'Member';
 
   const loadHistory = () => {
+    // 1. Read local history immediately
+    const local = getWatchHistory();
+    if (local && local.length > 0) {
+      setWatchHistory(local);
+    }
+
+    // 2. Fetch cloud history from Supabase DB
     fetchWatchHistoryFromSupabase().then(historyData => {
-      setWatchHistory(historyData);
+      if (historyData && historyData.length > 0) {
+        setWatchHistory(historyData);
+      } else if (local && local.length > 0) {
+        setWatchHistory(local);
+      }
+    }).catch(() => {
+      setWatchHistory(getWatchHistory());
     });
   };
 
@@ -75,9 +92,7 @@ export default function HomePage() {
 
     async function loadHomeData() {
       // 1. Instant non-blocking watch history load
-      fetchWatchHistoryFromSupabase().then(historyData => {
-        if (isSubscribed) setWatchHistory(historyData);
-      });
+      loadHistory();
 
       // 2. Fetch Live Airing Schedule for "New Episodes" tab
       loadNewEpisodesData();
@@ -115,19 +130,21 @@ export default function HomePage() {
     // Auto-refresh released schedule data every 60s so newly launched episodes pop up live!
     const scheduleTimer = setInterval(loadNewEpisodesData, 60000);
 
-    // Listen for real-time watch history updates
+    // Listen for real-time watch history updates and profile auth changes
     const handleHistoryUpdate = () => {
       if (isSubscribed) loadHistory();
     };
 
     window.addEventListener('aniworld_history_updated', handleHistoryUpdate);
+    window.addEventListener('aniworld_profile_updated', handleHistoryUpdate);
 
     return () => {
       isSubscribed = false;
       clearInterval(scheduleTimer);
       window.removeEventListener('aniworld_history_updated', handleHistoryUpdate);
+      window.removeEventListener('aniworld_profile_updated', handleHistoryUpdate);
     };
-  }, []);
+  }, [user]);
 
   const latestEpisodesList = newEpisodes.length > 0 ? newEpisodes : airing;
 
@@ -150,7 +167,7 @@ export default function HomePage() {
         trending.length > 0 && <HeroCarousel items={trending.slice(0, 5)} />
       )}
 
-      {/* SECTION 1: Continue Watching */}
+      {/* SECTION 1: Continue Watching (Mobile Horizontal Scrollable Carousel + Desktop Grid) */}
       {watchHistory.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center justify-between">
@@ -162,8 +179,8 @@ export default function HomePage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-            {watchHistory.slice(0, 4).map((hist) => {
+          <div className="flex sm:grid sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 overflow-x-auto sm:overflow-visible scrollbar-none pb-2 sm:pb-0">
+            {watchHistory.slice(0, 6).map((hist) => {
               const dummyAnime: AnimeMedia = {
                 id: hist.animeId,
                 title: { romaji: hist.title, english: hist.title },
@@ -171,16 +188,17 @@ export default function HomePage() {
               };
 
               return (
-                <AnimeCard
-                  key={`${hist.animeId}-${hist.episodeNumber}`}
-                  anime={dummyAnime}
-                  variant="progress"
-                  progressData={{
-                    episodeNumber: hist.episodeNumber,
-                    currentTime: hist.currentTime,
-                    duration: hist.duration
-                  }}
-                />
+                <div key={`${hist.animeId}-${hist.episodeNumber}`} className="w-[260px] sm:w-auto shrink-0">
+                  <AnimeCard
+                    anime={dummyAnime}
+                    variant="progress"
+                    progressData={{
+                      episodeNumber: hist.episodeNumber,
+                      currentTime: hist.currentTime,
+                      duration: hist.duration
+                    }}
+                  />
+                </div>
               );
             })}
           </div>
