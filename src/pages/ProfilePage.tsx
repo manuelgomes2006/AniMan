@@ -2,27 +2,26 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
-import { getWatchlist, setUserAudioPreference } from '../services/userStore';
-import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Upload, Globe, Volume2, Video } from 'lucide-react';
+import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
+import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Globe, Volume2, Sliders } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { profile, user, signOut, refreshProfile, deleteAccount } = useAuth();
+  const { profile, signOut, refreshProfile, deleteAccount } = useAuth();
 
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [preferredAudio, setPreferredAudio] = useState<'sub' | 'dub'>('sub');
   const [preferredLanguage, setPreferredLanguage] = useState('English');
+  const [preferredAudio, setPreferredAudio] = useState<'sub' | 'dub'>('sub');
   const [preferredQuality, setPreferredQuality] = useState('auto');
   const [autoplay, setAutoplay] = useState(true);
-  const [autoplayNext, setAutoplayNext] = useState(true);
   const [autoPause, setAutoPause] = useState(false);
+  const [autoplayNext, setAutoplayNext] = useState(true);
   const [skipIntro, setSkipIntro] = useState(false);
   const [skipOutro, setSkipOutro] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -45,12 +44,12 @@ export default function ProfilePage() {
       setDisplayName(profile.displayName || profile.username);
       setUsername(profile.username);
       setAvatarUrl(profile.avatarUrl);
-      setPreferredAudio(profile.preferences?.preferredAudio || 'sub');
       setPreferredLanguage(profile.preferences?.preferredLanguage || 'English');
+      setPreferredAudio(profile.preferences?.preferredAudio || 'sub');
       setPreferredQuality(profile.preferences?.preferredQuality || 'auto');
       setAutoplay(profile.preferences?.autoplay ?? true);
-      setAutoplayNext(profile.preferences?.autoplayNext ?? true);
       setAutoPause(profile.preferences?.autoPause ?? false);
+      setAutoplayNext(profile.preferences?.autoplayNext ?? true);
       setSkipIntro(profile.preferences?.skipIntro ?? false);
       setSkipOutro(profile.preferences?.skipOutro ?? false);
     }
@@ -64,139 +63,92 @@ export default function ProfilePage() {
     });
   }, [profile]);
 
-  // Handle Avatar Image File Upload via Supabase Storage
-  const handleAvatarFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file || !user || !isSupabaseConfigured()) return;
-
-    setUploadingAvatar(true);
-    setErrorMsg(null);
-
-    try {
-      const fileExt = file.name.split('.').pop() || 'png';
-      const filePath = `${user.id}/avatar_${Date.now()}.${fileExt}`;
-
-      // Upload to Supabase Storage bucket 'avatars'
-      const { error: uploadError } = await supabase.storage
-        .from('avatars')
-        .upload(filePath, file, { upsert: true });
-
-      if (uploadError) {
-        console.warn('[Avatar Upload Notice]:', uploadError.message);
-        // If storage bucket is missing, create object URL as fallback preview
-        const previewUrl = URL.createObjectURL(file);
-        setAvatarUrl(previewUrl);
-        setUploadingAvatar(false);
-        return;
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('avatars')
-        .getPublicUrl(filePath);
-
-      setAvatarUrl(publicUrl);
-    } catch (err: any) {
-      console.warn('[Avatar Upload Exception]:', err);
-    } finally {
-      setUploadingAvatar(false);
-    }
-  };
-
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setErrorMsg(null);
     setSavedSuccess(false);
 
-    if (!user || !profile || !isSupabaseConfigured()) {
-      setErrorMsg('No active Supabase session found. Please sign in again.');
-      setSaving(false);
-      return;
-    }
-
     const cleanUsername = username.trim().toLowerCase();
-    const cleanEmail = (profile.email || user.email || '').trim().toLowerCase();
-    const nowIso = new Date().toISOString();
+    const cleanEmail = (profile?.email || '').trim().toLowerCase();
 
-    // 1. Validate Username Uniqueness via Supabase Database
-    if (cleanUsername !== profile.username.toLowerCase()) {
-      const { data: existing, error: checkErr } = await supabase
-        .from('profiles')
-        .select('id, username')
-        .eq('username', cleanUsername)
-        .maybeSingle();
+    try {
+      // 1. Validate Username Uniqueness via Supabase Database if username changed
+      if (profile && cleanUsername !== profile.username.toLowerCase()) {
+        if (isSupabaseConfigured()) {
+          const { data: existing, error: checkError } = await supabase
+            .from('profiles')
+            .select('id, username')
+            .eq('username', cleanUsername)
+            .maybeSingle();
 
-      if (checkErr) {
-        console.error('[Username Check Error]:', checkErr.message);
+          if (checkError) {
+            throw new Error(`Username check error: ${checkError.message}`);
+          }
+
+          if (existing && existing.id !== profile.id) {
+            setErrorMsg(`Username '@${cleanUsername}' is already taken by another user.`);
+            setSaving(false);
+            return;
+          }
+        }
       }
 
-      if (existing && existing.id !== user.id) {
-        setErrorMsg(`Username '@${cleanUsername}' is already taken by another user. Please pick a unique handle.`);
-        setSaving(false);
-        return;
+      // 2. Save audio preference in local player store
+      setUserAudioPreference(preferredAudio);
+
+      // 3. Update profiles table in Supabase Cloud DB
+      if (isSupabaseConfigured() && profile?.id) {
+        const updatedAt = new Date().toISOString();
+
+        const { error: profileError } = await supabase.from('profiles').upsert({
+          id: profile.id,
+          email: cleanEmail,
+          username: cleanUsername,
+          display_name: displayName.trim(),
+          avatar_url: avatarUrl.trim(),
+          updated_at: updatedAt
+        }, { onConflict: 'id' });
+
+        if (profileError) {
+          console.error('[Supabase Profile Update Error]', profileError);
+          throw new Error(profileError.message || 'Failed to update profile in database');
+        }
+
+        // Sync metadata back to Supabase Auth User Metadata
+        await supabase.auth.updateUser({
+          data: {
+            username: cleanUsername,
+            display_name: displayName.trim(),
+            avatar_url: avatarUrl.trim()
+          }
+        }).catch(() => {});
+
+        // 4. Update user_preferences table in Supabase Cloud DB
+        await syncAllUserPreferencesToSupabase(profile.id, {
+          preferredLanguage,
+          preferredAudio,
+          preferredQuality,
+          autoplay,
+          autoPause,
+          autoplayNext,
+          skipIntro,
+          skipOutro
+        });
+
+        // 5. Re-fetch cloud profile from database to confirm UI matches DB
+        await refreshProfile();
       }
-    }
 
-    // 2. Save audio preference in local player store
-    setUserAudioPreference(preferredAudio);
-
-    // 3. UPDATE Supabase `profiles` table first
-    const { error: profileError } = await supabase
-      .from('profiles')
-      .upsert({
-        id: user.id,
-        email: cleanEmail,
-        username: cleanUsername,
-        display_name: displayName.trim(),
-        avatar_url: avatarUrl.trim(),
-        updated_at: nowIso
-      }, { onConflict: 'id' });
-
-    if (profileError) {
-      console.error('[Profile Update Failed]:', profileError.message);
-      setErrorMsg(`Failed to save profile changes: ${profileError.message}`);
       setSaving(false);
-      return;
-    }
-
-    // 4. UPSERT Supabase `user_preferences` table second
-    const { error: prefError } = await supabase
-      .from('user_preferences')
-      .upsert({
-        user_id: user.id,
-        preferred_audio: preferredAudio,
-        preferred_language: preferredLanguage,
-        preferred_quality: preferredQuality,
-        autoplay: autoplay,
-        autoplay_next: autoplayNext,
-        auto_pause: autoPause,
-        skip_intro: skipIntro,
-        skip_outro: skipOutro,
-        updated_at: nowIso
-      }, { onConflict: 'user_id' });
-
-    if (prefError) {
-      console.error('[Preferences Update Failed]:', prefError.message);
-      setErrorMsg(`Failed to save preferences: ${prefError.message}`);
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3500);
+    } catch (err: any) {
+      console.error('[SETTINGS SAVE ERROR]', err);
+      setErrorMsg(err?.message || 'Failed to save changes to database. Please try again.');
       setSaving(false);
-      return;
+      setSavedSuccess(false);
     }
-
-    // Sync metadata back to Supabase Auth User Metadata
-    await supabase.auth.updateUser({
-      data: {
-        username: cleanUsername,
-        display_name: displayName.trim(),
-        avatar_url: avatarUrl.trim()
-      }
-    }).catch(() => {});
-
-    // 5. Re-fetch confirmed cloud data to update React state
-    await refreshProfile().catch(() => {});
-
-    setSaving(false);
-    setSavedSuccess(true);
-    setTimeout(() => setSavedSuccess(false), 4000);
   };
 
   const handleLogout = async () => {
@@ -294,7 +246,7 @@ export default function ProfilePage() {
         </h3>
 
         {errorMsg && (
-          <div className="bg-rose-950/60 border border-rose-800 text-rose-200 text-xs p-4 rounded-2xl flex items-center gap-2 font-bold leading-relaxed">
+          <div className="bg-rose-950/40 border border-rose-800 text-rose-300 text-xs p-3.5 rounded-2xl flex items-center gap-2 font-bold">
             <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
             <span>{errorMsg}</span>
           </div>
@@ -327,37 +279,22 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Avatar Image URL & File Upload */}
-        <div className="space-y-2">
-          <label className="block text-xs font-bold text-slate-300 mb-1">Avatar Image URL / Upload Picture</label>
-          <div className="flex flex-col sm:flex-row items-center gap-3">
-            <input
-              type="text"
-              value={avatarUrl}
-              onChange={(e) => setAvatarUrl(e.target.value)}
-              placeholder="https://..."
-              className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium"
-            />
-            <label className="w-full sm:w-auto px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 hover:text-white font-bold text-xs rounded-xl transition flex items-center justify-center gap-2 cursor-pointer shrink-0">
-              <Upload className={`w-4 h-4 text-purple-400 ${uploadingAvatar ? 'animate-bounce' : ''}`} />
-              <span>{uploadingAvatar ? 'Uploading...' : 'Upload File'}</span>
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleAvatarFileUpload}
-                className="hidden"
-                disabled={uploadingAvatar}
-              />
-            </label>
-          </div>
+        <div>
+          <label className="block text-xs font-bold text-slate-300 mb-1">Avatar Image URL (Profile Picture / DP)</label>
+          <input
+            type="text"
+            value={avatarUrl}
+            onChange={(e) => setAvatarUrl(e.target.value)}
+            className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium"
+          />
         </div>
 
-        {/* Preferred Language & Audio Mode Selection */}
+        {/* Preferred Language & Video Quality */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
               <Globe className="w-3.5 h-3.5 text-purple-400" />
-              <span>Preferred Language</span>
+              Preferred Language
             </label>
             <select
               value={preferredLanguage}
@@ -369,51 +306,80 @@ export default function ProfilePage() {
               <option value="Spanish">Spanish</option>
               <option value="German">German</option>
               <option value="French">French</option>
-              <option value="Hindi">Hindi</option>
             </select>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
-              <Volume2 className="w-3.5 h-3.5 text-purple-400" />
-              <span>Preferred Audio Track</span>
+              <Sliders className="w-3.5 h-3.5 text-purple-400" />
+              Preferred Video Quality
             </label>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setPreferredAudio('sub')}
-                className={`py-2 px-3 rounded-xl border text-center transition cursor-pointer text-xs font-extrabold ${
-                  preferredAudio === 'sub'
-                    ? 'bg-purple-600/20 border-purple-500 text-white shadow-md'
-                    : 'bg-[#050507] border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                SUB (Japanese)
-              </button>
+            <select
+              value={preferredQuality}
+              onChange={(e) => setPreferredQuality(e.target.value)}
+              className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium cursor-pointer"
+            >
+              <option value="auto">Auto (Adaptive 1080p/720p)</option>
+              <option value="1080p">1080p Ultra HD</option>
+              <option value="720p">720p High Definition</option>
+              <option value="480p">480p Standard</option>
+            </select>
+          </div>
+        </div>
 
-              <button
-                type="button"
-                onClick={() => setPreferredAudio('dub')}
-                className={`py-2 px-3 rounded-xl border text-center transition cursor-pointer text-xs font-extrabold ${
-                  preferredAudio === 'dub'
-                    ? 'bg-purple-600/20 border-purple-500 text-white shadow-md'
-                    : 'bg-[#050507] border-slate-800 text-slate-400 hover:text-white'
-                }`}
-              >
-                DUB (English)
-              </button>
-            </div>
+        {/* Audio Mode Selection */}
+        <div className="space-y-3 pt-2">
+          <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <Volume2 className="w-3.5 h-3.5 text-purple-400" />
+            Preferred Audio Mode
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              type="button"
+              onClick={() => setPreferredAudio('sub')}
+              className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
+                preferredAudio === 'sub'
+                  ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg ring-1 ring-purple-500/50'
+                  : 'bg-[#050507] border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <span className="font-extrabold text-xs block">SUB (Japanese Audio)</span>
+              <span className="text-[10px] text-slate-400">Default Japanese track with soft subtitles</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setPreferredAudio('dub')}
+              className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
+                preferredAudio === 'dub'
+                  ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg ring-1 ring-purple-500/50'
+                  : 'bg-[#050507] border-slate-800 text-slate-400 hover:text-white'
+              }`}
+            >
+              <span className="font-extrabold text-xs block">DUB (English Dubbed)</span>
+              <span className="text-[10px] text-slate-400">English voice dub track where available</span>
+            </button>
           </div>
         </div>
 
         {/* Player Toggles */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-800/80">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-800/80">
           <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
             <span>Autoplay Video</span>
             <input
               type="checkbox"
               checked={autoplay}
               onChange={(e) => setAutoplay(e.target.checked)}
+              className="accent-purple-600 w-4 h-4 cursor-pointer"
+            />
+          </label>
+
+          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
+            <span>Auto-Pause Video on Blur/Tab Switch</span>
+            <input
+              type="checkbox"
+              checked={autoPause}
+              onChange={(e) => setAutoPause(e.target.checked)}
               className="accent-purple-600 w-4 h-4 cursor-pointer"
             />
           </label>
@@ -429,16 +395,6 @@ export default function ProfilePage() {
           </label>
 
           <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
-            <span>Auto-Pause on Unfocus</span>
-            <input
-              type="checkbox"
-              checked={autoPause}
-              onChange={(e) => setAutoPause(e.target.checked)}
-              className="accent-purple-600 w-4 h-4 cursor-pointer"
-            />
-          </label>
-
-          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
             <span>Auto-Skip Intro</span>
             <input
               type="checkbox"
@@ -447,13 +403,23 @@ export default function ProfilePage() {
               className="accent-purple-600 w-4 h-4 cursor-pointer"
             />
           </label>
+
+          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer sm:col-span-2">
+            <span>Auto-Skip Outro</span>
+            <input
+              type="checkbox"
+              checked={skipOutro}
+              onChange={(e) => setSkipOutro(e.target.checked)}
+              className="accent-purple-600 w-4 h-4 cursor-pointer"
+            />
+          </label>
         </div>
 
         {/* Action Controls */}
         <div className="flex items-center justify-between pt-4">
           {savedSuccess ? (
-            <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-800/80 px-3 py-1.5 rounded-xl animate-in fade-in duration-200">
-              <Check className="w-4 h-4 text-emerald-400" /> All changes saved to Supabase cloud!
+            <span className="text-xs font-extrabold text-emerald-400 flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-800/80 px-3 py-1.5 rounded-xl">
+              <Check className="w-4 h-4 text-emerald-400" /> All preferences saved to Supabase Cloud!
             </span>
           ) : <span />}
 
@@ -472,14 +438,8 @@ export default function ProfilePage() {
               disabled={saving}
               className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs px-6 py-2.5 rounded-xl shadow-lg shadow-purple-950/60 transition cursor-pointer flex items-center gap-2"
             >
-              {saving ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>Saving to Cloud...</span>
-                </>
-              ) : (
-                <span>Save Changes</span>
-              )}
+              {saving && <Loader2 className="w-4 h-4 animate-spin text-white" />}
+              <span>{saving ? 'Saving to Database...' : 'Save Changes'}</span>
             </button>
           </div>
         </div>

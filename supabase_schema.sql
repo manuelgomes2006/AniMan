@@ -19,6 +19,7 @@ ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS username TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS display_name TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS avatar_url TEXT;
 ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS email TEXT;
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 2. WATCHLIST TABLE
 CREATE TABLE IF NOT EXISTS public.watchlist (
@@ -57,21 +58,29 @@ CREATE TABLE IF NOT EXISTS public.favorites (
 -- 5. USER PREFERENCES TABLE
 CREATE TABLE IF NOT EXISTS public.user_preferences (
   user_id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
-  preferred_audio TEXT DEFAULT 'sub' CHECK (preferred_audio IN ('sub', 'dub')),
   preferred_language TEXT DEFAULT 'English',
+  preferred_audio TEXT DEFAULT 'sub' CHECK (preferred_audio IN ('sub', 'dub')),
   preferred_provider TEXT DEFAULT 'autoembed',
   preferred_quality TEXT DEFAULT 'auto',
   autoplay BOOLEAN DEFAULT TRUE,
-  autoplay_next BOOLEAN DEFAULT TRUE,
   auto_pause BOOLEAN DEFAULT FALSE,
+  autoplay_next BOOLEAN DEFAULT TRUE,
   skip_intro BOOLEAN DEFAULT FALSE,
   skip_outro BOOLEAN DEFAULT FALSE,
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- Ensure preference columns exist if table was created previously
+-- Ensure preference columns exist if table was previously created
 ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS preferred_language TEXT DEFAULT 'English';
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS preferred_audio TEXT DEFAULT 'sub';
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS preferred_provider TEXT DEFAULT 'autoembed';
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS preferred_quality TEXT DEFAULT 'auto';
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS autoplay BOOLEAN DEFAULT TRUE;
 ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS auto_pause BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS autoplay_next BOOLEAN DEFAULT TRUE;
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS skip_intro BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS skip_outro BOOLEAN DEFAULT FALSE;
+ALTER TABLE public.user_preferences ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 6. SEARCH HISTORY TABLE
 CREATE TABLE IF NOT EXISTS public.search_history (
@@ -193,23 +202,23 @@ BEGIN
 
   INSERT INTO public.user_preferences (
     user_id,
-    preferred_audio,
     preferred_language,
+    preferred_audio,
     preferred_quality,
     autoplay,
-    autoplay_next,
     auto_pause,
+    autoplay_next,
     skip_intro,
     skip_outro
   )
   VALUES (
     NEW.id,
-    'sub',
     'English',
+    'sub',
     'auto',
     true,
-    true,
     false,
+    true,
     false,
     false
   )

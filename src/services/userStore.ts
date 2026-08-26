@@ -33,18 +33,6 @@ export function getUserAudioPreference(): 'sub' | 'dub' {
 export function setUserAudioPreference(preference: 'sub' | 'dub'): void {
   localStorage.setItem(STORAGE_KEYS.PREFERRED_AUDIO, preference);
 
-  // Sync to active local profile session
-  try {
-    const local = localStorage.getItem('aniworld_active_session');
-    if (local) {
-      const parsed = JSON.parse(local);
-      if (parsed.preferences) {
-        parsed.preferences.preferredAudio = preference;
-        localStorage.setItem('aniworld_active_session', JSON.stringify(parsed));
-      }
-    }
-  } catch {}
-
   // Sync to Supabase Database
   supabase.auth.getSession().then(({ data: { session } }) => {
     if (session?.user) {
@@ -53,7 +41,7 @@ export function setUserAudioPreference(preference: 'sub' | 'dub'): void {
         preferred_audio: preference,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id' }).then(({ error }) => {
-        if (error) console.warn('[Supabase Sync Audio Notice]:', error.message);
+        if (error) console.error('[Supabase Sync Audio Error]:', error.message);
       });
     }
   });
@@ -62,9 +50,11 @@ export function setUserAudioPreference(preference: 'sub' | 'dub'): void {
 export async function syncAllUserPreferencesToSupabase(
   userId: string,
   prefs: {
+    preferredLanguage?: string;
     preferredAudio: 'sub' | 'dub';
     preferredQuality?: string;
     autoplay?: boolean;
+    autoPause?: boolean;
     autoplayNext?: boolean;
     skipIntro?: boolean;
     skipOutro?: boolean;
@@ -74,26 +64,23 @@ export async function syncAllUserPreferencesToSupabase(
 
   const payload = {
     user_id: userId,
+    preferred_language: prefs.preferredLanguage || 'English',
     preferred_audio: prefs.preferredAudio,
     preferred_quality: prefs.preferredQuality || 'auto',
     autoplay: prefs.autoplay ?? true,
+    auto_pause: prefs.autoPause ?? false,
     autoplay_next: prefs.autoplayNext ?? true,
     skip_intro: prefs.skipIntro ?? false,
     skip_outro: prefs.skipOutro ?? false,
     updated_at: new Date().toISOString()
   };
 
-  try {
-    const { error } = await supabase.from('user_preferences').upsert(payload, { onConflict: 'user_id' });
-    if (error) {
-      console.warn('[UserPreferences Database Upsert Error]:', error.message);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.warn('[UserPreferences Exception]:', err);
-    return false;
+  const { error } = await supabase.from('user_preferences').upsert(payload, { onConflict: 'user_id' });
+  if (error) {
+    console.error('[UserPreferences Database Upsert Error]:', error.message);
+    throw error;
   }
+  return true;
 }
 
 let watchHistoryDebounceTimer: any = null;
@@ -331,7 +318,7 @@ export function setWatchlistCategory(
         status: category,
         updated_at: new Date().toISOString()
       }, { onConflict: 'user_id,anime_id' }).then(({ error }) => {
-        if (error) console.warn('Watchlist Supabase sync error:', error);
+        if (error) console.error('Watchlist Supabase sync error:', error);
       });
     }
   });
@@ -354,7 +341,7 @@ export function removeFromWatchlist(animeId: number): WatchlistItem[] {
   supabase.auth.getSession().then(({ data: { session } }) => {
     if (session?.user) {
       supabase.from('watchlist').delete().eq('user_id', session.user.id).eq('anime_id', animeId).then(({ error }) => {
-        if (error) console.warn('Watchlist delete error:', error);
+        if (error) console.error('Watchlist delete error:', error);
       });
     }
   });

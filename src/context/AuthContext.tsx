@@ -4,14 +4,15 @@ import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient'
 import { fetchWatchHistoryFromSupabase, fetchWatchlistFromSupabase } from '../services/userStore';
 
 export interface UserPreferences {
-  preferredAudio: 'sub' | 'dub';
   preferredLanguage: string;
+  preferredAudio: 'sub' | 'dub';
   preferredQuality: string;
   autoplay: boolean;
-  autoplayNext: boolean;
   autoPause: boolean;
+  autoplayNext: boolean;
   skipIntro: boolean;
   skipOutro: boolean;
+  updatedAt?: string;
 }
 
 export interface UserProfileData {
@@ -21,6 +22,7 @@ export interface UserProfileData {
   avatarUrl: string;
   email: string;
   preferences: UserPreferences;
+  updatedAt?: string;
 }
 
 interface AuthContextType {
@@ -77,59 +79,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const username = profileData?.username || currentUser.user_metadata?.username || email.split('@')[0] || 'User';
       const displayName = profileData?.display_name || currentUser.user_metadata?.display_name || username;
-      let avatarUrl = profileData?.avatar_url || currentUser.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
-
-      // Append cache buster to avatar URL if updated_at is present
-      if (profileData?.updated_at && avatarUrl.startsWith('http')) {
-        const v = new Date(profileData.updated_at).getTime();
-        avatarUrl = avatarUrl.includes('?') ? `${avatarUrl}&v=${v}` : `${avatarUrl}?v=${v}`;
-      }
-
-      // Auto-create missing database rows if absent
-      if (!profileData) {
-        await supabase.from('profiles').upsert({
-          id: currentUser.id,
-          email: email.toLowerCase(),
-          username: username.toLowerCase(),
-          display_name: displayName,
-          avatar_url: avatarUrl,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'id' }).catch(() => {});
-      }
-
-      if (!prefData) {
-        await supabase.from('user_preferences').upsert({
-          user_id: currentUser.id,
-          preferred_audio: 'sub',
-          preferred_language: 'English',
-          preferred_quality: 'auto',
-          autoplay: true,
-          autoplay_next: true,
-          auto_pause: false,
-          skip_intro: false,
-          skip_outro: false,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'user_id' }).catch(() => {});
+      
+      // Avatar Cache Busting by updated_at timestamp
+      let rawAvatar = profileData?.avatar_url || currentUser.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
+      const updatedAtTS = profileData?.updated_at ? new Date(profileData.updated_at).getTime() : Date.now();
+      if (rawAvatar.startsWith('http') && !rawAvatar.includes('?v=')) {
+        rawAvatar = `${rawAvatar}?v=${updatedAtTS}`;
       }
 
       const preferences: UserPreferences = {
-        preferredAudio: prefData?.preferred_audio === 'dub' ? 'dub' : 'sub',
         preferredLanguage: prefData?.preferred_language || 'English',
+        preferredAudio: prefData?.preferred_audio === 'dub' ? 'dub' : 'sub',
         preferredQuality: prefData?.preferred_quality || 'auto',
         autoplay: prefData?.autoplay ?? true,
-        autoplayNext: prefData?.autoplay_next ?? true,
         autoPause: prefData?.auto_pause ?? false,
+        autoplayNext: prefData?.autoplay_next ?? true,
         skipIntro: prefData?.skip_intro ?? false,
         skipOutro: prefData?.skip_outro ?? false,
+        updatedAt: prefData?.updated_at || undefined,
       };
 
       const loadedProfile: UserProfileData = {
         id: currentUser.id,
         username,
         displayName,
-        avatarUrl,
+        avatarUrl: rawAvatar,
         email,
-        preferences
+        preferences,
+        updatedAt: profileData?.updated_at || undefined,
       };
 
       setProfile(loadedProfile);
@@ -205,7 +182,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'profiles', filter: `id=eq.${user.id}` },
           () => {
-            console.log('[Realtime Sync] Profile changed on database');
             loadProfile(user);
             window.dispatchEvent(new CustomEvent('aniworld_profile_updated'));
           }
@@ -214,7 +190,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'user_preferences', filter: `user_id=eq.${user.id}` },
           () => {
-            console.log('[Realtime Sync] Preferences changed on database');
             loadProfile(user);
             window.dispatchEvent(new CustomEvent('aniworld_profile_updated'));
           }
@@ -223,7 +198,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'watch_history', filter: `user_id=eq.${user.id}` },
           () => {
-            console.log('[Realtime Sync] Watch history changed on database');
             fetchWatchHistoryFromSupabase();
             window.dispatchEvent(new CustomEvent('aniworld_history_updated'));
           }
@@ -232,7 +206,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           'postgres_changes',
           { event: '*', schema: 'public', table: 'watchlist', filter: `user_id=eq.${user.id}` },
           () => {
-            console.log('[Realtime Sync] Watchlist changed on database');
             fetchWatchlistFromSupabase();
             window.dispatchEvent(new CustomEvent('aniworld_watchlist_updated'));
           }
@@ -287,6 +260,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error('No authenticated user session found');
     }
 
+    // Call PostgreSQL transactional delete_user_account RPC
     const { error: rpcError } = await supabase.rpc('delete_user_account');
 
     if (rpcError) {
@@ -294,6 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       throw new Error(rpcError.message || 'Account deletion failed');
     }
 
+    // Clear local data & sign out session on current device
     clearLocalUserData();
     await supabase.auth.signOut().catch(() => {});
     setUser(null);
