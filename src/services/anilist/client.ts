@@ -399,6 +399,56 @@ export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<A
   }
 }
 
+/**
+ * Fetch Newly Released Aired Episodes directly from AniList airingSchedules (sort: TIME_DESC)
+ * Returns exact anime items paired with their real-time newly released episode numbers
+ */
+export async function getRecentlyAiredEpisodes(page = 1, perPage = 24): Promise<{ anime: AnimeMedia; episodeNumber: number }[]> {
+  try {
+    const nowSecs = Math.floor(Date.now() / 1000);
+    const query = `
+      query ($airingAt_lesser: Int, $page: Int, $perPage: Int) {
+        Page (page: $page, perPage: $perPage) {
+          airingSchedules (airingAt_lesser: $airingAt_lesser, sort: TIME_DESC) {
+            episode
+            media {
+              ${MEDIA_FRAGMENT}
+            }
+          }
+        }
+      }
+    `;
+    const data = await fetchAniList<{ Page: { airingSchedules: { episode: number; media: AnimeMedia }[] } }>(query, {
+      airingAt_lesser: nowSecs,
+      page,
+      perPage
+    });
+
+    const schedules = data.Page?.airingSchedules || [];
+    const result: { anime: AnimeMedia; episodeNumber: number }[] = [];
+    const seenMediaIds = new Set<number>();
+
+    for (const item of schedules) {
+      if (item && item.media && item.media.id && !seenMediaIds.has(item.media.id)) {
+        seenMediaIds.add(item.media.id);
+        result.push({
+          anime: item.media,
+          episodeNumber: item.episode
+        });
+      }
+    }
+    if (result.length > 0) return result;
+    throw new Error('No airing schedules found');
+  } catch (e) {
+    console.warn('Recently aired episodes query fallback:', e);
+    const fallback = await getCurrentlyAiringAnime(page, perPage);
+    return fallback.map(media => ({
+      anime: media,
+      episodeNumber: media.nextAiringEpisode?.episode ? Math.max(1, media.nextAiringEpisode.episode - 1) : (media.episodes || 1)
+    }));
+  }
+}
+
 export interface SearchOptions {
   search?: string;
   genre?: string;

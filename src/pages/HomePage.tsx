@@ -5,7 +5,8 @@ import {
   getTrendingAnime,
   getPopularAnime,
   getTopRatedAnime,
-  getCurrentlyAiringAnime
+  getCurrentlyAiringAnime,
+  getRecentlyAiredEpisodes
 } from '../services/anilist/client';
 import { fetchWatchHistoryFromSupabase } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
@@ -24,6 +25,7 @@ export default function HomePage() {
   const [popular, setPopular] = useState<AnimeMedia[]>([]);
   const [topRated, setTopRated] = useState<AnimeMedia[]>([]);
   const [airing, setAiring] = useState<AnimeMedia[]>([]);
+  const [newEpisodes, setNewEpisodes] = useState<{ anime: AnimeMedia; episodeNumber: number }[]>([]);
   const [watchHistory, setWatchHistory] = useState<WatchProgress[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -51,8 +53,7 @@ export default function HomePage() {
         if (isSubscribed) setWatchHistory(historyData);
       });
 
-      // 2. High-speed progressive stream loading for 0ms initial render
-      // Trending Now (based on recent weekly/daily visit & viewing momentum: TRENDING_DESC)
+      // 2. Trending Now (based on recent weekly/daily visit & viewing momentum: TRENDING_DESC)
       getTrendingAnime(1, 24).then(data => {
         if (isSubscribed) {
           setTrending(data);
@@ -62,19 +63,24 @@ export default function HomePage() {
         if (isSubscribed) setLoading(false);
       });
 
-      // Most Popular (based on total lifetime views/popularity: POPULARITY_DESC)
+      // 3. Most Popular (based on total lifetime views/popularity: POPULARITY_DESC)
       getPopularAnime(1, 24).then(data => {
         if (isSubscribed) setPopular(data);
       });
 
-      // All Time Popular (based on highest overall rating: SCORE_DESC)
+      // 4. All Time Popular (based on highest overall rating: SCORE_DESC)
       getTopRatedAnime(1, 24).then(data => {
         if (isSubscribed) setTopRated(data);
       });
 
-      // Currently Airing & New Episodes (status: RELEASING)
+      // 5. Currently Airing Series (status: RELEASING)
       getCurrentlyAiringAnime(1, 24).then(data => {
         if (isSubscribed) setAiring(data);
+      });
+
+      // 6. New Episodes (airingSchedules sort: TIME_DESC live from AniList GraphQL)
+      getRecentlyAiredEpisodes(1, 24).then(data => {
+        if (isSubscribed) setNewEpisodes(data);
       });
     }
 
@@ -167,11 +173,11 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 4: New Episodes (Latest released episodes with SUB/DUB badges) */}
-      {airing.length > 0 && (
+      {/* SECTION 4: New Episodes (Fetched live via AniList GraphQL airingSchedules sort: TIME_DESC) */}
+      {newEpisodes.length > 0 && (
         <CarouselRow
           title="New Episodes"
-          items={airing}
+          latestItems={newEpisodes}
           variant="latest"
           icon={<Sparkles className="w-4 h-4 text-purple-400" />}
           actionLink={
