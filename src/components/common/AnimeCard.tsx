@@ -119,7 +119,7 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
             {title}
           </h4>
           <span className="text-[10px] text-slate-400 font-medium block mt-0.5">
-            S1 • Ep {progressData.episodeNumber}
+            Episode {progressData.episodeNumber}
           </span>
           <span className="text-[10px] text-purple-400 font-semibold block mt-0.5">
             {progressData.timeLeft || '15m left'}
