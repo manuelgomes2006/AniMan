@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
-import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
+import { getWatchlist } from '../services/userStore';
 import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Volume2 } from 'lucide-react';
 
 export default function ProfilePage() {
@@ -22,6 +22,9 @@ export default function ProfilePage() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Track if profile has populated the form to prevent wiping user edits while typing
+  const hasLoadedProfile = useRef(false);
+
   // Double Confirmation Delete Account Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [confirmInputText, setConfirmInputText] = useState('');
@@ -36,9 +39,10 @@ export default function ProfilePage() {
     favorites: 0
   });
 
-  // Populate form state ONLY when profile ID or updatedAt timestamp changes from DB
+  // Populate form state whenever a valid profile is loaded
   useEffect(() => {
-    if (profile) {
+    if (profile && (!hasLoadedProfile.current || !username)) {
+      hasLoadedProfile.current = true;
       setDisplayName(profile.displayName || profile.username || '');
       setUsername(profile.username || '');
       setAvatarUrl(profile.avatarUrl || '');
@@ -56,7 +60,7 @@ export default function ProfilePage() {
       planToWatch: list.filter(i => i.category === 'plan_to_watch').length || 0,
       favorites: list.length || 0
     });
-  }, [profile?.id, profile?.updatedAt]);
+  }, [profile]);
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,7 +138,8 @@ export default function ProfilePage() {
       // 5. Update local storage audio preference
       localStorage.setItem('aniworld_preferred_audio', preferredAudio);
 
-      // 6. Re-fetch cloud profile from database to confirm UI matches DB
+      // 6. Re-fetch cloud profile from database and reset load lock
+      hasLoadedProfile.current = false;
       await refreshProfile();
 
       setSavedSuccess(true);
