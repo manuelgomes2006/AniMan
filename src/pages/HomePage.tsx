@@ -47,13 +47,8 @@ export default function HomePage() {
   useEffect(() => {
     let isSubscribed = true;
 
-    async function loadHomeData() {
-      // 1. Instant non-blocking watch history load
-      fetchWatchHistoryFromSupabase().then(historyData => {
-        if (isSubscribed) setWatchHistory(historyData);
-      });
-
-      // 2. Fetch Airing Release Schedule for "New Episodes" column
+    // Load live Airing Schedule data for "New Episodes" and auto-refresh every 60s
+    const loadScheduleData = () => {
       const nowSecs = Math.floor(Date.now() / 1000);
       const startOfWeek = nowSecs - 7 * 86400;
       const endOfWeek = nowSecs + 7 * 86400;
@@ -61,14 +56,13 @@ export default function HomePage() {
       getAiringSchedule(startOfWeek, endOfWeek).then(scheduleItems => {
         if (!isSubscribed) return;
 
-        // Filter releases that have ALREADY aired or are airing right now (airingAt <= nowSecs + 3600)
-        // Sort descending by airingAt so the most recent releases come first
-        const releasedItems = scheduleItems
-          .filter(item => item.airingAt <= nowSecs + 3600 && item.media)
+        // Sort schedule items by airingAt DESC (most recent releases & upcoming entries first)
+        const sortedItems = [...scheduleItems]
+          .filter(item => item && item.media)
           .sort((a, b) => b.airingAt - a.airingAt);
 
         const uniqueAnimeMap = new Map<number, AnimeMedia>();
-        releasedItems.forEach(item => {
+        sortedItems.forEach(item => {
           if (!uniqueAnimeMap.has(item.media.id)) {
             uniqueAnimeMap.set(item.media.id, {
               ...item.media,
@@ -77,23 +71,21 @@ export default function HomePage() {
           }
         });
 
-        // Fallback: If released list is small, include all schedule items sorted by airingAt
-        if (uniqueAnimeMap.size < 12) {
-          scheduleItems.forEach(item => {
-            if (item.media && !uniqueAnimeMap.has(item.media.id)) {
-              uniqueAnimeMap.set(item.media.id, {
-                ...item.media,
-                latestEpisodeNumber: item.episode
-              });
-            }
-          });
-        }
-
         const latestReleasedList = Array.from(uniqueAnimeMap.values());
         if (latestReleasedList.length > 0) {
           setNewEpisodes(latestReleasedList);
         }
       }).catch(err => console.warn('Schedule load error for new episodes:', err));
+    };
+
+    async function loadHomeData() {
+      // 1. Instant non-blocking watch history load
+      fetchWatchHistoryFromSupabase().then(historyData => {
+        if (isSubscribed) setWatchHistory(historyData);
+      });
+
+      // 2. Fetch Live Airing Schedule for "New Episodes" tab
+      loadScheduleData();
 
       // 3. Trending Now: Recent visits in present day/week (sort: TRENDING_DESC)
       getTrendingAnime(1, 24).then(data => {
@@ -115,16 +107,16 @@ export default function HomePage() {
         if (isSubscribed) setTopRated(data);
       });
 
-      // 6. Currently Airing & New Episodes: Releasing series
+      // 6. Currently Airing: Popular releasing series of current active season
       getCurrentlyAiringAnime(1, 24).then(data => {
-        if (isSubscribed) {
-          setAiring(data);
-          setNewEpisodes(prev => prev.length > 0 ? prev : data);
-        }
+        if (isSubscribed) setAiring(data);
       });
     }
 
     loadHomeData();
+
+    // Auto-refresh schedule data every 60s so new episode releases update automatically in real-time!
+    const scheduleTimer = setInterval(loadScheduleData, 60000);
 
     // Listen for real-time watch history updates
     const handleHistoryUpdate = () => {
@@ -135,6 +127,7 @@ export default function HomePage() {
 
     return () => {
       isSubscribed = false;
+      clearInterval(scheduleTimer);
       window.removeEventListener('aniworld_history_updated', handleHistoryUpdate);
     };
   }, []);
@@ -215,7 +208,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 4: New Episodes (Real-Time Airing Schedule Released Episode Numbers) */}
+      {/* SECTION 4: New Episodes (Live Auto-Updating Schedule Cards with Latest Released Episode Numbers) */}
       {latestEpisodesList.length > 0 && (
         <CarouselRow
           title="New Episodes"
