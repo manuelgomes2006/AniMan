@@ -39,6 +39,11 @@ export default function LoginPage() {
     setError(null);
     setIsNewUser(false);
 
+    // Clear any stale local profile cache from previous sessions
+    try {
+      localStorage.removeItem('aniworld_active_session');
+    } catch {}
+
     const cleanEmail = email.trim().toLowerCase();
     const cleanPassword = password.trim();
 

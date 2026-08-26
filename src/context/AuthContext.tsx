@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return false;
   };
 
-  // Load User Profile and Preferences using Email as Primary Identifier
+  // Load User Profile and Preferences using Email as Single Source of Truth
   const loadProfile = async (currentUser: User) => {
     try {
       const email = (currentUser.email || 'user@aniworld.io').trim().toLowerCase();
@@ -103,26 +103,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Query profiles primarily by email (and fallback by user id)
+      // 1. Fetch exact cloud profile by email
       let profileData: any = null;
       let prefData: any = null;
 
       try {
-        const [{ data: profByEmail }, { data: prefRow }] = await Promise.all([
-          supabase.from('profiles').select('*').ilike('email', email).maybeSingle(),
-          supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).maybeSingle()
-        ]);
+        const { data: profByEmail } = await supabase
+          .from('profiles')
+          .select('*')
+          .ilike('email', email)
+          .maybeSingle();
         profileData = profByEmail;
-        prefData = prefRow;
       } catch {}
 
       if (!profileData) {
-        // Try query by ID fallback
         try {
-          const { data: profById } = await supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle();
+          const { data: profById } = await supabase
+            .from('profiles')
+            .select('*')
+            .eq('id', currentUser.id)
+            .maybeSingle();
           profileData = profById;
         } catch {}
       }
+
+      const effectiveUserId = profileData?.id || currentUser.id;
+
+      // 2. Fetch user preferences by effectiveUserId
+      try {
+        const { data: prefRow } = await supabase
+          .from('user_preferences')
+          .select('*')
+          .eq('user_id', effectiveUserId)
+          .maybeSingle();
+        prefData = prefRow;
+      } catch {}
 
       const metaUsername = currentUser.user_metadata?.username || currentUser.user_metadata?.display_name || email.split('@')[0];
       const metaDisplayName = currentUser.user_metadata?.display_name || metaUsername;
@@ -134,7 +149,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Auto-heal missing profile row in database if missing
       if (!profileData) {
         await supabase.from('profiles').upsert({
-          id: currentUser.id,
+          id: effectiveUserId,
           email: email,
           username: username.toLowerCase(),
           display_name: displayName,
@@ -153,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       };
 
       const loadedProfile: UserProfileData = {
-        id: currentUser.id,
+        id: effectiveUserId,
         username,
         displayName,
         avatarUrl,
@@ -161,16 +176,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         preferences
       };
 
+      // OVERWRITE local session with the TRUE Cloud profile from Supabase Database
       setProfile(loadedProfile);
       try {
         localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(loadedProfile));
       } catch {}
     } catch (err) {
       console.warn('[AuthContext] Load Profile Notice:', err);
-      if (!restoreLocalSessionIfPresent()) {
-        const cleanEmail = currentUser.email || 'user@aniworld.io';
-        setProfile(getGuestProfile(cleanEmail, currentUser.email?.split('@')[0]));
-      }
     }
   };
 
