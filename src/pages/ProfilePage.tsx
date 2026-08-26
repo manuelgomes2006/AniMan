@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
@@ -22,6 +22,9 @@ export default function ProfilePage() {
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Prevent background re-renders from overwriting active user form edits
+  const isInitialLoaded = useRef(false);
+
   // Double Confirmation Delete Account Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [confirmInputText, setConfirmInputText] = useState('');
@@ -37,7 +40,8 @@ export default function ProfilePage() {
   });
 
   useEffect(() => {
-    if (profile) {
+    if (profile && !isInitialLoaded.current) {
+      isInitialLoaded.current = true;
       setDisplayName(profile.displayName || profile.username);
       setUsername(profile.username);
       setAvatarUrl(profile.avatarUrl);
@@ -56,6 +60,11 @@ export default function ProfilePage() {
       favorites: list.length || 0
     });
   }, [profile]);
+
+  const handleAudioSelect = async (variant: 'sub' | 'dub') => {
+    setPreferredAudio(variant);
+    await setUserAudioPreference(variant);
+  };
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -87,10 +96,10 @@ export default function ProfilePage() {
         }
       }
 
-      // 2. Save audio preference in local player store
-      setUserAudioPreference(preferredAudio);
+      // 2. Save audio preference in local player store & Supabase DB
+      await setUserAudioPreference(preferredAudio);
 
-      // 3. Update profiles table in Supabase Cloud DB (only valid profile columns)
+      // 3. Update profiles table in Supabase Cloud DB
       if (isSupabaseConfigured() && profile?.id) {
         const updatedAt = new Date().toISOString();
 
@@ -287,7 +296,7 @@ export default function ProfilePage() {
           <div className="grid grid-cols-2 gap-3">
             <button
               type="button"
-              onClick={() => setPreferredAudio('sub')}
+              onClick={() => handleAudioSelect('sub')}
               className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
                 preferredAudio === 'sub'
                   ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg ring-1 ring-purple-500/50'
@@ -300,7 +309,7 @@ export default function ProfilePage() {
 
             <button
               type="button"
-              onClick={() => setPreferredAudio('dub')}
+              onClick={() => handleAudioSelect('dub')}
               className={`p-3.5 rounded-2xl border text-left transition cursor-pointer ${
                 preferredAudio === 'dub'
                   ? 'bg-purple-600/20 border-purple-500 text-white shadow-lg ring-1 ring-purple-500/50'

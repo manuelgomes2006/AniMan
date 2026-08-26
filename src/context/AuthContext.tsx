@@ -84,8 +84,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         rawAvatar = `${rawAvatar}?v=${updatedAtTS}`;
       }
 
+      const localAudio = localStorage.getItem('aniworld_preferred_audio');
+      const dbAudio = prefData?.preferred_audio;
+      const activeAudio: 'sub' | 'dub' = dbAudio === 'dub' ? 'dub' : (dbAudio === 'sub' ? 'sub' : (localAudio === 'dub' ? 'dub' : 'sub'));
+
+      // If user_preferences row was missing in Database, auto-initialize in Supabase Cloud
+      if (!prefData && isSupabaseConfigured() && currentUser.id) {
+        supabase.from('user_preferences').upsert({
+          user_id: currentUser.id,
+          preferred_audio: activeAudio,
+          autoplay: true,
+          autoplay_next: true,
+          skip_intro: false,
+          skip_outro: false,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'user_id' }).catch((err) => console.warn('[AutoInit Preferences Notice]:', err));
+      }
+
+      // Always sync local storage audio preference to match active choice
+      localStorage.setItem('aniworld_preferred_audio', activeAudio);
+
       const preferences: UserPreferences = {
-        preferredAudio: prefData?.preferred_audio === 'dub' ? 'dub' : 'sub',
+        preferredAudio: activeAudio,
         autoplay: prefData?.autoplay ?? true,
         autoplayNext: prefData?.autoplay_next ?? true,
         skipIntro: prefData?.skip_intro ?? false,
