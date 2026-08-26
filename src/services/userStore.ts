@@ -50,9 +50,7 @@ export function setUserAudioPreference(preference: 'sub' | 'dub'): void {
 export async function syncAllUserPreferencesToSupabase(
   userId: string,
   prefs: {
-    preferredLanguage?: string;
     preferredAudio: 'sub' | 'dub';
-    preferredQuality?: string;
     autoplay?: boolean;
     autoplayNext?: boolean;
     skipIntro?: boolean;
@@ -63,9 +61,7 @@ export async function syncAllUserPreferencesToSupabase(
 
   const payload = {
     user_id: userId,
-    preferred_language: prefs.preferredLanguage || 'English',
     preferred_audio: prefs.preferredAudio,
-    preferred_quality: prefs.preferredQuality || 'auto',
     autoplay: prefs.autoplay ?? true,
     autoplay_next: prefs.autoplayNext ?? true,
     skip_intro: prefs.skipIntro ?? false,

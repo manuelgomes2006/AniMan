@@ -4,9 +4,7 @@ import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient'
 import { fetchWatchHistoryFromSupabase, fetchWatchlistFromSupabase } from '../services/userStore';
 
 export interface UserPreferences {
-  preferredLanguage: string;
   preferredAudio: 'sub' | 'dub';
-  preferredQuality: string;
   autoplay: boolean;
   autoplayNext: boolean;
   skipIntro: boolean;
@@ -66,7 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const [{ data: profileData, error: profileErr }, { data: prefData, error: prefErr }] = await Promise.all([
         supabase.from('profiles').select('id, username, display_name, avatar_url, updated_at').eq('id', currentUser.id).maybeSingle(),
-        supabase.from('user_preferences').select('user_id, preferred_language, preferred_audio, preferred_provider, preferred_quality, autoplay, autoplay_next, skip_intro, skip_outro, updated_at').eq('user_id', currentUser.id).maybeSingle()
+        supabase.from('user_preferences').select('user_id, preferred_audio, preferred_provider, autoplay, autoplay_next, skip_intro, skip_outro, updated_at').eq('user_id', currentUser.id).maybeSingle()
       ]);
 
       if (profileErr) {
@@ -87,9 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       const preferences: UserPreferences = {
-        preferredLanguage: prefData?.preferred_language || 'English',
         preferredAudio: prefData?.preferred_audio === 'dub' ? 'dub' : 'sub',
-        preferredQuality: prefData?.preferred_quality || 'auto',
         autoplay: prefData?.autoplay ?? true,
         autoplayNext: prefData?.autoplay_next ?? true,
         skipIntro: prefData?.skip_intro ?? false,

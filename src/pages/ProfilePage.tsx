@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
-import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Globe, Volume2, Sliders } from 'lucide-react';
+import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Volume2 } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -12,9 +12,7 @@ export default function ProfilePage() {
   const [displayName, setDisplayName] = useState('');
   const [username, setUsername] = useState('');
   const [avatarUrl, setAvatarUrl] = useState('');
-  const [preferredLanguage, setPreferredLanguage] = useState('English');
   const [preferredAudio, setPreferredAudio] = useState<'sub' | 'dub'>('sub');
-  const [preferredQuality, setPreferredQuality] = useState('auto');
   const [autoplay, setAutoplay] = useState(true);
   const [autoplayNext, setAutoplayNext] = useState(true);
   const [skipIntro, setSkipIntro] = useState(false);
@@ -43,9 +41,7 @@ export default function ProfilePage() {
       setDisplayName(profile.displayName || profile.username);
       setUsername(profile.username);
       setAvatarUrl(profile.avatarUrl);
-      setPreferredLanguage(profile.preferences?.preferredLanguage || 'English');
       setPreferredAudio(profile.preferences?.preferredAudio || 'sub');
-      setPreferredQuality(profile.preferences?.preferredQuality || 'auto');
       setAutoplay(profile.preferences?.autoplay ?? true);
       setAutoplayNext(profile.preferences?.autoplayNext ?? true);
       setSkipIntro(profile.preferences?.skipIntro ?? false);
@@ -122,9 +118,7 @@ export default function ProfilePage() {
 
         // 4. Update user_preferences table in Supabase Cloud DB
         await syncAllUserPreferencesToSupabase(profile.id, {
-          preferredLanguage,
           preferredAudio,
-          preferredQuality,
           autoplay,
           autoplayNext,
           skipIntro,
@@ -282,44 +276,6 @@ export default function ProfilePage() {
             onChange={(e) => setAvatarUrl(e.target.value)}
             className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium"
           />
-        </div>
-
-        {/* Preferred Language & Video Quality */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
-              <Globe className="w-3.5 h-3.5 text-purple-400" />
-              Preferred Language
-            </label>
-            <select
-              value={preferredLanguage}
-              onChange={(e) => setPreferredLanguage(e.target.value)}
-              className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium cursor-pointer"
-            >
-              <option value="English">English</option>
-              <option value="Japanese">Japanese</option>
-              <option value="Spanish">Spanish</option>
-              <option value="German">German</option>
-              <option value="French">French</option>
-            </select>
-          </div>
-
-          <div>
-            <label className="block text-xs font-bold text-slate-300 mb-1 flex items-center gap-1.5">
-              <Sliders className="w-3.5 h-3.5 text-purple-400" />
-              Preferred Video Quality
-            </label>
-            <select
-              value={preferredQuality}
-              onChange={(e) => setPreferredQuality(e.target.value)}
-              className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium cursor-pointer"
-            >
-              <option value="auto">Auto (Adaptive 1080p/720p)</option>
-              <option value="1080p">1080p Ultra HD</option>
-              <option value="720p">720p High Definition</option>
-              <option value="480p">480p Standard</option>
-            </select>
-          </div>
         </div>
 
         {/* Audio Mode Selection */}
