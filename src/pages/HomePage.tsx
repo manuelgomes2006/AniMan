@@ -16,7 +16,7 @@ import CarouselRow from '../components/common/CarouselRow';
 import SkeletonLoader from '../components/shared/SkeletonLoader';
 import AnimeCard from '../components/common/AnimeCard';
 
-import { TrendingUp, Sparkles, Flame, Clock, Tv } from 'lucide-react';
+import { TrendingUp, Sparkles, Flame, Clock, Tv, Star } from 'lucide-react';
 
 export default function HomePage() {
   const { profile } = useAuth();
@@ -52,6 +52,7 @@ export default function HomePage() {
       });
 
       // 2. High-speed progressive stream loading for 0ms initial render
+      // Trending Now (based on recent weekly/daily visit & viewing momentum: TRENDING_DESC)
       getTrendingAnime(1, 24).then(data => {
         if (isSubscribed) {
           setTrending(data);
@@ -61,14 +62,17 @@ export default function HomePage() {
         if (isSubscribed) setLoading(false);
       });
 
+      // Most Popular (based on total lifetime views/popularity: POPULARITY_DESC)
       getPopularAnime(1, 24).then(data => {
         if (isSubscribed) setPopular(data);
       });
 
+      // All Time Popular (based on highest overall rating: SCORE_DESC)
       getTopRatedAnime(1, 24).then(data => {
         if (isSubscribed) setTopRated(data);
       });
 
+      // Currently Airing & New Episodes (status: RELEASING)
       getCurrentlyAiringAnime(1, 24).then(data => {
         if (isSubscribed) setAiring(data);
       });
@@ -91,7 +95,7 @@ export default function HomePage() {
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-16 font-sans">
-      {/* 1. Personalized Greeting Header */}
+      {/* Personalized Greeting Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-900/80 pb-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
@@ -101,7 +105,7 @@ export default function HomePage() {
         </div>
       </div>
 
-      {/* 2. Hero Carousel Banner */}
+      {/* Hero Carousel Banner */}
       {loading ? (
         <SkeletonLoader type="hero" />
       ) : (
@@ -145,16 +149,16 @@ export default function HomePage() {
         </section>
       )}
 
-      {/* SECTION 2: Most Popular Anime */}
+      {/* SECTION 2: Most Popular (Based on lifetime views & popularity) */}
       {popular.length > 0 && (
         <CarouselRow
-          title="Most Popular Anime"
+          title="Most Popular"
           items={popular}
           icon={<TrendingUp className="w-4 h-4 text-purple-400" />}
         />
       )}
 
-      {/* SECTION 3: Trending Now */}
+      {/* SECTION 3: Trending Now (Based on recent weekly/daily visit & viewing momentum) */}
       {trending.length > 0 && (
         <CarouselRow
           title="Trending Now"
@@ -163,7 +167,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 4: New Episodes */}
+      {/* SECTION 4: New Episodes (Latest released episodes with SUB/DUB badges) */}
       {airing.length > 0 && (
         <CarouselRow
           title="New Episodes"
@@ -178,7 +182,7 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 5: Currently Airing */}
+      {/* SECTION 5: Currently Airing (Currently releasing anime series) */}
       {airing.length > 0 && (
         <CarouselRow
           title="Currently Airing"
@@ -187,12 +191,12 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 6: All Time Popular */}
+      {/* SECTION 6: All Time Popular (Based on highest rating & score) */}
       {topRated.length > 0 && (
         <CarouselRow
           title="All Time Popular"
           items={topRated}
-          icon={<Sparkles className="w-4 h-4 text-purple-400" />}
+          icon={<Star className="w-4 h-4 text-amber-400 fill-amber-400" />}
         />
       )}
     </div>
