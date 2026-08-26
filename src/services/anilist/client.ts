@@ -571,58 +571,96 @@ export interface AiringScheduleItem {
 
 /**
  * Fetch Comprehensive Airing Release Schedule across previous, current, and upcoming days
+ * Guarantees that future releases (Tomorrow & Day After Tomorrow) are fetched accurately
  */
 export async function getAiringSchedule(startOfWeekTimestamp: number, endOfWeekTimestamp: number): Promise<AiringScheduleItem[]> {
-  try {
-    const query = `
-      query ($airingAt_greater: Int, $airingAt_lesser: Int, $page: Int) {
-        Page (page: $page, perPage: 50) {
-          airingSchedules (airingAt_greater: $airingAt_greater, airingAt_lesser: $airingAt_lesser, sort: TIME) {
-            id
-            airingAt
-            timeUntilAiring
-            episode
-            media {
-              ${MEDIA_FRAGMENT}
-            }
+  const nowSecs = Math.floor(Date.now() / 1000);
+
+  const query = `
+    query ($airingAt_greater: Int, $airingAt_lesser: Int, $page: Int) {
+      Page (page: $page, perPage: 50) {
+        airingSchedules (airingAt_greater: $airingAt_greater, airingAt_lesser: $airingAt_lesser, sort: TIME) {
+          id
+          airingAt
+          timeUntilAiring
+          episode
+          media {
+            ${MEDIA_FRAGMENT}
           }
         }
       }
-    `;
+    }
+  `;
 
-    // Multi-page fetch to get complete 100+ anime release schedule across past and future days
-    const [p1, p2] = await Promise.all([
+  try {
+    // Execute parallel fetches targeting UPCOMING releases (from now into future) AND past releases
+    const [upcomingP1, upcomingP2, upcomingP3, pastP1, airingPopular] = await Promise.all([
+      // Upcoming releases (today, tomorrow, day after tomorrow, +7 days)
       fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
-        airingAt_greater: startOfWeekTimestamp,
-        airingAt_lesser: endOfWeekTimestamp,
+        airingAt_greater: nowSecs - 3600,
+        airingAt_lesser: nowSecs + 7 * 86400,
         page: 1
       }),
       fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
-        airingAt_greater: startOfWeekTimestamp,
-        airingAt_lesser: endOfWeekTimestamp,
+        airingAt_greater: nowSecs - 3600,
+        airingAt_lesser: nowSecs + 7 * 86400,
         page: 2
-      }).catch(() => ({ Page: { airingSchedules: [] } }))
+      }).catch(() => ({ Page: { airingSchedules: [] } })),
+      fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
+        airingAt_greater: nowSecs - 3600,
+        airingAt_lesser: nowSecs + 7 * 86400,
+        page: 3
+      }).catch(() => ({ Page: { airingSchedules: [] } })),
+      // Past releases (-4 days up to now)
+      fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
+        airingAt_greater: nowSecs - 4 * 86400,
+        airingAt_lesser: nowSecs,
+        page: 1
+      }).catch(() => ({ Page: { airingSchedules: [] } })),
+      // Supplement: Currently Airing Popular Anime
+      getCurrentlyAiringAnime(1, 24).catch(() => [])
     ]);
 
-    const combined = [
-      ...(p1.Page?.airingSchedules || []),
-      ...(p2.Page?.airingSchedules || [])
+    const map = new Map<number, AiringScheduleItem>();
+
+    const allApiSchedules = [
+      ...(upcomingP1.Page?.airingSchedules || []),
+      ...(upcomingP2.Page?.airingSchedules || []),
+      ...(upcomingP3.Page?.airingSchedules || []),
+      ...(pastP1.Page?.airingSchedules || [])
     ];
 
-    const map = new Map<number, AiringScheduleItem>();
-    combined.forEach(item => {
-      if (item && item.id) map.set(item.id, item);
+    allApiSchedules.forEach(item => {
+      if (item && item.id && item.media) {
+        map.set(item.id, item);
+      }
+    });
+
+    // Supplement with nextAiringEpisode from currently airing popular anime if missing
+    airingPopular.forEach(media => {
+      if (media.nextAiringEpisode && media.nextAiringEpisode.airingAt) {
+        const nextEp = media.nextAiringEpisode;
+        const fakeId = media.id * 1000 + nextEp.episode;
+        if (!Array.from(map.values()).some(existing => existing.media?.id === media.id && existing.episode === nextEp.episode)) {
+          map.set(fakeId, {
+            id: fakeId,
+            airingAt: nextEp.airingAt,
+            timeUntilAiring: nextEp.timeUntilAiring,
+            episode: nextEp.episode,
+            media
+          });
+        }
+      }
     });
 
     const list = Array.from(map.values());
     list.sort((a, b) => a.airingAt - b.airingAt);
 
     if (list.length > 0) return list;
-    throw new Error('Empty schedule response');
+    throw new Error('No schedule items found');
   } catch (e) {
     console.warn('Airing schedule query notice, generating rich fallback dataset across all 7 days:', e);
 
-    const nowSecs = Math.floor(Date.now() / 1000);
     const daySecs = 86400;
 
     return FALLBACK_ANIME_DATA.flatMap((media, idx) => {
