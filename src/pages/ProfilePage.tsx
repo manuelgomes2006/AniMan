@@ -70,7 +70,6 @@ export default function ProfilePage() {
     setSavedSuccess(false);
 
     const cleanUsername = username.trim().toLowerCase();
-    const cleanEmail = (profile?.email || '').trim().toLowerCase();
 
     try {
       // 1. Validate Username Uniqueness via Supabase Database if username changed
@@ -97,13 +96,12 @@ export default function ProfilePage() {
       // 2. Save audio preference in local player store
       setUserAudioPreference(preferredAudio);
 
-      // 3. Update profiles table in Supabase Cloud DB
+      // 3. Update profiles table in Supabase Cloud DB (only valid profile columns)
       if (isSupabaseConfigured() && profile?.id) {
         const updatedAt = new Date().toISOString();
 
         const { error: profileError } = await supabase.from('profiles').upsert({
           id: profile.id,
-          email: cleanEmail,
           username: cleanUsername,
           display_name: displayName.trim(),
           avatar_url: avatarUrl.trim(),
