@@ -114,15 +114,18 @@ export function updateWatchProgress(
 
   const title = anime.title?.english || anime.title?.romaji || 'Untitled Anime';
   const coverImage = anime.coverImage?.large || anime.coverImage?.extraLarge || anime.coverImage?.medium || '';
-  const completed = duration > 0 ? currentTime >= duration * 0.9 : false;
+
+  const validDuration = duration && duration > 60 ? Math.round(duration) : 1430;
+  const validCurrentTime = Math.min(validDuration, Math.max(0, Math.round(currentTime)));
+  const completed = validDuration > 0 ? validCurrentTime >= validDuration * 0.9 : false;
 
   const progressItem: WatchProgress = {
     animeId: anime.id,
     title,
     coverImage,
     episodeNumber,
-    currentTime: Math.round(currentTime),
-    duration: Math.round(duration || 1430),
+    currentTime: validCurrentTime,
+    duration: validDuration,
     lastWatched: new Date().toISOString(),
   };
 
@@ -147,10 +150,10 @@ export function updateWatchProgress(
           anime_id: String(anime.id),
           episode_id: `${anime.id}-${episodeNumber}`,
           episode_number: episodeNumber,
-          progress_seconds: Math.round(currentTime),
-          current_time: Math.round(currentTime),
-          duration_seconds: Math.round(duration || 1430),
-          duration: Math.round(duration || 1430),
+          progress_seconds: validCurrentTime,
+          current_time: validCurrentTime,
+          duration_seconds: validDuration,
+          duration: validDuration,
           completed: completed,
           updated_at: new Date().toISOString(),
           last_watched: new Date().toISOString()
@@ -239,14 +242,16 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
 
       const epNum = Number(item.episode_number || item.episodeNumber || 1);
       const curTime = Number(item.current_time || item.progress_seconds || 0);
-      const durTime = Number(item.duration || item.duration_seconds || 1430);
+      const rawDur = Number(item.duration || item.duration_seconds || 0);
+      const durTime = rawDur && rawDur > 60 ? rawDur : 1430;
+      const validCurTime = Math.min(durTime, Math.max(0, curTime));
 
       return {
         animeId: aid,
         title: title || `Anime #${aid}`,
         coverImage: coverImage || 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=300&q=80',
         episodeNumber: epNum,
-        currentTime: curTime,
+        currentTime: validCurTime,
         duration: durTime,
         lastWatched: item.last_watched || item.updated_at || new Date().toISOString()
       };

@@ -131,8 +131,18 @@ export default function HomePage() {
                 title: { romaji: hist.title, english: hist.title },
                 coverImage: { large: hist.coverImage, extraLarge: hist.coverImage, medium: hist.coverImage }
               };
-              const remainingSecs = Math.max(0, hist.duration - hist.currentTime);
-              const remainingMins = Math.max(1, Math.round(remainingSecs / 60));
+
+              const dur = hist.duration && hist.duration > 60 ? hist.duration : 1430;
+              const cur = Math.min(dur, Math.max(0, hist.currentTime));
+              const remainingSecs = Math.max(0, dur - cur);
+              const remainingMins = Math.ceil(remainingSecs / 60);
+
+              let timeLeftFormatted = `${remainingMins}m left`;
+              if (remainingSecs <= 0 || cur >= dur * 0.95) {
+                timeLeftFormatted = '1m left';
+              } else if (remainingSecs < 60) {
+                timeLeftFormatted = '< 1m left';
+              }
 
               return (
                 <AnimeCard
@@ -141,9 +151,9 @@ export default function HomePage() {
                   variant="progress"
                   progressData={{
                     episodeNumber: hist.episodeNumber,
-                    currentTime: hist.currentTime,
-                    duration: hist.duration,
-                    timeLeft: `${remainingMins}m left`
+                    currentTime: cur,
+                    duration: dur,
+                    timeLeft: timeLeftFormatted
                   }}
                 />
               );
