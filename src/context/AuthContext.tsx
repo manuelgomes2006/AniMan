@@ -29,7 +29,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  deleteAccount: () => Promise<void>;
+  deleteAccount: () => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -40,7 +40,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<UserProfileData | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Fetch real User Profile and Preferences from Supabase Database (profiles & user_preferences)
+  const clearLocalUserData = () => {
+    try {
+      localStorage.removeItem('aniworld_active_session');
+      localStorage.removeItem('aniworld_registered_accounts');
+      localStorage.removeItem('aniworld_watch_history');
+      localStorage.removeItem('aniworld_watchlist');
+      localStorage.removeItem('aniworld_preferred_audio');
+      sessionStorage.clear();
+    } catch {}
+  };
+
+  // Fetch real User Profile and Preferences from Supabase Database
   const loadProfile = async (currentUser: User) => {
     if (!currentUser || !currentUser.id || !isSupabaseConfigured()) {
       setProfile(null);
@@ -99,6 +110,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(session.user);
         await loadProfile(session.user);
       } else {
+        clearLocalUserData();
         setUser(null);
         setProfile(null);
       }
@@ -108,23 +120,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }).catch((err) => {
       console.error('[AuthContext] Initial Session Check Failed:', err);
       if (isSubscribed) {
+        clearLocalUserData();
         setUser(null);
         setProfile(null);
         setLoading(false);
       }
     });
 
-    // 2. Real-Time Supabase Auth State Change Listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // 2. Real-Time Supabase Auth State Change Listener (Handles multi-device invalidation)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isSubscribed) return;
       setSession(session);
+
+      if (event === 'SIGNED_OUT' || !session?.user) {
+        clearLocalUserData();
+        setUser(null);
+        setProfile(null);
+        setLoading(false);
+        return;
+      }
 
       if (session?.user) {
         setUser(session.user);
         await loadProfile(session.user);
-      } else {
-        setUser(null);
-        setProfile(null);
       }
       setLoading(false);
     });
@@ -206,6 +224,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (err) {
       console.error('[AUTH SIGNOUT EXCEPTION]', err);
     } finally {
+      clearLocalUserData();
       setUser(null);
       setSession(null);
       setProfile(null);
@@ -219,23 +238,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const deleteAccount = async () => {
-    if (user && isSupabaseConfigured()) {
-      try {
-        await supabase.rpc('delete_user_account').catch(async () => {
-          await Promise.allSettled([
-            supabase.from('profiles').delete().eq('id', user.id),
-            supabase.from('user_preferences').delete().eq('user_id', user.id),
-            supabase.from('watchlist').delete().eq('user_id', user.id),
-            supabase.from('watch_history').delete().eq('user_id', user.id),
-            supabase.from('favorites').delete().eq('user_id', user.id),
-          ]);
-        });
-      } catch (err) {
-        console.warn('Account deletion notice:', err);
-      }
+  const deleteAccount = async (): Promise<boolean> => {
+    if (!user || !isSupabaseConfigured()) {
+      throw new Error('No authenticated user session found');
     }
-    await signOut();
+
+    // Call PostgreSQL transactional delete_user_account RPC
+    const { error: rpcError } = await supabase.rpc('delete_user_account');
+
+    if (rpcError) {
+      console.error('[ACCOUNT DELETION FAILED]', rpcError);
+      throw new Error(rpcError.message || 'Account deletion failed');
+    }
+
+    // Clear local data & sign out session on current device
+    clearLocalUserData();
+    await supabase.auth.signOut().catch(() => {});
+    setUser(null);
+    setSession(null);
+    setProfile(null);
+    return true;
   };
 
   return (

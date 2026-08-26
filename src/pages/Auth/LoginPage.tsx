@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
-import { Mail, Lock, LogIn, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, Lock, LogIn, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -12,6 +12,7 @@ export default function LoginPage() {
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get('redirect') || '/';
   const isVerified = searchParams.get('verified') === 'true';
+  const isAccountDeleted = searchParams.get('account_deleted') === 'true';
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -90,7 +91,19 @@ export default function LoginPage() {
           <p className="text-xs text-slate-400">Sign in to your AniWorld account to stream seamlessly.</p>
         </div>
 
-        {verifiedSuccess && (
+        {isAccountDeleted && (
+          <div className="bg-rose-950/60 border border-rose-800 text-rose-200 text-xs p-4 rounded-2xl flex items-center gap-3 font-bold leading-relaxed">
+            <Trash2 className="w-5 h-5 text-rose-400 shrink-0" />
+            <div>
+              <p className="font-extrabold text-white">Account Deleted</p>
+              <p className="text-[11px] text-rose-300 font-normal">
+                Your account and associated personal data have been permanently deleted. You have been signed out.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {verifiedSuccess && !isAccountDeleted && (
           <div className="bg-emerald-950/40 border border-emerald-800 text-emerald-300 text-xs p-3.5 rounded-xl flex items-center justify-center gap-2 text-center font-bold">
             <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
             <span>Email verified successfully! You can now sign in below.</span>

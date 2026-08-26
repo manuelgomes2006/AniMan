@@ -217,17 +217,37 @@ CREATE TRIGGER on_auth_user_created
   EXECUTE PROCEDURE public.handle_new_user();
 
 -- ====================================================================
--- SECURE SELF ACCOUNT DELETION RPC FUNCTION
+-- TRANSACTIONAL SECURE SELF ACCOUNT DELETION RPC FUNCTION
 -- ====================================================================
 
 CREATE OR REPLACE FUNCTION public.delete_user_account()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
+SET search_path = public
 AS $$
+DECLARE
+  target_uid UUID;
 BEGIN
-  DELETE FROM auth.users WHERE id = auth.uid();
+  -- Obtain authenticated user ID directly from PostgreSQL JWT context
+  target_uid := auth.uid();
+
+  IF target_uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated';
+  END IF;
+
+  -- 1. Delete user-owned application data
+  DELETE FROM public.profiles WHERE id = target_uid;
+  DELETE FROM public.user_preferences WHERE user_id = target_uid;
+  DELETE FROM public.watchlist WHERE user_id = target_uid;
+  DELETE FROM public.watch_history WHERE user_id = target_uid;
+  DELETE FROM public.favorites WHERE user_id = target_uid;
+  DELETE FROM public.search_history WHERE user_id = target_uid;
+
+  -- 2. Delete Auth user account identity
+  DELETE FROM auth.users WHERE id = target_uid;
 END;
 $$;
 
+REVOKE ALL ON FUNCTION public.delete_user_account() FROM public;
 GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;

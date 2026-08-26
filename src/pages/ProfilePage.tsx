@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
-import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle } from 'lucide-react';
+import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -20,10 +20,14 @@ export default function ProfilePage() {
   const [skipOutro, setSkipOutro] = useState(false);
 
   const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Double Confirmation Delete Account Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [confirmInputText, setConfirmInputText] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   // Stats Counters
   const [stats, setStats] = useState({
@@ -129,14 +133,35 @@ export default function ProfilePage() {
     navigate('/login', { replace: true });
   };
 
-  const handleConfirmDelete = async () => {
-    setDeleting(true);
+  const handleOpenDeleteModal = () => {
+    setConfirmInputText('');
+    setDeleteError(null);
+    setShowDeleteModal(true);
+  };
+
+  const handleCloseDeleteModal = () => {
+    if (isDeleting) return;
+    setShowDeleteModal(false);
+    setConfirmInputText('');
+    setDeleteError(null);
+  };
+
+  const handleConfirmPermanentDelete = async () => {
+    if (confirmInputText.trim() !== 'DELETE' || isDeleting) {
+      return;
+    }
+
+    setIsDeleting(true);
+    setDeleteError(null);
+
     try {
       await deleteAccount();
-    } finally {
-      setDeleting(false);
       setShowDeleteModal(false);
-      navigate('/login', { replace: true });
+      navigate('/login?account_deleted=true', { replace: true });
+    } catch (err: any) {
+      console.error('[DELETE ACCOUNT ERROR]', err);
+      setDeleteError("We couldn't delete your account. Your account has NOT been deleted. Please try again.");
+      setIsDeleting(false);
     }
   };
 
@@ -329,10 +354,11 @@ export default function ProfilePage() {
           <div className="flex items-center gap-3">
             <button
               type="button"
-              onClick={() => setShowDeleteModal(true)}
-              className="px-4 py-2.5 text-xs text-rose-400 hover:text-rose-300 font-bold transition cursor-pointer"
+              onClick={handleOpenDeleteModal}
+              className="px-4 py-2.5 text-xs text-rose-400 hover:text-rose-300 font-extrabold transition cursor-pointer flex items-center gap-1.5"
             >
-              Delete Account
+              <Trash2 className="w-4 h-4" />
+              <span>Delete Account</span>
             </button>
 
             <button
@@ -346,39 +372,103 @@ export default function ProfilePage() {
         </div>
       </form>
 
-      {/* Delete Account Confirmation Modal */}
+      {/* Double Confirmation Delete Account Modal */}
       {showDeleteModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-[#0D0D12] border border-slate-800 rounded-3xl p-6 max-w-md w-full space-y-4 shadow-2xl">
-            <div className="flex items-center gap-3 text-rose-400">
-              <ShieldAlert className="w-6 h-6" />
-              <h3 className="text-base font-extrabold text-white">Delete Account?</h3>
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-[#0D0D12] border border-rose-900/60 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-5 shadow-2xl relative animate-in fade-in zoom-in-95 duration-200">
+            <button
+              onClick={handleCloseDeleteModal}
+              disabled={isDeleting}
+              className="absolute top-5 right-5 p-1.5 text-slate-400 hover:text-white rounded-xl bg-slate-900 border border-slate-800 transition cursor-pointer"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center gap-3 text-rose-400 border-b border-slate-800 pb-4">
+              <div className="w-10 h-10 rounded-2xl bg-rose-950/80 border border-rose-800/80 flex items-center justify-center shrink-0">
+                <ShieldAlert className="w-5 h-5 text-rose-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-white">Delete your account permanently?</h3>
+                <p className="text-[11px] text-rose-400 font-semibold">Critical Destructive Action</p>
+              </div>
             </div>
-            <p className="text-xs text-slate-300 leading-relaxed">
-              Are you sure you want to permanently delete your account? All your watchlist items, playback history, and preferences will be permanently deleted.
-            </p>
+
+            {deleteError && (
+              <div className="bg-rose-950/80 border border-rose-800 text-rose-200 text-xs p-3.5 rounded-2xl font-bold flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+                <span>{deleteError}</span>
+              </div>
+            )}
+
+            <div className="space-y-2 text-xs text-slate-300 leading-relaxed bg-[#050507] p-4 rounded-2xl border border-slate-800/80">
+              <p className="font-bold text-white mb-2">This will permanently delete:</p>
+              <ul className="space-y-1.5 pl-1 text-slate-400 font-medium">
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Your account identity & login access
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Your profile details & username handle
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Saved favorites & watchlist items
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Watch history & playback progress
+                </li>
+                <li className="flex items-center gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-rose-500" /> Personal player preferences & settings
+                </li>
+              </ul>
+              <div className="pt-2 text-rose-400 font-extrabold text-[11px] uppercase tracking-wider">
+                ⚠️ This action cannot be undone.
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-300">
+                Type <span className="text-rose-400 font-mono font-black">DELETE</span> to confirm:
+              </label>
+              <input
+                type="text"
+                disabled={isDeleting}
+                value={confirmInputText}
+                onChange={(e) => setConfirmInputText(e.target.value)}
+                placeholder="DELETE"
+                className="w-full bg-[#050507] text-white placeholder-slate-600 px-4 py-3 rounded-xl border border-rose-900/60 focus:outline-none focus:border-rose-500 text-xs font-mono font-bold tracking-wider"
+              />
+            </div>
+
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
-                onClick={() => setShowDeleteModal(false)}
-                disabled={deleting}
-                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 cursor-pointer"
+                onClick={handleCloseDeleteModal}
+                disabled={isDeleting}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-400 hover:text-white bg-slate-900 border border-slate-800 cursor-pointer transition disabled:opacity-50"
               >
                 Cancel
               </button>
+
               <button
                 type="button"
-                onClick={handleConfirmDelete}
-                disabled={deleting}
-                className="px-4 py-2 rounded-xl text-xs font-extrabold text-white bg-rose-600 hover:bg-rose-500 shadow-lg shadow-rose-950/60 transition flex items-center gap-1.5 cursor-pointer"
+                onClick={handleConfirmPermanentDelete}
+                disabled={confirmInputText.trim() !== 'DELETE' || isDeleting}
+                className={`px-5 py-2.5 rounded-xl text-xs font-extrabold text-white transition flex items-center gap-2 cursor-pointer shadow-lg shadow-rose-950/60 ${
+                  confirmInputText.trim() === 'DELETE' && !isDeleting
+                    ? 'bg-rose-600 hover:bg-rose-500 active:bg-rose-700'
+                    : 'bg-rose-950/40 text-slate-500 border border-rose-900/40 cursor-not-allowed'
+                }`}
               >
-                {deleting ? (
+                {isDeleting ? (
                   <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    <span>Deleting Account...</span>
+                    <Loader2 className="w-4 h-4 animate-spin text-white" />
+                    <span>Deleting account...</span>
                   </>
                 ) : (
-                  <span>Permanently Delete</span>
+                  <>
+                    <Trash2 className="w-4 h-4" />
+                    <span>Delete Permanently</span>
+                  </>
                 )}
               </button>
             </div>
