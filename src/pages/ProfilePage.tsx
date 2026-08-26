@@ -16,7 +16,6 @@ export default function ProfilePage() {
   const [preferredAudio, setPreferredAudio] = useState<'sub' | 'dub'>('sub');
   const [preferredQuality, setPreferredQuality] = useState('auto');
   const [autoplay, setAutoplay] = useState(true);
-  const [autoPause, setAutoPause] = useState(false);
   const [autoplayNext, setAutoplayNext] = useState(true);
   const [skipIntro, setSkipIntro] = useState(false);
   const [skipOutro, setSkipOutro] = useState(false);
@@ -48,7 +47,6 @@ export default function ProfilePage() {
       setPreferredAudio(profile.preferences?.preferredAudio || 'sub');
       setPreferredQuality(profile.preferences?.preferredQuality || 'auto');
       setAutoplay(profile.preferences?.autoplay ?? true);
-      setAutoPause(profile.preferences?.autoPause ?? false);
       setAutoplayNext(profile.preferences?.autoplayNext ?? true);
       setSkipIntro(profile.preferences?.skipIntro ?? false);
       setSkipOutro(profile.preferences?.skipOutro ?? false);
@@ -128,7 +126,6 @@ export default function ProfilePage() {
           preferredAudio,
           preferredQuality,
           autoplay,
-          autoPause,
           autoplayNext,
           skipIntro,
           skipOutro
@@ -373,16 +370,6 @@ export default function ProfilePage() {
           </label>
 
           <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
-            <span>Auto-Pause Video on Blur/Tab Switch</span>
-            <input
-              type="checkbox"
-              checked={autoPause}
-              onChange={(e) => setAutoPause(e.target.checked)}
-              className="accent-purple-600 w-4 h-4 cursor-pointer"
-            />
-          </label>
-
-          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
             <span>Autoplay Next Episode</span>
             <input
               type="checkbox"
@@ -402,7 +389,7 @@ export default function ProfilePage() {
             />
           </label>
 
-          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer sm:col-span-2">
+          <label className="flex items-center justify-between p-3.5 rounded-2xl bg-[#050507] border border-slate-800 text-xs font-bold text-slate-300 cursor-pointer">
             <span>Auto-Skip Outro</span>
             <input
               type="checkbox"

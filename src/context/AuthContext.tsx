@@ -8,7 +8,6 @@ export interface UserPreferences {
   preferredAudio: 'sub' | 'dub';
   preferredQuality: string;
   autoplay: boolean;
-  autoPause: boolean;
   autoplayNext: boolean;
   skipIntro: boolean;
   skipOutro: boolean;
@@ -66,8 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const email = currentUser.email || '';
 
       const [{ data: profileData, error: profileErr }, { data: prefData, error: prefErr }] = await Promise.all([
-        supabase.from('profiles').select('*').eq('id', currentUser.id).maybeSingle(),
-        supabase.from('user_preferences').select('*').eq('user_id', currentUser.id).maybeSingle()
+        supabase.from('profiles').select('id, username, display_name, avatar_url, updated_at').eq('id', currentUser.id).maybeSingle(),
+        supabase.from('user_preferences').select('user_id, preferred_language, preferred_audio, preferred_provider, preferred_quality, autoplay, autoplay_next, skip_intro, skip_outro, updated_at').eq('user_id', currentUser.id).maybeSingle()
       ]);
 
       if (profileErr) {
@@ -92,7 +91,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         preferredAudio: prefData?.preferred_audio === 'dub' ? 'dub' : 'sub',
         preferredQuality: prefData?.preferred_quality || 'auto',
         autoplay: prefData?.autoplay ?? true,
-        autoPause: prefData?.auto_pause ?? false,
         autoplayNext: prefData?.autoplay_next ?? true,
         skipIntro: prefData?.skip_intro ?? false,
         skipOutro: prefData?.skip_outro ?? false,

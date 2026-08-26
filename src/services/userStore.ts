@@ -54,7 +54,6 @@ export async function syncAllUserPreferencesToSupabase(
     preferredAudio: 'sub' | 'dub';
     preferredQuality?: string;
     autoplay?: boolean;
-    autoPause?: boolean;
     autoplayNext?: boolean;
     skipIntro?: boolean;
     skipOutro?: boolean;
@@ -68,7 +67,6 @@ export async function syncAllUserPreferencesToSupabase(
     preferred_audio: prefs.preferredAudio,
     preferred_quality: prefs.preferredQuality || 'auto',
     autoplay: prefs.autoplay ?? true,
-    auto_pause: prefs.autoPause ?? false,
     autoplay_next: prefs.autoplayNext ?? true,
     skip_intro: prefs.skipIntro ?? false,
     skip_outro: prefs.skipOutro ?? false,
