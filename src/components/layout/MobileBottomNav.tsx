@@ -14,19 +14,33 @@ export default function MobileBottomNav() {
   ];
 
   return (
-    <nav className="md:hidden fixed bottom-0 inset-x-0 z-50 bg-[#0D0D12]/95 backdrop-blur-xl border-t border-slate-800/80 px-4 py-2 flex items-center justify-around shadow-2xl">
+    <nav
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0D0D12]/95 backdrop-blur-xl border-t border-slate-800/90 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex items-center justify-around shadow-[0_-10px_25px_rgba(0,0,0,0.85)] transform-gpu translate-z-0 select-none touch-manipulation"
+      style={{
+        position: 'fixed',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        WebkitTransform: 'translate3d(0,0,0)',
+        transform: 'translate3d(0,0,0)',
+      }}
+    >
       {navItems.map((item) => {
         const Icon = item.icon;
-        const isActive = location.pathname === item.path || (item.path !== '/' && location.pathname.startsWith(item.path));
+        const isActive =
+          location.pathname === item.path ||
+          (item.path !== '/' && location.pathname.startsWith(item.path));
         return (
           <Link
             key={item.label}
             to={item.path}
-            className={`flex flex-col items-center gap-1 transition-all duration-200 py-1 px-3 rounded-xl ${
-              isActive ? 'text-purple-400 font-bold scale-105' : 'text-slate-400 hover:text-slate-200'
+            className={`flex flex-col items-center gap-1 transition-colors duration-150 py-1 px-3 rounded-xl touch-manipulation ${
+              isActive
+                ? 'text-purple-400 font-extrabold'
+                : 'text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Icon className={`w-5 h-5 ${isActive ? 'text-purple-400' : ''}`} />
+            <Icon className={`w-5 h-5 ${isActive ? 'text-purple-400' : 'text-slate-400'}`} />
             <span className="text-[10px] font-semibold tracking-tight">{item.label}</span>
           </Link>
         );
