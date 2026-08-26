@@ -1,11 +1,15 @@
 import { AnimeMedia, AniListPageResponse } from '../../types/anime';
 import { normalizeTitle } from '../mapping/mapping';
+import { findTypoCorrection, calculateSimilarity } from '../search/fuzzySearch';
 
 const ANILIST_ENDPOINT = 'https://graphql.anilist.co';
 const JIKAN_BASE_URL = 'https://api.jikan.moe/v4';
 
 const memoryCache = new Map<string, { data: any; timestamp: number }>();
 const CACHE_TTL = 30 * 60 * 1000; // 30 minutes in-memory & local cache
+
+// Dynamic titles cache harvested from API calls to build an adaptive dictionary
+const dynamicTitleDictionary = new Set<string>();
 
 // High-speed persistent local storage cache helper
 function getCachedData<T>(key: string): T | null {
@@ -34,6 +38,15 @@ function setCachedData<T>(key: string, data: T): void {
   } catch {}
 }
 
+// Harvest titles to continuously expand dictionary
+function registerTitlesInDictionary(mediaList: AnimeMedia[]) {
+  if (!mediaList || !Array.isArray(mediaList)) return;
+  for (const item of mediaList) {
+    if (item.title?.english) dynamicTitleDictionary.add(item.title.english);
+    if (item.title?.romaji) dynamicTitleDictionary.add(item.title.romaji);
+  }
+}
+
 // High-quality fallback anime dataset guaranteeing zero blank screens
 const FALLBACK_ANIME_DATA: AnimeMedia[] = [
   {
@@ -53,6 +66,24 @@ const FALLBACK_ANIME_DATA: AnimeMedia[] = [
     malScore: 8.9,
     aniListScore: 89,
     popularity: 150000
+  },
+  {
+    id: 20,
+    idMal: 20,
+    title: { english: 'Naruto', romaji: 'Naruto', native: 'ナルト' },
+    coverImage: { extraLarge: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80', large: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=600&q=80' },
+    bannerImage: 'https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=1200&q=80',
+    description: 'Moments prior to Naruto Uzumaki\'s birth, a huge demon known as the Kyuubi, the Nine-Tailed Fox, attacked Konohagakure, the Hidden Leaf Village, and wreaked havoc.',
+    format: 'TV',
+    episodes: 220,
+    duration: 24,
+    status: 'FINISHED',
+    seasonYear: 2002,
+    genres: ['Action', 'Adventure', 'Fantasy'],
+    averageScore: 83,
+    malScore: 8.3,
+    aniListScore: 83,
+    popularity: 220000
   },
   {
     id: 21,
@@ -145,6 +176,8 @@ const FALLBACK_ANIME_DATA: AnimeMedia[] = [
     popularity: 140000
   }
 ];
+
+registerTitlesInDictionary(FALLBACK_ANIME_DATA);
 
 async function fetchAniList<T>(query: string, variables: Record<string, any> = {}): Promise<T> {
   const cacheKey = JSON.stringify({ query, variables });
@@ -274,11 +307,14 @@ export async function getTrendingAnime(page = 1, perPage = 12): Promise<AnimeMed
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
+    registerTitlesInDictionary(data.Page.media);
     return data.Page.media;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'bypopularity', page, limit: perPage });
-      return (jikanData.data || []).map(mapJikanToMedia);
+      const mediaList = (jikanData.data || []).map(mapJikanToMedia);
+      registerTitlesInDictionary(mediaList);
+      return mediaList;
     } catch (err) {
       return FALLBACK_ANIME_DATA;
     }
@@ -297,11 +333,14 @@ export async function getPopularAnime(page = 1, perPage = 12): Promise<AnimeMedi
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
+    registerTitlesInDictionary(data.Page.media);
     return data.Page.media;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'bypopularity', page, limit: perPage });
-      return (jikanData.data || []).map(mapJikanToMedia);
+      const mediaList = (jikanData.data || []).map(mapJikanToMedia);
+      registerTitlesInDictionary(mediaList);
+      return mediaList;
     } catch (err) {
       return FALLBACK_ANIME_DATA;
     }
@@ -320,11 +359,14 @@ export async function getTopRatedAnime(page = 1, perPage = 12): Promise<AnimeMed
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
+    registerTitlesInDictionary(data.Page.media);
     return data.Page.media;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'favorite', page, limit: perPage });
-      return (jikanData.data || []).map(mapJikanToMedia);
+      const mediaList = (jikanData.data || []).map(mapJikanToMedia);
+      registerTitlesInDictionary(mediaList);
+      return mediaList;
     } catch (err) {
       return FALLBACK_ANIME_DATA;
     }
@@ -343,11 +385,14 @@ export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<A
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
+    registerTitlesInDictionary(data.Page.media);
     return data.Page.media;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'airing', page, limit: perPage });
-      return (jikanData.data || []).map(mapJikanToMedia);
+      const mediaList = (jikanData.data || []).map(mapJikanToMedia);
+      registerTitlesInDictionary(mediaList);
+      return mediaList;
     } catch (err) {
       return FALLBACK_ANIME_DATA;
     }
@@ -365,49 +410,126 @@ export interface SearchOptions {
   perPage?: number;
 }
 
+// Helper to execute AniList GraphQL search
+async function executeAniListSearchQuery(
+  searchTerm: string | undefined,
+  genre?: string,
+  year?: number,
+  format?: string,
+  status?: string,
+  sort = 'POPULARITY_DESC',
+  page = 1,
+  perPage = 24
+): Promise<AniListPageResponse> {
+  const query = `
+    query ($page: Int, $perPage: Int, $search: String, $genre: String, $seasonYear: Int, $format: MediaFormat, $status: MediaStatus, $sort: [MediaSort]) {
+      Page (page: $page, perPage: $perPage) {
+        pageInfo {
+          total
+          currentPage
+          hasNextPage
+        }
+        media (type: ANIME, search: $search, genre: $genre, seasonYear: $seasonYear, format: $format, status: $status, sort: $sort) {
+          ${MEDIA_FRAGMENT}
+        }
+      }
+    }
+  `;
+
+  const variables: Record<string, any> = { page, perPage, sort: [sort] };
+  if (searchTerm && searchTerm.trim() !== '') variables.search = searchTerm.trim();
+  if (genre && genre !== 'All') variables.genre = genre;
+  if (year) variables.seasonYear = year;
+  if (format && format !== 'All') variables.format = format;
+  if (status && status !== 'All') variables.status = status;
+
+  const data = await fetchAniList<{ Page: AniListPageResponse }>(query, variables);
+  registerTitlesInDictionary(data.Page.media);
+  return data.Page;
+}
+
+/**
+ * Intelligent Typo-Tolerant Search Engine
+ * Automatically checks for spelling mistakes and corrects search queries.
+ */
 export async function searchAnime(options: SearchOptions = {}): Promise<AniListPageResponse> {
   const { search, genre, year, format, status, sort = 'POPULARITY_DESC', page = 1, perPage = 24 } = options;
 
-  try {
-    const query = `
-      query ($page: Int, $perPage: Int, $search: String, $genre: String, $seasonYear: Int, $format: MediaFormat, $status: MediaStatus, $sort: [MediaSort]) {
-        Page (page: $page, perPage: $perPage) {
-          pageInfo {
-            total
-            currentPage
-            hasNextPage
-          }
-          media (type: ANIME, search: $search, genre: $genre, seasonYear: $seasonYear, format: $format, status: $status, sort: $sort) {
-            ${MEDIA_FRAGMENT}
-          }
-        }
-      }
-    `;
-
-    const variables: Record<string, any> = { page, perPage, sort: [sort] };
-    if (search && search.trim() !== '') variables.search = search.trim();
-    if (genre && genre !== 'All') variables.genre = genre;
-    if (year) variables.seasonYear = year;
-    if (format && format !== 'All') variables.format = format;
-    if (status && status !== 'All') variables.status = status;
-
-    const data = await fetchAniList<{ Page: AniListPageResponse }>(query, variables);
-    return data.Page;
-  } catch (e) {
-    if (search) {
-      const norm = normalizeTitle(search);
-      const filtered = FALLBACK_ANIME_DATA.filter(item =>
-        normalizeTitle(item.title.english || '').includes(norm) ||
-        normalizeTitle(item.title.romaji || '').includes(norm)
-      );
+  if (!search || search.trim() === '') {
+    try {
+      return await executeAniListSearchQuery(undefined, genre, year, format, status, sort, page, perPage);
+    } catch (err) {
       return {
-        pageInfo: { total: filtered.length, currentPage: 1, hasNextPage: false },
-        media: filtered.length > 0 ? filtered : FALLBACK_ANIME_DATA
+        pageInfo: { total: FALLBACK_ANIME_DATA.length, currentPage: 1, hasNextPage: false },
+        media: FALLBACK_ANIME_DATA
       };
     }
+  }
+
+  const rawSearch = search.trim();
+  const typoResult = findTypoCorrection(rawSearch, Array.from(dynamicTitleDictionary));
+
+  try {
+    // 1. First execution: Try exact search term against AniList
+    const primaryData = await executeAniListSearchQuery(rawSearch, genre, year, format, status, sort, page, perPage);
+
+    // If AniList returned results
+    if (primaryData.media && primaryData.media.length > 0) {
+      // Check if primary results already match well
+      const topMatch = primaryData.media[0];
+      const topTitleEng = topMatch.title?.english || topMatch.title?.romaji || '';
+      
+      // If we identified a potential typo and the suggested query is very relevant
+      if (typoResult.hasTypo && typoResult.suggestedQuery && 
+          !topTitleEng.toLowerCase().includes(rawSearch.toLowerCase())) {
+        return {
+          ...primaryData,
+          didYouMean: typoResult.suggestedQuery,
+          originalQuery: rawSearch
+        };
+      }
+      return primaryData;
+    }
+
+    // 2. If primary query returned 0 results AND we have a typo suggestion (e.g., "Nartuo" -> "Naruto")
+    if ((!primaryData.media || primaryData.media.length === 0) && typoResult.suggestedQuery) {
+      console.log(`[TypoCorrection] 0 results for '${rawSearch}'. Auto-correcting to '${typoResult.suggestedQuery}'`);
+      
+      const correctedData = await executeAniListSearchQuery(typoResult.suggestedQuery, genre, year, format, status, sort, page, perPage);
+      
+      if (correctedData.media && correctedData.media.length > 0) {
+        return {
+          ...correctedData,
+          correctedQuery: typoResult.suggestedQuery,
+          originalQuery: rawSearch
+        };
+      }
+    }
+
+    return primaryData;
+  } catch (e) {
+    // Fallback search with local fuzzy matching
+    console.warn('[Search] Primary API failed, executing fallback fuzzy search:', e);
+    const targetSearch = typoResult.suggestedQuery || rawSearch;
+    const normTarget = normalizeTitle(targetSearch);
+    const normRaw = normalizeTitle(rawSearch);
+
+    const filtered = FALLBACK_ANIME_DATA.filter(item => {
+      const eng = normalizeTitle(item.title.english || '');
+      const rom = normalizeTitle(item.title.romaji || '');
+      return eng.includes(normTarget) || rom.includes(normTarget) ||
+             eng.includes(normRaw) || rom.includes(normRaw) ||
+             calculateSimilarity(rawSearch, eng) > 0.6 ||
+             calculateSimilarity(rawSearch, rom) > 0.6;
+    });
+
+    const resultsMedia = filtered.length > 0 ? filtered : FALLBACK_ANIME_DATA;
+
     return {
-      pageInfo: { total: FALLBACK_ANIME_DATA.length, currentPage: 1, hasNextPage: false },
-      media: FALLBACK_ANIME_DATA
+      pageInfo: { total: resultsMedia.length, currentPage: 1, hasNextPage: false },
+      media: resultsMedia,
+      correctedQuery: typoResult.suggestedQuery || undefined,
+      originalQuery: rawSearch
     };
   }
 }

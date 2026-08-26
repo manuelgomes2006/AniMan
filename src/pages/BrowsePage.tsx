@@ -4,7 +4,7 @@ import { searchAnime } from '../services/anilist/client';
 import { AnimeMedia } from '../types/anime';
 import AnimeCard from '../components/common/AnimeCard';
 import MobileFilterSheet from '../components/common/MobileFilterSheet';
-import { Search, Filter, Loader2, Sparkles } from 'lucide-react';
+import { Search, Filter, Sparkles, HelpCircle } from 'lucide-react';
 
 export default function BrowsePage() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -23,9 +23,18 @@ export default function BrowsePage() {
   const [loading, setLoading] = useState(true);
   const [isFilterSheetOpen, setIsFilterSheetOpen] = useState(false);
 
+  // Typo Tolerance State
+  const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
+  const [didYouMean, setDidYouMean] = useState<string | null>(null);
+  const [originalQuery, setOriginalQuery] = useState<string | null>(null);
+
   useEffect(() => {
     async function loadBrowseData() {
       setLoading(true);
+      setCorrectedQuery(null);
+      setDidYouMean(null);
+      setOriginalQuery(null);
+
       try {
         let activeSort = sortParam;
         let activeStatus = statusParam;
@@ -46,9 +55,15 @@ export default function BrowsePage() {
           page: 1,
           perPage: 24
         });
+
         setResults(data.media || []);
         setHasNextPage(data.pageInfo?.hasNextPage || false);
         setPage(1);
+
+        if (data.correctedQuery) setCorrectedQuery(data.correctedQuery);
+        if (data.didYouMean) setDidYouMean(data.didYouMean);
+        if (data.originalQuery) setOriginalQuery(data.originalQuery);
+
       } catch (err) {
         console.error('Browse fetch error:', err);
       } finally {
@@ -109,22 +124,65 @@ export default function BrowsePage() {
           <form onSubmit={handleSearchSubmit} className="relative flex-1">
             <input
               type="text"
-              placeholder="Search anime..."
+              placeholder="Search anime (e.g. Naruto, One Piece, Demon Slayer)..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full bg-[#0D0D12] text-white placeholder-slate-500 pl-10 pr-4 py-2.5 rounded-2xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs shadow-inner"
+              className="w-full bg-[#0D0D12] text-white placeholder-slate-500 pl-10 pr-4 py-2.5 rounded-2xl border border-slate-800 focus:outline-none focus:border-purple-500 text-xs shadow-inner font-medium"
             />
             <Search className="w-4 h-4 text-purple-400 absolute left-3 top-1/2 -translate-y-1/2" />
           </form>
 
           <button
             onClick={() => setIsFilterSheetOpen(true)}
-            className="flex items-center gap-1.5 bg-[#0D0D12] hover:bg-purple-600 text-slate-300 hover:text-white px-3.5 py-2.5 rounded-2xl border border-slate-800 text-xs font-bold shrink-0 transition"
+            className="flex items-center gap-1.5 bg-[#0D0D12] hover:bg-purple-600 text-slate-300 hover:text-white px-3.5 py-2.5 rounded-2xl border border-slate-800 text-xs font-bold shrink-0 transition cursor-pointer"
           >
             <Filter className="w-4 h-4 text-purple-400" />
             <span>Filter</span>
           </button>
         </div>
+
+        {/* Typo Correction & Spelling Suggestion Banners */}
+        {correctedQuery && (
+          <div className="bg-purple-950/40 border border-purple-800/80 p-3.5 rounded-2xl flex items-center justify-between text-xs text-purple-200 shadow-lg animate-in fade-in duration-200">
+            <div className="flex items-center gap-2 font-medium">
+              <Sparkles className="w-4 h-4 text-purple-400 shrink-0" />
+              <span>
+                Showing results for <strong className="text-white font-extrabold">{correctedQuery}</strong>
+                {originalQuery && (
+                  <span className="text-slate-400 text-[11px] ml-1.5">(Searched for: <em>"{originalQuery}"</em>)</span>
+                )}
+              </span>
+            </div>
+            <button
+              onClick={() => {
+                setSearchQuery(correctedQuery);
+                updateParam('q', correctedQuery);
+              }}
+              className="bg-purple-600 hover:bg-purple-500 text-white font-bold px-3 py-1 rounded-xl text-[11px] transition cursor-pointer shrink-0 ml-2"
+            >
+              Search {correctedQuery}
+            </button>
+          </div>
+        )}
+
+        {didYouMean && !correctedQuery && (
+          <div className="bg-purple-950/30 border border-purple-800/60 p-3 rounded-2xl flex items-center gap-2 text-xs text-purple-300 shadow-md">
+            <HelpCircle className="w-4 h-4 text-purple-400 shrink-0" />
+            <span>
+              Did you mean{' '}
+              <button
+                onClick={() => {
+                  setSearchQuery(didYouMean);
+                  updateParam('q', didYouMean);
+                }}
+                className="font-extrabold text-white underline hover:text-purple-300 cursor-pointer"
+              >
+                "{didYouMean}"
+              </button>
+              ?
+            </span>
+          </div>
+        )}
 
         {/* Quick Filter Chips */}
         <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
@@ -132,7 +190,7 @@ export default function BrowsePage() {
             <button
               key={chip.id}
               onClick={() => updateParam('tab', chip.id)}
-              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition ${
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition cursor-pointer ${
                 filterTab === chip.id
                   ? 'bg-purple-600 text-white shadow-md'
                   : 'bg-[#0D0D12] text-slate-400 hover:text-white border border-slate-800'
@@ -160,8 +218,9 @@ export default function BrowsePage() {
           </div>
         </div>
       ) : (
-        <div className="text-center py-20 bg-[#0D0D12] rounded-3xl border border-slate-900">
-          <p className="text-slate-400 text-sm font-medium">No anime found matching selected filters.</p>
+        <div className="text-center py-20 bg-[#0D0D12] rounded-3xl border border-slate-900 space-y-2">
+          <p className="text-slate-300 text-sm font-bold">No anime found matching your search.</p>
+          <p className="text-slate-500 text-xs">Try searching for terms like <span className="text-purple-400 font-semibold">Naruto</span>, <span className="text-purple-400 font-semibold">One Piece</span>, or <span className="text-purple-400 font-semibold">Demon Slayer</span>.</p>
         </div>
       )}
 

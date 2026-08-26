@@ -89,4 +89,7 @@ export interface AniListPageResponse {
     hasNextPage: boolean;
   };
   media: AnimeMedia[];
+  didYouMean?: string;
+  correctedQuery?: string;
+  originalQuery?: string;
 }

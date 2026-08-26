@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, ArrowLeft, X, Star, Flame, Clock, Loader2 } from 'lucide-react';
+import { Search, ArrowLeft, X, Star, Flame, Loader2, Sparkles, HelpCircle } from 'lucide-react';
 import { searchAnime } from '../../services/anilist/client';
 import { AnimeMedia } from '../../types/anime';
 
@@ -13,21 +13,29 @@ export default function MobileSearchModal({ isOpen, onClose }: MobileSearchModal
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AnimeMedia[]>([]);
   const [loading, setLoading] = useState(false);
+  const [correctedQuery, setCorrectedQuery] = useState<string | null>(null);
+  const [didYouMean, setDidYouMean] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  const trendingTags = ['Solo Leveling', 'Demon Slayer', 'One Piece', 'Jujutsu Kaisen', 'Attack on Titan', 'Bleach'];
+  const trendingTags = ['Naruto', 'Solo Leveling', 'Demon Slayer', 'One Piece', 'Jujutsu Kaisen', 'Attack on Titan', 'Bleach'];
 
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
+      setCorrectedQuery(null);
+      setDidYouMean(null);
       return;
     }
 
     const timer = setTimeout(async () => {
       setLoading(true);
+      setCorrectedQuery(null);
+      setDidYouMean(null);
       try {
         const res = await searchAnime({ search: query, perPage: 10 });
         setResults(res.media || []);
+        if (res.correctedQuery) setCorrectedQuery(res.correctedQuery);
+        if (res.didYouMean) setDidYouMean(res.didYouMean);
       } catch (err) {
         console.error('Mobile Search error:', err);
       } finally {
@@ -41,20 +49,20 @@ export default function MobileSearchModal({ isOpen, onClose }: MobileSearchModal
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#050507] flex flex-col md:hidden">
+    <div className="fixed inset-0 z-50 bg-[#050507] flex flex-col md:hidden font-sans">
       {/* Top Header Search Input Bar */}
       <div className="p-3 bg-[#0D0D12] border-b border-slate-800 flex items-center gap-3">
-        <button onClick={onClose} className="p-1 text-slate-300 hover:text-white">
+        <button onClick={onClose} className="p-1 text-slate-300 hover:text-white cursor-pointer">
           <ArrowLeft className="w-5 h-5" />
         </button>
         <div className="flex-1 relative flex items-center">
           <input
             type="text"
             autoFocus
-            placeholder="Search anime..."
+            placeholder="Search anime (e.g. Nartuo)..."
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="w-full bg-[#050507] border border-slate-800 text-white placeholder-slate-500 text-xs rounded-xl pl-9 pr-8 py-2.5 focus:outline-none focus:border-purple-500"
+            className="w-full bg-[#050507] border border-slate-800 text-white placeholder-slate-500 text-xs rounded-xl pl-9 pr-8 py-2.5 focus:outline-none focus:border-purple-500 font-medium"
           />
           <Search className="w-4 h-4 text-purple-400 absolute left-3" />
           {query && (
@@ -66,14 +74,36 @@ export default function MobileSearchModal({ isOpen, onClose }: MobileSearchModal
       </div>
 
       {/* Content Body */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-6">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-purple-500 animate-spin" />
           </div>
         ) : results.length > 0 ? (
-          <div className="space-y-2">
-            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-2">Search Results</h4>
+          <div className="space-y-3">
+            {correctedQuery && (
+              <div className="bg-purple-950/50 border border-purple-800/80 p-2.5 rounded-xl text-xs text-purple-200 flex items-center justify-between">
+                <span className="flex items-center gap-1.5 font-medium">
+                  <Sparkles className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                  Showing results for <strong className="text-white font-extrabold">{correctedQuery}</strong>
+                </span>
+                <button
+                  onClick={() => setQuery(correctedQuery)}
+                  className="bg-purple-600 text-white font-bold text-[10px] px-2.5 py-1 rounded-lg"
+                >
+                  Apply
+                </button>
+              </div>
+            )}
+
+            {didYouMean && !correctedQuery && (
+              <div className="bg-purple-950/40 border border-purple-800/60 p-2.5 rounded-xl text-xs text-purple-300 flex items-center gap-1.5">
+                <HelpCircle className="w-3.5 h-3.5 text-purple-400 shrink-0" />
+                <span>Did you mean <button onClick={() => setQuery(didYouMean)} className="font-bold text-white underline">{didYouMean}</button>?</span>
+              </div>
+            )}
+
+            <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 pt-1">Search Results</h4>
             {results.map((anime) => {
               const title = anime.title?.english || anime.title?.romaji || 'Anime';
               const cover = anime.coverImage?.medium || anime.coverImage?.large;
@@ -84,7 +114,7 @@ export default function MobileSearchModal({ isOpen, onClose }: MobileSearchModal
                     navigate(`/anime/${anime.id}`);
                     onClose();
                   }}
-                  className="flex items-center gap-3 p-2 rounded-xl bg-[#0D0D12] border border-slate-900 active:bg-purple-600/20"
+                  className="flex items-center gap-3 p-2.5 rounded-xl bg-[#0D0D12] border border-slate-900 active:bg-purple-600/20 cursor-pointer"
                 >
                   <img src={cover} alt={title} className="w-12 h-16 object-cover rounded-lg shrink-0 bg-slate-950" />
                   <div className="flex-1 min-w-0">
@@ -117,7 +147,7 @@ export default function MobileSearchModal({ isOpen, onClose }: MobileSearchModal
                   <button
                     key={tag}
                     onClick={() => setQuery(tag)}
-                    className="bg-[#0D0D12] text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-800 active:border-purple-500"
+                    className="bg-[#0D0D12] text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-xl border border-slate-800 active:border-purple-500 cursor-pointer"
                   >
                     {tag}
                   </button>
