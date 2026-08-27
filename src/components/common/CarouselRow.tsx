@@ -44,7 +44,7 @@ export default function CarouselRow({
           {actionLink}
 
           {/* Left & Right Scroll Buttons */}
-          <div className="flex items-center gap-1">
+          <div className="hidden sm:flex items-center gap-1">
             <button
               onClick={() => scroll('left')}
               className="p-1.5 rounded-xl bg-[#0D0D12] hover:bg-purple-600 text-slate-400 hover:text-white border border-slate-800 transition cursor-pointer active:scale-95"

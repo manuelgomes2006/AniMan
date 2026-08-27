@@ -19,7 +19,7 @@ export default function MainLayout({ children }: MainLayoutProps) {
       {/* Body Container: Sidebar + Main Content */}
       <div className="flex-1 flex w-full max-w-[1600px] mx-auto">
         <Sidebar />
-        <main className="flex-1 px-4 sm:px-8 py-4 sm:py-6 max-w-full overflow-x-hidden min-h-[calc(100vh-4rem)] pb-20 md:pb-6">
+        <main className="flex-1 px-4 sm:px-8 py-4 sm:py-6 max-w-full overflow-x-hidden min-h-[calc(100vh-4rem)] pb-32 md:pb-6">
           {children}
         </main>
       </div>

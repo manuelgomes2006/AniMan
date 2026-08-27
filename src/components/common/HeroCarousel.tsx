@@ -34,8 +34,8 @@ export default function HeroCarousel({ items = [] }: HeroCarouselProps) {
 
   return (
     <div className="relative w-full rounded-2xl overflow-hidden mb-4 border border-slate-900 shadow-xl bg-[#050507]">
-      {/* Background Image Container — Sleek 320px-360px Height on Desktop */}
-      <div className="relative w-full h-[200px] sm:h-[300px] md:h-[340px]">
+      {/* Background Image Container — Sleek 240px-340px Height */}
+      <div className="relative w-full h-[240px] sm:h-[300px] md:h-[340px]">
         <img
           src={banner}
           alt={title}

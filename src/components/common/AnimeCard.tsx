@@ -112,18 +112,29 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
 
   // Continue Watching Card Variant
   if (variant === 'progress' && progressData) {
+    const progressPercent = progressData.duration > 0
+      ? Math.min(100, Math.max(5, (progressData.currentTime / progressData.duration) * 100))
+      : 0;
+
     return (
       <Link
         to={`/watch/${anime.id}/${progressData.episodeNumber}`}
         className="group bg-[#0D0D12] border border-slate-900/90 hover:border-purple-500/50 rounded-2xl p-2.5 flex items-center gap-3 transition-all duration-300 shadow-md active:scale-98 gpu-accelerated shrink-0 w-full"
       >
-        <div className="relative w-16 sm:w-20 aspect-video rounded-xl overflow-hidden bg-slate-950 shrink-0">
+        <div className="relative w-20 sm:w-24 aspect-video rounded-xl overflow-hidden bg-slate-950 shrink-0">
           <OptimizedImage
             src={cover}
             alt={title}
             aspectRatio="16/9"
             className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
           />
+          {/* Progress Bar overlay */}
+          <div className="absolute bottom-0 left-0 right-0 h-1 bg-slate-900/80 z-10">
+            <div
+              className="h-full bg-gradient-to-r from-purple-600 to-indigo-500 rounded-r-full"
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
         </div>
 
         <div className="flex-1 min-w-0">
@@ -135,8 +146,8 @@ export default function AnimeCard({ anime, variant = 'standard', episodeNumber, 
           </span>
         </div>
 
-        <div className="w-7 h-7 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg shrink-0 transform group-hover:scale-110 transition-transform">
-          <Play className="w-3.5 h-3.5 fill-white ml-0.5" />
+        <div className="w-8 h-8 rounded-full bg-purple-600/90 text-white flex items-center justify-center shadow-lg shrink-0 transform group-hover:scale-110 transition-transform">
+          <Play className="w-4 h-4 fill-white ml-0.5" />
         </div>
       </Link>
     );
