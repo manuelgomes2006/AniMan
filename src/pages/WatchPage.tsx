@@ -46,6 +46,13 @@ export default function WatchPage() {
   const [resumeTime, setResumeTime] = useState<number | null>(null);
   const [showResumeBadge, setShowResumeBadge] = useState(false);
 
+  // Ensure WatchPage always lands at the top showing the Video Player first
+  useEffect(() => {
+    const mainEl = document.querySelector('main');
+    if (mainEl) mainEl.scrollTop = 0;
+    window.scrollTo(0, 0);
+  }, [animeId, currentEpNum]);
+
   // Load Anime Metadata, Normalized Episodes, & Streams
   useEffect(() => {
     async function loadWatchData() {
