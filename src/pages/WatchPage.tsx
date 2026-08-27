@@ -12,7 +12,6 @@ import ServerSelector from '../components/player/ServerSelector';
 import SubDubControls from '../components/player/SubDubControls';
 import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
 import RightEpisodeSidebar from '../components/player/RightEpisodeSidebar';
-import CommentsSection from '../components/player/CommentsSection';
 
 import { ChevronLeft, RefreshCw } from 'lucide-react';
 import { AnimeMedia } from '../types/anime';
@@ -297,8 +296,6 @@ export default function WatchPage() {
             genres={anime?.genres || ['Action', 'Fantasy']}
             description={anime?.description || ''}
           />
-
-          <CommentsSection />
         </div>
 
         {/* Right Column: Episode Sidebar */}
