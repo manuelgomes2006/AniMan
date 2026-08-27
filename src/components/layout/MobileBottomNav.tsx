@@ -15,14 +15,12 @@ export default function MobileBottomNav() {
 
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0D0D12]/95 backdrop-blur-xl border-t border-slate-800/90 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex items-center justify-around shadow-[0_-10px_25px_rgba(0,0,0,0.85)] transform-gpu translate-z-0 select-none touch-manipulation"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-[#0D0D12]/95 backdrop-blur-xl border-t border-slate-800/90 px-2 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] flex items-center justify-around shadow-[0_-10px_25px_rgba(0,0,0,0.85)] select-none touch-manipulation"
       style={{
         position: 'fixed',
         bottom: 0,
         left: 0,
         right: 0,
-        WebkitTransform: 'translate3d(0,0,0)',
-        transform: 'translate3d(0,0,0)',
       }}
     >
       {navItems.map((item) => {
