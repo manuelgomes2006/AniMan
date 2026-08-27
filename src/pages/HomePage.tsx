@@ -235,29 +235,17 @@ export default function HomePage() {
 
       {/* SECTION 4: New Episodes (Broadcast Schedule Feed with Cache Bypass & 60s Live Auto-Refresh) */}
       {latestEpisodesList.length > 0 && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
-                <span>New Episodes</span>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 shadow-sm">
-                  <Radio className="w-2.5 h-2.5 text-emerald-400 animate-pulse" />
-                  Auto-checks every 60s
-                </span>
-              </h2>
-            </div>
-            <Link to="/browse?tab=latest" className="text-xs font-extrabold text-purple-400 hover:underline">
+        <CarouselRow
+          title="New Episodes"
+          items={latestEpisodesList}
+          variant="latest"
+          icon={<Sparkles className="w-4 h-4 text-purple-400" />}
+          actionLink={
+            <Link to="/browse?tab=latest" className="text-xs font-extrabold text-purple-400 hover:underline mr-2">
               View All →
             </Link>
-          </div>
-
-          <CarouselRow
-            title=""
-            items={latestEpisodesList}
-            variant="latest"
-          />
-        </div>
+          }
+        />
       )}
 
       {/* SECTION 5: Currently Airing (Popular Anime of the Current Active Season) */}
