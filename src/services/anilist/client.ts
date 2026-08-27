@@ -171,7 +171,7 @@ const FALLBACK_ANIME_DATA: AnimeMedia[] = [
     seasonYear: 2022,
     genres: ['Action', 'Supernatural'],
     averageScore: 85,
-    malScore: 8.5,
+    malScore: 85,
     aniListScore: 85,
     popularity: 140000
   }
@@ -179,10 +179,13 @@ const FALLBACK_ANIME_DATA: AnimeMedia[] = [
 
 registerTitlesInDictionary(FALLBACK_ANIME_DATA);
 
-async function fetchAniList<T>(query: string, variables: Record<string, any> = {}): Promise<T> {
+async function fetchAniList<T>(query: string, variables: Record<string, any> = {}, bypassCache = false): Promise<T> {
   const cacheKey = JSON.stringify({ query, variables });
-  const cached = getCachedData<T>(cacheKey);
-  if (cached) return cached;
+
+  if (!bypassCache) {
+    const cached = getCachedData<T>(cacheKey);
+    if (cached) return cached;
+  }
 
   try {
     const response = await fetch(ANILIST_ENDPOINT, {
@@ -425,9 +428,9 @@ export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<A
 
 /**
  * Fetch most recently released episodes directly sorted by TIME_DESC
- * Guarantees that Page 1 returns the newest aired broadcast episodes with exact episode numbers
+ * Supports forceRefresh = true to bypass stale cache every 60s for true live updates
  */
-export async function getRecentlyAiredEpisodes(perPage = 24): Promise<AnimeMedia[]> {
+export async function getRecentlyAiredEpisodes(perPage = 24, forceRefresh = false): Promise<AnimeMedia[]> {
   const nowSecs = Math.floor(Date.now() / 1000);
   const query = `
     query ($nowSecs: Int, $page: Int, $perPage: Int) {
@@ -445,11 +448,15 @@ export async function getRecentlyAiredEpisodes(perPage = 24): Promise<AnimeMedia
   `;
 
   try {
-    const data = await fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(query, {
-      nowSecs: nowSecs + 3600, // include episodes released up to 1h from now
-      page: 1,
-      perPage: perPage * 2
-    });
+    const data = await fetchAniList<{ Page: { airingSchedules: AiringScheduleItem[] } }>(
+      query,
+      {
+        nowSecs: nowSecs + 3600, // include episodes released up to 1h from now
+        page: 1,
+        perPage: perPage * 2
+      },
+      forceRefresh
+    );
 
     const items = data.Page?.airingSchedules || [];
     const uniqueMap = new Map<number, AnimeMedia>();

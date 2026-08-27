@@ -17,7 +17,7 @@ import CarouselRow from '../components/common/CarouselRow';
 import SkeletonLoader from '../components/shared/SkeletonLoader';
 import AnimeCard from '../components/common/AnimeCard';
 
-import { TrendingUp, Sparkles, Flame, Clock, Tv, Star } from 'lucide-react';
+import { TrendingUp, Sparkles, Flame, Clock, Tv, Star, Radio } from 'lucide-react';
 
 export default function HomePage() {
   const { profile, user } = useAuth();
@@ -76,9 +76,9 @@ export default function HomePage() {
   useEffect(() => {
     let isSubscribed = true;
 
-    // Fetch the absolute newest aired episodes sorted by TIME_DESC & update persistent cache
-    const loadNewEpisodesData = () => {
-      getRecentlyAiredEpisodes(24).then(latestReleasedList => {
+    // Fetch live aired episodes (bypassing 30m stale cache lock on 60s auto-checks for true live updates)
+    const loadNewEpisodesData = (forceRefresh = false) => {
+      getRecentlyAiredEpisodes(24, forceRefresh).then(latestReleasedList => {
         if (!isSubscribed) return;
 
         if (latestReleasedList && latestReleasedList.length > 0) {
@@ -95,7 +95,7 @@ export default function HomePage() {
       loadHistory();
 
       // 2. Fetch Live Airing Schedule for "New Episodes" tab
-      loadNewEpisodesData();
+      loadNewEpisodesData(false);
 
       // 3. Trending Now: Recent visits in present day/week (sort: TRENDING_DESC)
       getTrendingAnime(1, 24).then(data => {
@@ -127,8 +127,10 @@ export default function HomePage() {
 
     loadHomeData();
 
-    // Auto-refresh released schedule data every 60s so newly launched episodes pop up live!
-    const scheduleTimer = setInterval(loadNewEpisodesData, 60000);
+    // Auto-refresh released schedule data every 60s with forceRefresh=true so newly launched episodes pop up live!
+    const scheduleTimer = setInterval(() => {
+      loadNewEpisodesData(true);
+    }, 60000);
 
     // Lightweight 5s cross-device poll timer when user is logged in
     const crossDeviceTimer = setInterval(() => {
@@ -231,19 +233,31 @@ export default function HomePage() {
         />
       )}
 
-      {/* SECTION 4: New Episodes (Broadcast Schedule Feed with Permanent Cache & 60s Live Refresh) */}
+      {/* SECTION 4: New Episodes (Broadcast Schedule Feed with Cache Bypass & 60s Live Auto-Refresh) */}
       {latestEpisodesList.length > 0 && (
-        <CarouselRow
-          title="New Episodes"
-          items={latestEpisodesList}
-          variant="latest"
-          icon={<Sparkles className="w-4 h-4 text-purple-400" />}
-          actionLink={
-            <Link to="/browse?tab=latest" className="text-xs font-extrabold text-purple-400 hover:underline mr-2">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <h2 className="text-sm sm:text-base font-black text-white uppercase tracking-wider flex items-center gap-2">
+                <span>New Episodes</span>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-950/60 border border-emerald-800/80 text-emerald-400 shadow-sm">
+                  <Radio className="w-2.5 h-2.5 text-emerald-400 animate-pulse" />
+                  Auto-checks every 60s
+                </span>
+              </h2>
+            </div>
+            <Link to="/browse?tab=latest" className="text-xs font-extrabold text-purple-400 hover:underline">
               View All →
             </Link>
-          }
-        />
+          </div>
+
+          <CarouselRow
+            title=""
+            items={latestEpisodesList}
+            variant="latest"
+          />
+        </div>
       )}
 
       {/* SECTION 5: Currently Airing (Popular Anime of the Current Active Season) */}
