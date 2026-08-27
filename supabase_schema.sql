@@ -42,9 +42,15 @@ CREATE TABLE IF NOT EXISTS public.watch_history (
   progress_seconds NUMERIC DEFAULT 0,
   duration_seconds NUMERIC DEFAULT 0,
   completed BOOLEAN DEFAULT FALSE,
+  title TEXT,
+  cover_image TEXT,
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(user_id, anime_id, episode_id)
 );
+
+-- Ensure columns exist if table was previously created
+ALTER TABLE public.watch_history ADD COLUMN IF NOT EXISTS title TEXT;
+ALTER TABLE public.watch_history ADD COLUMN IF NOT EXISTS cover_image TEXT;
 
 -- 4. FAVORITES TABLE
 CREATE TABLE IF NOT EXISTS public.favorites (
