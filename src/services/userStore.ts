@@ -397,7 +397,8 @@ export function getWatchlist(): WatchlistItem[] {
   if (!data) return [];
   try {
     const parsed: WatchlistItem[] = JSON.parse(data);
-    return filterAllowedAnimeList(parsed);
+    if (!Array.isArray(parsed)) return [];
+    return filterAllowedAnimeList(parsed.filter((item) => item && item.anime && item.anime.id));
   } catch {
     return [];
   }
@@ -423,7 +424,7 @@ export async function fetchWatchlistFromSupabase(): Promise<WatchlistItem[]> {
     if (!data) return localList;
 
     const enrichedPromises = data.map(async (row) => {
-      const match = localList.find((l) => l.anime.id === row.anime_id);
+      const match = localList.find((l) => l && l.anime && l.anime.id === row.anime_id);
       let anime = match?.anime;
       if (!anime) {
         try {
@@ -454,8 +455,9 @@ export async function fetchWatchlistFromSupabase(): Promise<WatchlistItem[]> {
 }
 
 export function getWatchlistItem(animeId: number): WatchlistItem | undefined {
+  if (!animeId) return undefined;
   const list = getWatchlist();
-  return list.find((item) => item.anime.id === animeId);
+  return list.find((item) => item && item.anime && item.anime.id === animeId);
 }
 
 export function setWatchlistCategory(

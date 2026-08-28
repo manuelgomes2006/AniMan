@@ -79,9 +79,13 @@ export function isAllowedAnime(anime: any): boolean {
   // 4. Title and synonym fallback keyword matching
   const titlesToTest: string[] = [];
   if (anime.title) {
-    if (anime.title.english) titlesToTest.push(anime.title.english);
-    if (anime.title.romaji) titlesToTest.push(anime.title.romaji);
-    if (anime.title.native) titlesToTest.push(anime.title.native);
+    if (typeof anime.title === 'string') {
+      titlesToTest.push(anime.title);
+    } else if (typeof anime.title === 'object') {
+      if (typeof anime.title.english === 'string') titlesToTest.push(anime.title.english);
+      if (typeof anime.title.romaji === 'string') titlesToTest.push(anime.title.romaji);
+      if (typeof anime.title.native === 'string') titlesToTest.push(anime.title.native);
+    }
   }
   if (Array.isArray(anime.synonyms)) {
     anime.synonyms.forEach((syn: any) => {
@@ -90,6 +94,7 @@ export function isAllowedAnime(anime: any): boolean {
   }
 
   for (const titleText of titlesToTest) {
+    if (typeof titleText !== 'string') continue;
     const lower = titleText.toLowerCase();
     for (const kw of ADULT_KEYWORDS) {
       if (lower.includes(kw)) {
@@ -102,12 +107,15 @@ export function isAllowedAnime(anime: any): boolean {
 }
 
 /**
- * Filter an array of AnimeMedia (or items containing anime/media) to return ONLY allowed/non-adult items
+ * Filter an array of AnimeMedia (or items containing anime/media/WatchProgress) to return ONLY allowed/non-adult items
  */
 export function filterAllowedAnimeList<T>(list: T[]): T[] {
   if (!Array.isArray(list)) return [];
   return list.filter((item: any) => {
     if (!item) return false;
+    if (item.animeId && typeof item.title === 'string') {
+      return isAllowedAnime({ id: item.animeId, title: item.title });
+    }
     const media = item.anime || item.media || item;
     return isAllowedAnime(media);
   });
