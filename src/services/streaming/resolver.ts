@@ -1,8 +1,12 @@
 import {
   EpisodeSource,
   AudioVariant,
+  Language,
   NormalizedStreamResponse,
-  StreamingServerOption
+  StreamingServerOption,
+  EpisodeLanguageSource,
+  EpisodeSourcesMap,
+  ResolvedEpisodeData
 } from './providerTypes';
 import { getEpisodeSourcesHandler } from '../../api/sources';
 import { VIDEO_PROVIDERS, isAllowedEmbedUrl } from './providerRegistry';
@@ -10,6 +14,33 @@ import { VIDEO_PROVIDERS, isAllowedEmbedUrl } from './providerRegistry';
 const IN_FLIGHT_REQUESTS = new Map<string, Promise<NormalizedStreamResponse>>();
 const RESOLVED_CACHE = new Map<string, { data: NormalizedStreamResponse; timestamp: number }>();
 const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
+
+/**
+ * Language selection algorithm — Selects best available audio variant based on episode sources and user preference
+ */
+export function getAvailableLanguage(
+  episode: { sources?: EpisodeSourcesMap | null } | null | undefined,
+  preferredLanguage: Language
+): Language | null {
+  if (!episode || !episode.sources) return null;
+
+  const hasSub = Boolean(episode.sources.sub?.embedUrl);
+  const hasDub = Boolean(episode.sources.dub?.embedUrl);
+
+  if (preferredLanguage === 'dub' && hasDub) {
+    return 'dub';
+  }
+
+  if (hasSub) {
+    return 'sub';
+  }
+
+  if (hasDub) {
+    return 'dub';
+  }
+
+  return null;
+}
 
 /**
  * Provider-Agnostic Source Resolver Engine:
@@ -97,6 +128,64 @@ export function resolveParallelSources(options: {
 
   IN_FLIGHT_REQUESTS.set(requestKey, resolutionPromise);
   return resolutionPromise;
+}
+
+/**
+ * Resolves both SUB and DUB sources for a specific episode simultaneously.
+ * Returns structured ResolvedEpisodeData containing sub and dub availability.
+ */
+export async function resolveEpisodeLanguageSources(options: {
+  animeId: number;
+  title: string;
+  episode: number;
+  malId?: number;
+}): Promise<ResolvedEpisodeData> {
+  const { animeId, title, episode, malId } = options;
+
+  const [subRes, dubRes] = await Promise.all([
+    resolveParallelSources({ animeId, title, episode, variant: 'sub', malId }),
+    resolveParallelSources({ animeId, title, episode, variant: 'dub', malId }),
+  ]);
+
+  const subUrl = subRes.firstValidSource?.url || null;
+  const dubUrl = dubRes.firstValidSource?.url || null;
+
+  const subSource: EpisodeLanguageSource | null = subUrl
+    ? {
+        embedUrl: subUrl,
+        provider: subRes.firstValidSource?.provider,
+        providerName: subRes.firstValidSource?.providerName,
+        sources: subRes.sources,
+        servers: subRes.servers,
+      }
+    : null;
+
+  const dubSource: EpisodeLanguageSource | null = dubUrl
+    ? {
+        embedUrl: dubUrl,
+        provider: dubRes.firstValidSource?.provider,
+        providerName: dubRes.firstValidSource?.providerName,
+        sources: dubRes.sources,
+        servers: dubRes.servers,
+      }
+    : null;
+
+  const sources: EpisodeSourcesMap = {
+    sub: subSource,
+    dub: dubSource,
+  };
+
+  const hasSub = Boolean(subSource?.embedUrl);
+  const hasDub = Boolean(dubSource?.embedUrl);
+
+  return {
+    animeId,
+    episodeNumber: episode,
+    sources,
+    hasSub,
+    hasDub,
+    resolvedAt: Date.now(),
+  };
 }
 
 export function prefetchNextEpisodeSources(options: {

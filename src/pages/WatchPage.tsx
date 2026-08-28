@@ -2,10 +2,26 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getAnimeDetails } from '../services/anilist/client';
 import { getNormalizedEpisodes, NormalizedEpisode } from '../services/episodes/episodes';
-import { resolveParallelSources, prefetchNextEpisodeSources } from '../services/streaming/resolver';
-import { NormalizedStreamResponse, StreamingSource } from '../services/streaming/providerTypes';
+import {
+  resolveEpisodeLanguageSources,
+  getAvailableLanguage,
+  prefetchNextEpisodeSources
+} from '../services/streaming/resolver';
+import {
+  EpisodeSource,
+  Language,
+  ResolvedEpisodeData
+} from '../services/streaming/providerTypes';
 import { useAuth } from '../context/AuthContext';
-import { addToWatchlist, getWatchlist, updateWatchProgress, getWatchHistory, getUserAudioPreference, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
+import {
+  addToWatchlist,
+  getWatchlist,
+  updateWatchProgress,
+  getWatchHistory,
+  getUserAudioPreference,
+  setUserAudioPreference,
+  syncAllUserPreferencesToSupabase
+} from '../services/userStore';
 
 import YomiVideoPlayer from '../components/player/YomiVideoPlayer';
 import ServerSelector from '../components/player/ServerSelector';
@@ -14,7 +30,7 @@ import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
 import RightEpisodeSidebar from '../components/player/RightEpisodeSidebar';
 
 import { isAllowedAnime } from '../services/catalog/contentFilter';
-import { ChevronLeft, RefreshCw, ShieldAlert } from 'lucide-react';
+import { ChevronLeft, RefreshCw, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { AnimeMedia } from '../types/anime';
 
 export default function WatchPage() {
@@ -27,25 +43,28 @@ export default function WatchPage() {
 
   const [anime, setAnime] = useState<AnimeMedia | null>(null);
   const [normalizedEpisodes, setNormalizedEpisodes] = useState<NormalizedEpisode[]>([]);
-  const [streamResponse, setStreamResponse] = useState<NormalizedStreamResponse | null>(null);
+  const [resolvedEpisode, setResolvedEpisode] = useState<ResolvedEpisodeData | null>(null);
   const [activeSourceIndex, setActiveSourceIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  // Sync Audio Preference with Profile Preferences or Local Preference
-  const initialAudio = profile?.preferences?.preferredAudio || getUserAudioPreference();
-  const [audioVariant, setAudioVariant] = useState<'sub' | 'dub'>(initialAudio);
+  // Persistent User Audio Preference ('sub' | 'dub')
+  const initialPref = (profile?.preferences?.preferredAudio || getUserAudioPreference() || 'sub') as Language;
+  const [preferredLanguage, setPreferredLanguage] = useState<Language>(initialPref);
 
-  // Automatically update active audio variant when profile loads from Supabase
-  useEffect(() => {
-    if (profile?.preferences?.preferredAudio) {
-      setAudioVariant(profile.preferences.preferredAudio);
-    }
-  }, [profile?.preferences?.preferredAudio]);
+  // Effective Active Language for Current Episode ('sub' | 'dub' | null)
+  const [activeLanguage, setActiveLanguage] = useState<Language | null>(null);
 
-  const [streamError, setStreamError] = useState(false);
+  const [dubFallbackAlert, setDubFallbackAlert] = useState<string | null>(null);
   const [inWatchlist, setInWatchlist] = useState(false);
   const [resumeTime, setResumeTime] = useState<number | null>(null);
   const [showResumeBadge, setShowResumeBadge] = useState(false);
+
+  // Update preferred language when profile finishes loading
+  useEffect(() => {
+    if (profile?.preferences?.preferredAudio) {
+      setPreferredLanguage(profile.preferences.preferredAudio as Language);
+    }
+  }, [profile?.preferences?.preferredAudio]);
 
   // Ensure WatchPage always lands at the top showing the Video Player first
   useEffect(() => {
@@ -54,11 +73,11 @@ export default function WatchPage() {
     window.scrollTo(0, 0);
   }, [animeId, currentEpNum]);
 
-  // Load Anime Metadata, Normalized Episodes, & Streams
+  // Load Anime Metadata, Normalized Episodes, & Language Sources
   useEffect(() => {
     async function loadWatchData() {
       setLoading(true);
-      setStreamError(false);
+      setDubFallbackAlert(null);
       try {
         const animeData = await getAnimeDetails(animeId);
         if (!animeData || !isAllowedAnime(animeData)) {
@@ -75,18 +94,22 @@ export default function WatchPage() {
           animeData.status,
           animeData.nextAiringEpisode
         );
+        setNormalizedEpisodes(episodesData);
 
-        const resolvedStreams = await resolveParallelSources({
+        // Fetch SUB & DUB episode sources in parallel
+        const resolvedData = await resolveEpisodeLanguageSources({
           animeId,
           title: animeData.title?.english || animeData.title?.romaji || 'Anime',
           episode: currentEpNum,
-          variant: audioVariant,
-          malId: animeData.idMal
+          malId: animeData.idMal,
         });
 
-        setNormalizedEpisodes(episodesData);
-        setStreamResponse(resolvedStreams);
+        setResolvedEpisode(resolvedData);
         setActiveSourceIndex(0);
+
+        // Determine active language using getAvailableLanguage
+        const nextLanguage = getAvailableLanguage(resolvedData, preferredLanguage);
+        setActiveLanguage(nextLanguage);
 
         const list = getWatchlist();
         setInWatchlist(list.some(item => item.anime.id === animeId));
@@ -103,24 +126,42 @@ export default function WatchPage() {
         }
       } catch (err) {
         console.error('Watch data load error:', err);
+        setResolvedEpisode(null);
+        setActiveLanguage(null);
       } finally {
         setLoading(false);
       }
     }
+
     loadWatchData();
-  }, [animeId, currentEpNum, audioVariant]);
+  }, [animeId, currentEpNum, preferredLanguage]);
+
+  const hasSub = Boolean(resolvedEpisode?.sources?.sub?.embedUrl);
+  const hasDub = Boolean(resolvedEpisode?.sources?.dub?.embedUrl);
+
+  const activeLangSource = activeLanguage === 'dub'
+    ? resolvedEpisode?.sources?.dub
+    : resolvedEpisode?.sources?.sub;
+
+  const activeEmbedUrl = activeLangSource?.embedUrl || null;
 
   const currentEpData = normalizedEpisodes.find(ep => ep.number === currentEpNum) || {
     number: currentEpNum,
     title: `Episode ${currentEpNum}`,
-    playable: true,
-    subAvailable: true,
-    dubAvailable: true
+    playable: hasSub || hasDub,
+    subAvailable: hasSub,
+    dubAvailable: hasDub
   };
 
-  const handleAudioChange = async (variant: 'sub' | 'dub') => {
-    setAudioVariant(variant);
+  const handleSelectLanguage = async (variant: Language) => {
+    setPreferredLanguage(variant);
     setUserAudioPreference(variant);
+    setDubFallbackAlert(null);
+
+    if (resolvedEpisode) {
+      const nextLang = getAvailableLanguage(resolvedEpisode, variant);
+      setActiveLanguage(nextLang);
+    }
 
     if (profile?.id) {
       await syncAllUserPreferencesToSupabase(profile.id, {
@@ -145,24 +186,38 @@ export default function WatchPage() {
     }
   };
 
+  const currentSourcesList: EpisodeSource[] = activeLangSource?.sources || [];
+
   const handleSwitchMirror = () => {
-    setStreamError(false);
-    if (streamResponse && streamResponse.sources.length > 1) {
-      setActiveSourceIndex((prev) => (prev + 1) % streamResponse.sources.length);
+    if (currentSourcesList.length > 1) {
+      setActiveSourceIndex((prev) => (prev + 1) % currentSourcesList.length);
+    } else if (activeLanguage === 'dub' && hasSub) {
+      // Fallback if Dub fails to load
+      setActiveLanguage('sub');
+      setDubFallbackAlert('Dub unavailable. Switched to Sub.');
     }
   };
 
   const handleSelectServerIndex = (index: number) => {
-    setStreamError(false);
-    if (streamResponse && index >= 0 && index < streamResponse.sources.length) {
+    if (index >= 0 && index < currentSourcesList.length) {
       setActiveSourceIndex(index);
     }
   };
 
-  const activeSource: StreamingSource | null =
-    streamResponse && streamResponse.sources[activeSourceIndex]
-      ? streamResponse.sources[activeSourceIndex]
-      : streamResponse?.firstValidSource || null;
+  const activeSourceItem: EpisodeSource | null =
+    currentSourcesList[activeSourceIndex] ||
+    (activeEmbedUrl
+      ? {
+          episodeId: `${animeId}-${currentEpNum}`,
+          provider: activeLangSource?.provider || 'megaplay',
+          providerName: activeLangSource?.providerName || 'MegaPlay HD',
+          language: activeLanguage || 'sub',
+          type: 'iframe',
+          url: activeEmbedUrl,
+          quality: '1080p',
+          status: 'available',
+        }
+      : null);
 
   const title = anime?.title?.english || anime?.title?.romaji || 'Anime';
   const epTitle = currentEpData.title || `Episode ${currentEpNum}`;
@@ -193,17 +248,18 @@ export default function WatchPage() {
         animeId,
         title,
         episode: currentEpNum,
-        variant: audioVariant,
+        variant: preferredLanguage,
         malId: anime.idMal
       });
     }
-  }, [anime, currentEpNum, audioVariant]);
+  }, [anime, currentEpNum, preferredLanguage]);
 
   if (loading) {
     return (
       <div className="max-w-7xl mx-auto py-8 space-y-6">
-        <div className="w-full aspect-video bg-[#0D0D12] rounded-3xl animate-pulse flex items-center justify-center">
-          <span className="text-xs text-purple-400 font-bold animate-pulse">Loading video player...</span>
+        <div className="w-full aspect-video bg-[#0D0D12] rounded-3xl animate-pulse flex flex-col items-center justify-center space-y-2">
+          <div className="w-8 h-8 border-3 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+          <span className="text-xs text-purple-400 font-bold">Loading video player...</span>
         </div>
       </div>
     );
@@ -243,13 +299,13 @@ export default function WatchPage() {
 
         {/* Top Quality & Mirror Switcher */}
         <div className="flex items-center gap-2">
-          {streamResponse && streamResponse.sources.length > 1 && (
+          {currentSourcesList.length > 1 && (
             <button
               onClick={handleSwitchMirror}
               className="bg-[#0D0D12] hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-white text-xs font-bold px-3 py-1.5 rounded-xl transition flex items-center gap-1.5 cursor-pointer"
             >
               <RefreshCw className="w-3.5 h-3.5 text-purple-400" />
-              <span>Switch Mirror ({activeSourceIndex + 1}/{streamResponse.sources.length})</span>
+              <span>Switch Mirror ({activeSourceIndex + 1}/{currentSourcesList.length})</span>
             </button>
           )}
           <span className="bg-purple-950/60 border border-purple-800/80 text-purple-300 text-xs font-black px-3 py-1.5 rounded-xl uppercase">
@@ -257,6 +313,22 @@ export default function WatchPage() {
           </span>
         </div>
       </div>
+
+      {/* Dub Fallback Alert Banner */}
+      {dubFallbackAlert && (
+        <div className="bg-amber-950/60 border border-amber-800/80 text-amber-300 text-xs px-4 py-2.5 rounded-xl flex items-center justify-between shadow-lg">
+          <div className="flex items-center gap-2 font-bold">
+            <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{dubFallbackAlert}</span>
+          </div>
+          <button
+            onClick={() => setDubFallbackAlert(null)}
+            className="text-amber-400 hover:text-white text-xs font-bold underline cursor-pointer"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       {/* Resume Playback Badge */}
       {showResumeBadge && resumeTime && (
@@ -285,37 +357,49 @@ export default function WatchPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
         {/* Left Column: Player & Metadata */}
         <div className="lg:col-span-2 space-y-6">
-          <YomiVideoPlayer
-            source={activeSource}
-            title={title}
-            episodeNumber={currentEpNum}
-            initialTime={resumeTime || 0}
-            mediaDuration={anime?.duration}
-            onTimeUpdate={handleTimeUpdate}
-            skipIntroEnabled={profile?.preferences?.skipIntro || false}
-            skipOutroEnabled={profile?.preferences?.skipOutro || false}
-            onSwitchMirror={handleSwitchMirror}
-            onEnded={() => handleSelectEpisode(currentEpNum + 1)}
-          />
+          {!activeEmbedUrl ? (
+            <div className="w-full aspect-video bg-[#0D0D12] border border-slate-800 rounded-3xl p-8 flex flex-col items-center justify-center text-center space-y-3 shadow-2xl">
+              <div className="w-12 h-12 bg-amber-950/60 border border-amber-800/80 rounded-2xl flex items-center justify-center text-amber-400 shadow-xl">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <h3 className="text-lg font-black text-white">No playable source available for this episode.</h3>
+              <p className="text-xs text-slate-400 max-w-md">
+                We could not locate an active stream for Episode {currentEpNum}. Please try selecting another episode or audio language.
+              </p>
+            </div>
+          ) : (
+            <YomiVideoPlayer
+              source={activeSourceItem}
+              title={title}
+              episodeNumber={currentEpNum}
+              initialTime={resumeTime || 0}
+              mediaDuration={anime?.duration}
+              onTimeUpdate={handleTimeUpdate}
+              skipIntroEnabled={profile?.preferences?.skipIntro || false}
+              skipOutroEnabled={profile?.preferences?.skipOutro || false}
+              onSwitchMirror={handleSwitchMirror}
+              onEnded={() => handleSelectEpisode(currentEpNum + 1)}
+            />
+          )}
 
           {/* Interactive Server Selector Tabs */}
-          {streamResponse && streamResponse.servers && (
+          {activeLangSource?.servers && activeLangSource.servers.length > 0 && (
             <ServerSelector
-              servers={streamResponse.servers}
+              servers={activeLangSource.servers}
               activeSourceIndex={activeSourceIndex}
               onSelectServer={handleSelectServerIndex}
-              audioVariant={audioVariant}
-              onAudioChange={handleAudioChange}
+              audioVariant={activeLanguage || 'sub'}
+              onAudioChange={handleSelectLanguage}
               episodeNumber={currentEpNum}
             />
           )}
 
+          {/* Sub / Dub Audio Track Selection Buttons */}
           <SubDubControls
-            audioVariant={audioVariant}
-            onAudioChange={handleAudioChange}
-            inWatchlist={inWatchlist}
-            onToggleWatchlist={handleToggleWatchlist}
-            onSwitchMirror={handleSwitchMirror}
+            activeLanguage={activeLanguage}
+            hasSub={hasSub}
+            hasDub={hasDub}
+            onSelectLanguage={handleSelectLanguage}
           />
 
           <YouAreWatchingCard

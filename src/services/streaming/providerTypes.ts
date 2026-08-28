@@ -1,4 +1,5 @@
 export type AudioVariant = 'sub' | 'dub';
+export type Language = 'sub' | 'dub';
 
 export type ProviderStatus =
   | 'available'
@@ -43,6 +44,30 @@ export interface NormalizedStreamResponse {
   firstValidSource: EpisodeSource | null;
   sources: EpisodeSource[];
   servers: StreamingServerOption[];
+  resolvedAt: number;
+}
+
+export interface EpisodeLanguageSource {
+  embedUrl: string;
+  provider?: string;
+  providerName?: string;
+  type?: 'iframe' | 'hls' | 'file';
+  quality?: string;
+  sources?: EpisodeSource[];
+  servers?: StreamingServerOption[];
+}
+
+export interface EpisodeSourcesMap {
+  sub?: EpisodeLanguageSource | null;
+  dub?: EpisodeLanguageSource | null;
+}
+
+export interface ResolvedEpisodeData {
+  animeId: number;
+  episodeNumber: number;
+  sources: EpisodeSourcesMap;
+  hasSub: boolean;
+  hasDub: boolean;
   resolvedAt: number;
 }
 
