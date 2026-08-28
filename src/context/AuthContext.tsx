@@ -124,41 +124,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isSubscribed = true;
 
-    // 1. Initial Session Check from Supabase Auth Storage
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!isSubscribed) return;
-      setSession(session);
+    async function initAuth() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!isSubscribed) return;
 
-      if (session?.user) {
-        setUser(session.user);
-        await loadProfile(session.user);
-      } else {
-        setUser(null);
-        setProfile(null);
+        setSession(session);
+        if (session?.user) {
+          setUser(session.user);
+          loadProfile(session.user).catch((e) => console.error('[AuthContext] Background profile load notice:', e));
+        } else {
+          setUser(null);
+          setProfile(null);
+        }
+      } catch (err) {
+        console.error('[AuthContext] Session init error:', err);
+        if (isSubscribed) {
+          setUser(null);
+          setProfile(null);
+        }
+      } finally {
+        if (isSubscribed) {
+          setLoading(false);
+        }
       }
-      if (isSubscribed) {
-        setLoading(false);
-      }
-    }).catch((err) => {
-      console.error('[AuthContext] Initial Session Check Error:', err);
-      if (isSubscribed) {
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
-      }
-    });
+    }
 
-    // 2. Real-Time Supabase Auth State Change Listener
+    initAuth();
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isSubscribed) return;
 
-      console.log(`[AuthContext] Auth State Change Event: ${event}`, session?.user?.email || 'No Session User');
-
       setSession(session);
-
       if (session?.user) {
         setUser(session.user);
-        await loadProfile(session.user);
+        loadProfile(session.user).catch((e) => console.error('[AuthContext] Profile state change notice:', e));
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);

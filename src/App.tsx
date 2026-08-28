@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import MainLayout from './components/layout/MainLayout';
 import SkeletonLoader from './components/shared/SkeletonLoader';
 import ProtectedRoute from './components/shared/ProtectedRoute';
+import ErrorBoundary from './components/shared/ErrorBoundary';
 import { AuthProvider } from './context/AuthContext';
 
 // Lazy-load ALL public auth pages for minimum initial bundle footprint
@@ -33,37 +34,39 @@ function ScrollToTop() {
 
 export default function App() {
   return (
-    <AuthProvider>
-      <BrowserRouter>
-        <ScrollToTop />
-        <MainLayout>
-          <Suspense fallback={
-            <div className="max-w-7xl mx-auto py-6 space-y-6">
-              <SkeletonLoader type="hero" />
-              <SkeletonLoader type="card" count={6} />
-            </div>
-          }>
-            <Routes>
-              {/* Public Unauthenticated Routes */}
-              <Route path="/login" element={<LoginPage />} />
-              <Route path="/signup" element={<SignupPage />} />
-              <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-              <Route path="/reset-password" element={<ResetPasswordPage />} />
-              <Route path="/debug-player" element={<DebugPlayerPage />} />
+    <ErrorBoundary>
+      <AuthProvider>
+        <BrowserRouter>
+          <ScrollToTop />
+          <MainLayout>
+            <Suspense fallback={
+              <div className="max-w-7xl mx-auto py-6 space-y-6">
+                <SkeletonLoader type="hero" />
+                <SkeletonLoader type="card" count={6} />
+              </div>
+            }>
+              <Routes>
+                {/* Public Unauthenticated Routes */}
+                <Route path="/login" element={<LoginPage />} />
+                <Route path="/signup" element={<SignupPage />} />
+                <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+                <Route path="/reset-password" element={<ResetPasswordPage />} />
+                <Route path="/debug-player" element={<DebugPlayerPage />} />
 
-              {/* Authenticated Protected Routes */}
-              <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-              <Route path="/browse" element={<ProtectedRoute><BrowsePage /></ProtectedRoute>} />
-              <Route path="/anime/:id" element={<ProtectedRoute><DetailsPage /></ProtectedRoute>} />
-              <Route path="/watch/:id/:episode" element={<ProtectedRoute><WatchPage /></ProtectedRoute>} />
-              <Route path="/schedule" element={<ProtectedRoute><SchedulePage /></ProtectedRoute>} />
-              <Route path="/watchlist" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
-              <Route path="/history" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
-              <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
-            </Routes>
-          </Suspense>
-        </MainLayout>
-      </BrowserRouter>
-    </AuthProvider>
+                {/* Authenticated Protected Routes */}
+                <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
+                <Route path="/browse" element={<ProtectedRoute><BrowsePage /></ProtectedRoute>} />
+                <Route path="/anime/:id" element={<ProtectedRoute><DetailsPage /></ProtectedRoute>} />
+                <Route path="/watch/:id/:episode" element={<ProtectedRoute><WatchPage /></ProtectedRoute>} />
+                <Route path="/schedule" element={<ProtectedRoute><SchedulePage /></ProtectedRoute>} />
+                <Route path="/watchlist" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
+                <Route path="/history" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
+                <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />
+              </Routes>
+            </Suspense>
+          </MainLayout>
+        </BrowserRouter>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
