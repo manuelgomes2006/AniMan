@@ -147,8 +147,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!isSubscribed) return;
 
       console.log(`[AuthContext] Auth State Event: ${event}`, nextSession?.user?.email || 'No User');
-      applySession(nextSession);
-      setAuthLoading(false);
+
+      if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setAuthLoading(false);
+      } else if (nextSession?.user) {
+        setSession(nextSession);
+        setUser(nextSession.user);
+        void loadProfile(nextSession.user).catch((error) =>
+          console.error('[AuthContext] Profile load notice:', error)
+        );
+        setAuthLoading(false);
+      } else if (event !== 'INITIAL_SESSION') {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setAuthLoading(false);
+      }
     });
 
     async function initAuth() {
