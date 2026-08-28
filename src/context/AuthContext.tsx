@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<UserProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setAuthLoading] = useState(true);
 
   const clearLocalUserData = useCallback(() => {
     try {
@@ -146,27 +146,69 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
       } finally {
         if (isSubscribed) {
+          setAuthLoading(false);
           setLoading(false);
         }
       }
     }
 
+    // 1. Initial Session Check from Supabase Auth Storage
     initAuth();
 
+    // 2. Real-Time Supabase Auth State Change Listener (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, INITIAL_SESSION)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isSubscribed) return;
 
       console.log(`[AuthContext] Auth State Event: ${event}`, session?.user?.email || 'No User');
 
       setSession(session);
-      if (session?.user) {
-        setUser(session.user);
-        loadProfile(session.user).catch((e) => console.error('[AuthContext] Profile state change notice:', e));
-        setLoading(false);
-      } else if (event === 'SIGNED_OUT') {
-        setUser(null);
-        setProfile(null);
-        setLoading(false);
+
+      switch (event) {
+        case 'INITIAL_SESSION':
+          if (session?.user) {
+            setUser(session.user);
+            loadProfile(session.user).catch((e) => console.error('[AuthContext] Profile load error:', e));
+          } else {
+            setUser(null);
+            setProfile(null);
+          }
+          if (isSubscribed) {
+            setAuthLoading(false);
+            setLoading(false);
+          }
+          break;
+
+        case 'SIGNED_IN':
+        case 'TOKEN_REFRESHED':
+        case 'USER_UPDATED':
+          if (session?.user) {
+            setUser(session.user);
+            loadProfile(session.user).catch((e) => console.error('[AuthContext] Profile update notice:', e));
+          }
+          if (isSubscribed) {
+            setAuthLoading(false);
+            setLoading(false);
+          }
+          break;
+
+        case 'SIGNED_OUT':
+          setUser(null);
+          setProfile(null);
+          if (isSubscribed) {
+            setAuthLoading(false);
+            setLoading(false);
+          }
+          break;
+
+        default:
+          if (session?.user) {
+            setUser(session.user);
+          }
+          if (isSubscribed) {
+            setAuthLoading(false);
+            setLoading(false);
+          }
+          break;
       }
     });
 
@@ -259,6 +301,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signOut = useCallback(async () => {
+    setAuthLoading(true);
     setLoading(true);
     try {
       if (isSupabaseConfigured()) {
@@ -271,6 +314,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(null);
       setSession(null);
       setProfile(null);
+      setAuthLoading(false);
       setLoading(false);
     }
   }, [clearLocalUserData]);
@@ -307,14 +351,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       user,
       session,
       profile,
-      loading,
-      authLoading: loading,
+      loading: authLoading,
+      authLoading,
       signInWithGoogle,
       signOut,
       refreshProfile,
       deleteAccount
     }),
-    [user, session, profile, loading, signInWithGoogle, signOut, refreshProfile, deleteAccount]
+    [user, session, profile, authLoading, signInWithGoogle, signOut, refreshProfile, deleteAccount]
   );
 
   return (
