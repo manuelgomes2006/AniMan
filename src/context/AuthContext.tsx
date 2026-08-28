@@ -45,8 +45,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       localStorage.removeItem('aniworld_active_session');
       localStorage.removeItem('aniworld_registered_accounts');
-      localStorage.removeItem('aniworld_watch_history');
-      localStorage.removeItem('aniworld_watchlist');
       sessionStorage.clear();
     } catch {}
   }, []);
@@ -124,16 +122,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isSubscribed = true;
 
-    // 1. Initial Session Check from Supabase Auth
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
+    // 1. Initial Session Check from Supabase Auth (Persisted Session Restoration)
+    supabase.auth.getSession().then(async ({ data: { session }, error }) => {
       if (!isSubscribed) return;
+
+      if (error) {
+        console.error('[AuthContext] Session retrieval notice:', error.message);
+      }
+
       setSession(session);
 
       if (session?.user) {
         setUser(session.user);
         await loadProfile(session.user);
       } else {
-        clearLocalUserData();
         setUser(null);
         setProfile(null);
       }
@@ -141,21 +143,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setLoading(false);
       }
     }).catch((err) => {
-      console.error('[AuthContext] Initial Session Check Failed:', err);
+      console.error('[AuthContext] Initial Session Check Exception:', err);
       if (isSubscribed) {
-        clearLocalUserData();
         setUser(null);
         setProfile(null);
         setLoading(false);
       }
     });
 
-    // 2. Real-Time Supabase Auth State Change Listener (Handles multi-device invalidation)
+    // 2. Real-Time Supabase Auth State Change Listener
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isSubscribed) return;
       setSession(session);
 
-      if (event === 'SIGNED_OUT' || !session?.user) {
+      if (event === 'SIGNED_OUT') {
         clearLocalUserData();
         setUser(null);
         setProfile(null);
@@ -166,6 +167,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         setUser(session.user);
         await loadProfile(session.user);
+      } else if (event !== 'INITIAL_SESSION') {
+        setUser(null);
+        setProfile(null);
       }
       setLoading(false);
     });
