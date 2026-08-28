@@ -13,7 +13,8 @@ import SubDubControls from '../components/player/SubDubControls';
 import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
 import RightEpisodeSidebar from '../components/player/RightEpisodeSidebar';
 
-import { ChevronLeft, RefreshCw } from 'lucide-react';
+import { isAllowedAnime } from '../services/catalog/contentFilter';
+import { ChevronLeft, RefreshCw, ShieldAlert } from 'lucide-react';
 import { AnimeMedia } from '../types/anime';
 
 export default function WatchPage() {
@@ -60,6 +61,10 @@ export default function WatchPage() {
       setStreamError(false);
       try {
         const animeData = await getAnimeDetails(animeId);
+        if (!animeData || !isAllowedAnime(animeData)) {
+          setAnime(null);
+          return;
+        }
         setAnime(animeData);
 
         const episodesData = await getNormalizedEpisodes(
@@ -200,6 +205,26 @@ export default function WatchPage() {
         <div className="w-full aspect-video bg-[#0D0D12] rounded-3xl animate-pulse flex items-center justify-center">
           <span className="text-xs text-purple-400 font-bold animate-pulse">Loading video player...</span>
         </div>
+      </div>
+    );
+  }
+
+  if (!anime || !isAllowedAnime(anime)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <div className="w-16 h-16 bg-rose-950/40 border border-rose-800/80 rounded-2xl flex items-center justify-center text-rose-400 mb-4 shadow-xl">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black text-white mb-2">Anime Not Available</h2>
+        <p className="text-slate-400 text-xs sm:text-sm max-w-md mb-6 leading-relaxed">
+          The video stream you are looking for is restricted or not available on AniMan.
+        </p>
+        <Link
+          to="/"
+          className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs sm:text-sm px-6 py-3 rounded-xl shadow-lg transition"
+        >
+          Return Home
+        </Link>
       </div>
     );
   }

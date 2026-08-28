@@ -4,8 +4,9 @@ import { getAnimeDetails } from '../services/anilist/client';
 import { getNormalizedEpisodes, NormalizedEpisode } from '../services/episodes/episodes';
 import { addToWatchlist, removeFromWatchlist, getWatchlistItem } from '../services/userStore';
 import { AnimeMedia } from '../types/anime';
+import { isAllowedAnime } from '../services/catalog/contentFilter';
 import {
-  Play, Plus, Check, Star, Video, Loader2, Search, ChevronDown
+  Play, Plus, Check, Star, Video, Loader2, Search, ChevronDown, ShieldAlert
 } from 'lucide-react';
 
 export default function DetailsPage() {
@@ -107,11 +108,22 @@ export default function DetailsPage() {
     );
   }
 
-  if (!anime) {
+  if (!anime || !isAllowedAnime(anime)) {
     return (
-      <div className="text-center py-20">
-        <h2 className="text-xl font-bold text-white mb-2">Anime Not Found</h2>
-        <Link to="/" className="text-purple-400 hover:underline text-sm font-semibold">Return Home</Link>
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
+        <div className="w-16 h-16 bg-rose-950/40 border border-rose-800/80 rounded-2xl flex items-center justify-center text-rose-400 mb-4 shadow-xl">
+          <ShieldAlert className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl sm:text-2xl font-black text-white mb-2">Anime Not Available</h2>
+        <p className="text-slate-400 text-xs sm:text-sm max-w-md mb-6 leading-relaxed">
+          The anime you are looking for is restricted or not available on AniMan.
+        </p>
+        <Link
+          to="/"
+          className="bg-purple-600 hover:bg-purple-500 text-white font-extrabold text-xs sm:text-sm px-6 py-3 rounded-xl shadow-lg transition"
+        >
+          Return Home
+        </Link>
       </div>
     );
   }

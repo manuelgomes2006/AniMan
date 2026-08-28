@@ -266,9 +266,18 @@ function mapJikanToMedia(malItem: any): AnimeMedia {
   };
 }
 
+import { isAllowedAnime, filterAllowedAnimeList } from '../catalog/contentFilter';
+
 const MEDIA_FRAGMENT = `
   id
   idMal
+  isAdult
+  synonyms
+  tags {
+    id
+    name
+    isAdult
+  }
   title {
     romaji
     english
@@ -310,12 +319,13 @@ export async function getTrendingAnime(page = 1, perPage = 12): Promise<AnimeMed
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
-    registerTitlesInDictionary(data.Page.media);
-    return data.Page.media;
+    const allowed = filterAllowedAnimeList(data.Page.media);
+    registerTitlesInDictionary(allowed);
+    return allowed;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'bypopularity', page, limit: perPage });
-      const mediaList = (jikanData.data || []).map(mapJikanToMedia);
+      const mediaList = filterAllowedAnimeList((jikanData.data || []).map(mapJikanToMedia));
       registerTitlesInDictionary(mediaList);
       return mediaList;
     } catch (err) {
@@ -336,12 +346,13 @@ export async function getPopularAnime(page = 1, perPage = 12): Promise<AnimeMedi
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
-    registerTitlesInDictionary(data.Page.media);
-    return data.Page.media;
+    const allowed = filterAllowedAnimeList(data.Page.media);
+    registerTitlesInDictionary(allowed);
+    return allowed;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'bypopularity', page, limit: perPage });
-      const mediaList = (jikanData.data || []).map(mapJikanToMedia);
+      const mediaList = filterAllowedAnimeList((jikanData.data || []).map(mapJikanToMedia));
       registerTitlesInDictionary(mediaList);
       return mediaList;
     } catch (err) {
@@ -362,12 +373,13 @@ export async function getTopRatedAnime(page = 1, perPage = 12): Promise<AnimeMed
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage });
-    registerTitlesInDictionary(data.Page.media);
-    return data.Page.media;
+    const allowed = filterAllowedAnimeList(data.Page.media);
+    registerTitlesInDictionary(allowed);
+    return allowed;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'favorite', page, limit: perPage });
-      const mediaList = (jikanData.data || []).map(mapJikanToMedia);
+      const mediaList = filterAllowedAnimeList((jikanData.data || []).map(mapJikanToMedia));
       registerTitlesInDictionary(mediaList);
       return mediaList;
     } catch (err) {
@@ -396,9 +408,10 @@ export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<A
       }
     `;
     const data = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(query, { page, perPage, season, seasonYear: year });
-    if (data.Page.media && data.Page.media.length >= 6) {
-      registerTitlesInDictionary(data.Page.media);
-      return data.Page.media;
+    const allowed = filterAllowedAnimeList(data.Page.media || []);
+    if (allowed.length >= 6) {
+      registerTitlesInDictionary(allowed);
+      return allowed;
     }
     
     // Fallback if seasonal filter yields < 6 items: query all releasing anime sorted by popularity
@@ -412,12 +425,13 @@ export async function getCurrentlyAiringAnime(page = 1, perPage = 12): Promise<A
       }
     `;
     const fallbackData = await fetchAniList<{ Page: { media: AnimeMedia[] } }>(fallbackQuery, { page, perPage });
-    registerTitlesInDictionary(fallbackData.Page.media);
-    return fallbackData.Page.media;
+    const fallbackAllowed = filterAllowedAnimeList(fallbackData.Page.media || []);
+    registerTitlesInDictionary(fallbackAllowed);
+    return fallbackAllowed;
   } catch (e) {
     try {
       const jikanData = await fetchJikan<any>('/top/anime', { filter: 'airing', page, limit: perPage });
-      const mediaList = (jikanData.data || []).map(mapJikanToMedia);
+      const mediaList = filterAllowedAnimeList((jikanData.data || []).map(mapJikanToMedia));
       registerTitlesInDictionary(mediaList);
       return mediaList;
     } catch (err) {
@@ -462,7 +476,7 @@ export async function getRecentlyAiredEpisodes(perPage = 24, forceRefresh = fals
     const uniqueMap = new Map<number, AnimeMedia>();
 
     items.forEach(item => {
-      if (item && item.media && !uniqueMap.has(item.media.id)) {
+      if (item && item.media && isAllowedAnime(item.media) && !uniqueMap.has(item.media.id)) {
         uniqueMap.set(item.media.id, {
           ...item.media,
           latestEpisodeNumber: item.episode
@@ -470,7 +484,7 @@ export async function getRecentlyAiredEpisodes(perPage = 24, forceRefresh = fals
       }
     });
 
-    const result = Array.from(uniqueMap.values()).slice(0, perPage);
+    const result = filterAllowedAnimeList(Array.from(uniqueMap.values())).slice(0, perPage);
     if (result.length > 0) return result;
     throw new Error('No recent aired episodes found');
   } catch (err) {
@@ -524,8 +538,12 @@ async function executeAniListSearchQuery(
   if (status && status !== 'All') variables.status = status;
 
   const data = await fetchAniList<{ Page: AniListPageResponse }>(query, variables);
-  registerTitlesInDictionary(data.Page.media);
-  return data.Page;
+  const allowedMedia = filterAllowedAnimeList(data.Page.media || []);
+  registerTitlesInDictionary(allowedMedia);
+  return {
+    ...data.Page,
+    media: allowedMedia
+  };
 }
 
 /**
@@ -541,7 +559,7 @@ export async function searchAnime(options: SearchOptions = {}): Promise<AniListP
     } catch (err) {
       return {
         pageInfo: { total: FALLBACK_ANIME_DATA.length, currentPage: 1, hasNextPage: false },
-        media: FALLBACK_ANIME_DATA
+        media: filterAllowedAnimeList(FALLBACK_ANIME_DATA)
       };
     }
   }
@@ -603,7 +621,7 @@ export async function searchAnime(options: SearchOptions = {}): Promise<AniListP
              calculateSimilarity(rawSearch, rom) > 0.6;
     });
 
-    const resultsMedia = filtered.length > 0 ? filtered : FALLBACK_ANIME_DATA;
+    const resultsMedia = filterAllowedAnimeList(filtered.length > 0 ? filtered : FALLBACK_ANIME_DATA);
 
     return {
       pageInfo: { total: resultsMedia.length, currentPage: 1, hasNextPage: false },
@@ -634,10 +652,20 @@ export async function getAnimeDetails(id: number): Promise<AnimeMedia> {
       }
     `;
     const data = await fetchAniList<{ Media: AnimeMedia }>(query, { id });
+    if (!data.Media || !isAllowedAnime(data.Media)) {
+      throw new Error('Anime not available or restricted');
+    }
+    // Filter recommendations
+    if (data.Media.recommendations?.nodes) {
+      data.Media.recommendations.nodes = data.Media.recommendations.nodes.filter(
+        (node: any) => node?.mediaRecommendation && isAllowedAnime(node.mediaRecommendation)
+      );
+    }
     return data.Media;
   } catch (e) {
     const matched = FALLBACK_ANIME_DATA.find(item => item.id === id || item.idMal === id);
-    return matched || FALLBACK_ANIME_DATA[0];
+    if (matched && isAllowedAnime(matched)) return matched;
+    throw new Error('Anime not available or restricted');
   }
 }
 
@@ -687,7 +715,7 @@ export async function getAiringSchedule(startOfWeekTimestamp: number, endOfWeekT
     const map = new Map<number, AiringScheduleItem>();
     pages.forEach(res => {
       (res.Page?.airingSchedules || []).forEach(item => {
-        if (item && item.id && item.media) {
+        if (item && item.id && item.media && isAllowedAnime(item.media)) {
           map.set(item.id, item);
         }
       });
@@ -703,7 +731,7 @@ export async function getAiringSchedule(startOfWeekTimestamp: number, endOfWeekT
 
     const daySecs = 86400;
 
-    return FALLBACK_ANIME_DATA.flatMap((media, idx) => {
+    return filterAllowedAnimeList(FALLBACK_ANIME_DATA).flatMap((media, idx) => {
       // Map across past 3 days, today, and next 3 days to guarantee all days have releases
       return [-3, -2, -1, 0, 1, 2, 3].map(dayOffset => {
         const timestamp = nowSecs + (dayOffset * daySecs) + (idx * 3600 + 7200);

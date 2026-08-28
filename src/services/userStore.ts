@@ -196,11 +196,14 @@ export function updateWatchProgress(
   }, 400);
 }
 
+import { isAllowedAnime, filterAllowedAnimeList } from './catalog/contentFilter';
+
 export function getWatchHistory(): WatchProgress[] {
   const data = localStorage.getItem(STORAGE_KEYS.WATCH_HISTORY) || localStorage.getItem('aniworld_watch_history');
   if (!data) return [];
   try {
-    return JSON.parse(data);
+    const parsed: WatchProgress[] = JSON.parse(data);
+    return filterAllowedAnimeList(parsed);
   } catch {
     return [];
   }
@@ -356,8 +359,9 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
     });
 
     const parsed = await Promise.all(parsedPromises);
-    localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(parsed));
-    return parsed;
+    const allowedParsed = filterAllowedAnimeList(parsed);
+    localStorage.setItem(STORAGE_KEYS.WATCH_HISTORY, JSON.stringify(allowedParsed));
+    return allowedParsed;
   } catch (err) {
     console.error('[WatchHistory Fetch Exception]:', err);
     return localHistory;
@@ -392,7 +396,8 @@ export function getWatchlist(): WatchlistItem[] {
   const data = localStorage.getItem(STORAGE_KEYS.WATCHLIST) || localStorage.getItem('aniworld_watchlist');
   if (!data) return [];
   try {
-    return JSON.parse(data);
+    const parsed: WatchlistItem[] = JSON.parse(data);
+    return filterAllowedAnimeList(parsed);
   } catch {
     return [];
   }
@@ -439,9 +444,10 @@ export async function fetchWatchlistFromSupabase(): Promise<WatchlistItem[]> {
     });
 
     const enriched = await Promise.all(enrichedPromises);
-    localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(enriched));
+    const allowedEnriched = filterAllowedAnimeList(enriched);
+    localStorage.setItem(STORAGE_KEYS.WATCHLIST, JSON.stringify(allowedEnriched));
     window.dispatchEvent(new Event('aniworld_watchlist_updated'));
-    return enriched;
+    return allowedEnriched;
   } catch (err) {
     return localList;
   }

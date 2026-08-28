@@ -45,6 +45,10 @@ export interface RecommendationNode {
 export interface AnimeMedia {
   id: number;
   idMal?: number;
+  isAdult?: boolean;
+  rating?: string;
+  tags?: { id?: number; name: string; isAdult?: boolean }[];
+  synonyms?: string[];
   title: AniListTitle;
   coverImage?: CoverImage;
   bannerImage?: string;
