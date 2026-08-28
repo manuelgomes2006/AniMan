@@ -49,20 +49,13 @@ export default function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
           <div>
             {/* Header */}
             <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
-              <Link to="/" onClick={onClose} className="flex items-center gap-2.5">
-                <img
-                  src="/logo.jpg"
-                  alt="AniMan Logo"
-                  className="w-8 h-8 rounded-xl object-cover border border-purple-500/30 shadow-md"
-                />
-                <div className="flex flex-col">
-                  <span className="font-black text-lg text-white">
-                    Ani<span className="text-purple-400">Man</span>
-                  </span>
-                  <span className="text-[8px] uppercase tracking-widest text-purple-400 font-semibold -mt-1">
-                    The Place to Watch Anime
-                  </span>
+              <Link to="/" onClick={onClose} className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center border border-purple-500/30">
+                  <Tv className="w-4 h-4 text-white" />
                 </div>
+                <span className="font-black text-lg text-white">
+                  Ani<span className="text-purple-400">Man</span>
+                </span>
               </Link>
               <button
                 onClick={onClose}
