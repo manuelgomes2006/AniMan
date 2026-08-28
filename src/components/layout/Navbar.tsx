@@ -33,9 +33,9 @@ export default function Navbar({ onOpenSearch }: NavbarProps) {
         <div className="max-w-[1600px] w-full mx-auto flex items-center justify-between gap-4">
           
           {/* Brand Logo */}
-          <Link to="/" className="flex items-center gap-2 group shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-950/60 group-hover:scale-105 transition-transform border border-purple-500/30">
-              <Tv className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+          <Link to="/" className="flex items-center gap-2.5 group shrink-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden group-hover:scale-105 transition-transform border-2 border-purple-500/60 shadow-lg shadow-purple-950/60 shrink-0 bg-black">
+              <img src="/logo.jpg" alt="AniMan Logo" className="w-full h-full object-cover" />
             </div>
             <div className="flex flex-col">
               <span className="font-black text-lg sm:text-xl tracking-tight text-white flex items-center gap-1">

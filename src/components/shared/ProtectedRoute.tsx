@@ -19,8 +19,8 @@ export default function ProtectedRoute({ children, requireAuth = true }: Protect
     return (
       <div className="min-h-screen bg-[#050507] flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3 animate-pulse">
-          <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-xl shadow-purple-950/60 border border-purple-500/30">
-            <Tv className="w-6 h-6 text-white" />
+          <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500/60 shadow-xl shadow-purple-950/60 shrink-0 bg-black">
+            <img src="/logo.jpg" alt="AniMan Logo" className="w-full h-full object-cover" />
           </div>
           <div className="text-center">
             <span className="font-black text-xl text-white tracking-tight">Ani<span className="text-purple-400">Man</span></span>

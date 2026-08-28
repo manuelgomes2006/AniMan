@@ -42,10 +42,14 @@ export default function ResetPasswordPage() {
   return (
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl">
-        <div className="text-center space-y-2">
-          <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
-            <span>Ani</span>
-            <span className="text-purple-400">Man</span>
+        <div className="text-center space-y-2 flex flex-col items-center">
+          <Link to="/" className="inline-flex items-center gap-3 group mb-1">
+            <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500/60 shadow-xl shadow-purple-950/60 group-hover:scale-105 transition-transform bg-black">
+              <img src="/logo.jpg" alt="AniMan Logo" className="w-full h-full object-cover" />
+            </div>
+            <span className="text-2xl font-black text-white tracking-tight">
+              Ani<span className="text-purple-400">Man</span>
+            </span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Create New Password</h2>
           <p className="text-xs text-slate-400">Enter a new secure password for your account.</p>
