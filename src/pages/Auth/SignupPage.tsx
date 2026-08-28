@@ -261,17 +261,19 @@ export default function SignupPage() {
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-6 sm:p-8 rounded-3xl shadow-2xl">
-        <div className="text-center space-y-2 flex flex-col items-center">
-          <Link to="/" className="inline-flex items-center gap-3 group mb-1">
-            <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500/60 shadow-xl shadow-purple-950/60 group-hover:scale-105 transition-transform bg-black">
-              <img src={logoImg} alt="AniMan Logo" className="w-full h-full object-cover" />
+        <div className="flex flex-col items-center text-center space-y-3">
+          <Link to="/" className="flex flex-col items-center gap-2 group">
+            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-2 border-purple-500/60 shadow-2xl shadow-purple-950/80 group-hover:scale-105 transition-transform bg-black flex items-center justify-center">
+              <img src={logoImg} alt="AniMan Logo" className="w-full h-full object-cover object-center" />
             </div>
-            <span className="text-2xl font-black text-white tracking-tight">
+            <span className="text-2xl sm:text-3xl font-black text-white tracking-tight leading-none mt-1">
               Ani<span className="text-purple-400">Man</span>
             </span>
           </Link>
-          <h2 className="text-lg font-extrabold text-white">Create an Account</h2>
-          <p className="text-xs text-slate-400">Sign up with your username and email to get started.</p>
+          <div className="space-y-1">
+            <h2 className="text-lg font-extrabold text-white">Create an Account</h2>
+            <p className="text-xs text-slate-400">Sign up with your username and email to get started.</p>
+          </div>
         </div>
 
         {error && (
