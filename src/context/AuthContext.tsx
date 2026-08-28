@@ -125,92 +125,47 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     let isSubscribed = true;
 
+    const applySession = (nextSession: Session | null) => {
+      if (!isSubscribed) return;
+
+      setSession(nextSession);
+
+      if (nextSession?.user) {
+        setUser(nextSession.user);
+        void loadProfile(nextSession.user).catch((error) =>
+          console.error('[AuthContext] Profile load notice:', error)
+        );
+      } else {
+        setUser(null);
+        setProfile(null);
+      }
+    };
+
+    // Subscribe first so a sign-in, sign-out, or token refresh cannot be missed
+    // while the stored session is being restored during application startup.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, nextSession) => {
+      if (!isSubscribed) return;
+
+      console.log(`[AuthContext] Auth State Event: ${event}`, nextSession?.user?.email || 'No User');
+      applySession(nextSession);
+      setAuthLoading(false);
+    });
+
     async function initAuth() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!isSubscribed) return;
-
-        setSession(session);
-        if (session?.user) {
-          setUser(session.user);
-          loadProfile(session.user).catch((e) => console.error('[AuthContext] Background profile load notice:', e));
-        } else {
-          setUser(null);
-          setProfile(null);
-        }
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) throw error;
+        applySession(session);
       } catch (err) {
         console.error('[AuthContext] Session init error:', err);
-        if (isSubscribed) {
-          setUser(null);
-          setProfile(null);
-        }
       } finally {
         if (isSubscribed) {
           setAuthLoading(false);
-          setLoading(false);
         }
       }
     }
 
-    // 1. Initial Session Check from Supabase Auth Storage
     initAuth();
-
-    // 2. Real-Time Supabase Auth State Change Listener (SIGNED_IN, SIGNED_OUT, TOKEN_REFRESHED, USER_UPDATED, INITIAL_SESSION)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!isSubscribed) return;
-
-      console.log(`[AuthContext] Auth State Event: ${event}`, session?.user?.email || 'No User');
-
-      setSession(session);
-
-      switch (event) {
-        case 'INITIAL_SESSION':
-          if (session?.user) {
-            setUser(session.user);
-            loadProfile(session.user).catch((e) => console.error('[AuthContext] Profile load error:', e));
-          } else {
-            setUser(null);
-            setProfile(null);
-          }
-          if (isSubscribed) {
-            setAuthLoading(false);
-            setLoading(false);
-          }
-          break;
-
-        case 'SIGNED_IN':
-        case 'TOKEN_REFRESHED':
-        case 'USER_UPDATED':
-          if (session?.user) {
-            setUser(session.user);
-            loadProfile(session.user).catch((e) => console.error('[AuthContext] Profile update notice:', e));
-          }
-          if (isSubscribed) {
-            setAuthLoading(false);
-            setLoading(false);
-          }
-          break;
-
-        case 'SIGNED_OUT':
-          setUser(null);
-          setProfile(null);
-          if (isSubscribed) {
-            setAuthLoading(false);
-            setLoading(false);
-          }
-          break;
-
-        default:
-          if (session?.user) {
-            setUser(session.user);
-          }
-          if (isSubscribed) {
-            setAuthLoading(false);
-            setLoading(false);
-          }
-          break;
-      }
-    });
 
     return () => {
       isSubscribed = false;
@@ -302,7 +257,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     setAuthLoading(true);
-    setLoading(true);
     try {
       if (isSupabaseConfigured()) {
         await supabase.auth.signOut();
@@ -315,7 +269,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
       setProfile(null);
       setAuthLoading(false);
-      setLoading(false);
     }
   }, [clearLocalUserData]);
 
