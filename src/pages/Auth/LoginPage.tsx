@@ -7,7 +7,7 @@ import { Mail, Lock, LogIn, CheckCircle, AlertCircle, Trash2 } from 'lucide-reac
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { signInWithGoogle } = useAuth();
+  const { user, loading: authLoading, signInWithGoogle } = useAuth();
 
   const searchParams = new URLSearchParams(location.search);
   const redirectUrl = searchParams.get('redirect') || '/';
