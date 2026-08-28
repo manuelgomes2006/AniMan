@@ -36,9 +36,13 @@ export default function ForgotPasswordPage() {
     <div className="min-h-[80vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 font-sans">
       <div className="max-w-md w-full space-y-6 bg-[#0D0D12] border border-slate-800/90 p-8 rounded-3xl shadow-2xl">
         <div className="text-center space-y-2">
-          <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
-            <span>Ani</span>
-            <span className="text-purple-400">Man</span>
+          <Link to="/" className="inline-flex items-center gap-2.5 text-2xl font-black text-white tracking-tight">
+            <img
+              src="/logo.jpg"
+              alt="AniMan Logo"
+              className="w-10 h-10 rounded-2xl object-cover border border-purple-500/40 shadow-lg shadow-purple-950/60"
+            />
+            <span>Ani<span className="text-purple-400">Man</span></span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Reset Your Password</h2>
           <p className="text-xs text-slate-400">Enter your email address to receive a password reset link.</p>

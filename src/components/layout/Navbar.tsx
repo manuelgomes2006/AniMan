@@ -33,16 +33,18 @@ export default function Navbar({ onOpenSearch }: NavbarProps) {
         <div className="max-w-[1600px] w-full mx-auto flex items-center justify-between gap-4">
           
           {/* Brand Logo */}
-          <Link to="/" className="flex items-center gap-2 group shrink-0">
-            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-950/60 group-hover:scale-105 transition-transform border border-purple-500/30">
-              <Tv className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-            </div>
+          <Link to="/" className="flex items-center gap-2.5 group shrink-0">
+            <img
+              src="/logo.jpg"
+              alt="AniMan Logo"
+              className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover shadow-lg shadow-purple-950/60 group-hover:scale-105 transition-transform border border-purple-500/30"
+            />
             <div className="flex flex-col">
               <span className="font-black text-lg sm:text-xl tracking-tight text-white flex items-center gap-1">
                 Ani<span className="text-purple-400">Man</span>
               </span>
               <span className="text-[8px] sm:text-[9px] uppercase tracking-widest text-purple-400 font-semibold -mt-1">
-                アニメ • Streaming
+                The Place to Watch Anime
               </span>
             </div>
           </Link>
