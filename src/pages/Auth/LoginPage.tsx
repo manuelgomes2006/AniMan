@@ -3,6 +3,7 @@ import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { supabase } from '../../services/auth/supabaseClient';
 import { useAuth } from '../../context/AuthContext';
 import { Mail, Lock, LogIn, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
+import logoImg from '../../assets/logo.jpg';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -91,7 +92,7 @@ export default function LoginPage() {
         <div className="text-center space-y-2 flex flex-col items-center">
           <Link to="/" className="inline-flex items-center gap-3 group mb-1">
             <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500/60 shadow-xl shadow-purple-950/60 group-hover:scale-105 transition-transform bg-black">
-              <img src="/logo.jpg" alt="AniMan Logo" className="w-full h-full object-cover" />
+              <img src={logoImg} alt="AniMan Logo" className="w-full h-full object-cover" />
             </div>
             <span className="text-2xl font-black text-white tracking-tight">
               Ani<span className="text-purple-400">Man</span>

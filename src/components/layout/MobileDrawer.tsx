@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import UserProfileModal from '../common/UserProfileModal';
+import logoImg from '../../assets/logo.jpg';
 
 interface MobileDrawerProps {
   isOpen: boolean;
@@ -51,7 +52,7 @@ export default function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
             <div className="flex items-center justify-between border-b border-slate-800 pb-4 mb-6">
               <Link to="/" onClick={onClose} className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full overflow-hidden border border-purple-500/60 shrink-0 bg-black">
-                  <img src="/logo.jpg" alt="AniMan Logo" className="w-full h-full object-cover" />
+                  <img src={logoImg} alt="AniMan Logo" className="w-full h-full object-cover" />
                 </div>
                 <span className="font-black text-lg text-white">
                   Ani<span className="text-purple-400">Man</span>
