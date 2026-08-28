@@ -37,7 +37,7 @@ export default function Navbar({ onOpenSearch }: NavbarProps) {
           {/* Brand Logo */}
           <Link to="/" className="flex items-center gap-2.5 group shrink-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-full overflow-hidden group-hover:scale-105 transition-transform border-2 border-purple-500/60 shadow-lg shadow-purple-950/60 shrink-0 bg-black flex items-center justify-center">
-              <img src={logoImg} alt="AniMan Logo" className="w-full h-full object-cover object-center" />
+              <img src={logoImg} alt="AniMan Logo" className="w-full h-full object-cover object-center scale-[1.35]" />
             </div>
             <div className="flex flex-col justify-center">
               <span className="font-black text-lg sm:text-xl tracking-tight text-white flex items-center gap-1 leading-none">
