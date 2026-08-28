@@ -329,28 +329,7 @@ export default function WatchPage() {
         </div>
       )}
 
-      {/* Resume Playback Badge */}
-      {showResumeBadge && resumeTime && (
-        <div className="bg-purple-950/40 border border-purple-800/80 text-purple-300 text-xs p-3 rounded-2xl flex items-center justify-between shadow-lg">
-          <span className="font-bold">
-            Resume playback from <span className="text-white font-black">{formatTime(resumeTime)}</span>
-          </span>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setShowResumeBadge(false)}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-3 py-1 rounded-xl text-xs font-extrabold shadow-md cursor-pointer"
-            >
-              Resume ({formatTime(resumeTime)})
-            </button>
-            <button
-              onClick={() => setShowResumeBadge(false)}
-              className="text-slate-400 hover:text-white text-xs font-bold cursor-pointer"
-            >
-              Start Over
-            </button>
-          </div>
-        </div>
-      )}
+
 
       {/* Main 2-Column Grid Container */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
