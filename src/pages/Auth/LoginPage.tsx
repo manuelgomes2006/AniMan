@@ -85,10 +85,10 @@ export default function LoginPage() {
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
             <span>Ani</span>
-            <span className="text-purple-400">World</span>
+            <span className="text-purple-400">Man</span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Welcome Back 👋</h2>
-          <p className="text-xs text-slate-400">Sign in to your AniWorld account to stream seamlessly.</p>
+          <p className="text-xs text-slate-400">Sign in to your AniMan account to stream seamlessly.</p>
         </div>
 
         {isAccountDeleted && (

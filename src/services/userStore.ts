@@ -4,17 +4,17 @@ import { supabase } from './auth/supabaseClient';
 import { getAnimeDetails } from './anilist/client';
 
 const STORAGE_KEYS = {
-  USER: 'aniworld_user',
-  WATCH_HISTORY: 'aniworld_watch_history',
-  WATCHLIST: 'aniworld_watchlist',
-  PREFERRED_AUDIO: 'aniworld_preferred_audio',
+  USER: 'animan_user',
+  WATCH_HISTORY: 'animan_watch_history',
+  WATCHLIST: 'animan_watchlist',
+  PREFERRED_AUDIO: 'animan_preferred_audio',
 };
 
 export function getUserProfile(): UserProfile {
   return {
     id: 'usr_guest_01',
     username: 'Manuel',
-    email: 'manuel@aniworld.io',
+    email: 'manuel@animan.io',
     avatarUrl: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80',
     createdAt: new Date().toISOString(),
     preferences: {
@@ -197,7 +197,7 @@ export function updateWatchProgress(
 }
 
 export function getWatchHistory(): WatchProgress[] {
-  const data = localStorage.getItem(STORAGE_KEYS.WATCH_HISTORY);
+  const data = localStorage.getItem(STORAGE_KEYS.WATCH_HISTORY) || localStorage.getItem('aniworld_watch_history');
   if (!data) return [];
   try {
     return JSON.parse(data);
@@ -389,7 +389,7 @@ export interface WatchlistItem {
 }
 
 export function getWatchlist(): WatchlistItem[] {
-  const data = localStorage.getItem(STORAGE_KEYS.WATCHLIST);
+  const data = localStorage.getItem(STORAGE_KEYS.WATCHLIST) || localStorage.getItem('aniworld_watchlist');
   if (!data) return [];
   try {
     return JSON.parse(data);

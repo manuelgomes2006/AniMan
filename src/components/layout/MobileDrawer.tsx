@@ -21,7 +21,7 @@ export default function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
 
   const username = profile?.displayName || profile?.username || 'Member';
   const handleName = profile?.username || 'user';
-  const email = profile?.email || 'user@aniworld.io';
+  const email = profile?.email || 'user@animan.io';
   const avatarUrl = profile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
 
   const menuItems = [
@@ -54,7 +54,7 @@ export default function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
                   <Tv className="w-4 h-4 text-white" />
                 </div>
                 <span className="font-black text-lg text-white">
-                  Ani<span className="text-purple-400">World</span>
+                  Ani<span className="text-purple-400">Man</span>
                 </span>
               </Link>
               <button

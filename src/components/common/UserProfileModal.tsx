@@ -16,7 +16,7 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
 
   const username = profile?.displayName || profile?.username || 'Member';
   const handleName = profile?.username || 'user';
-  const email = profile?.email || 'user@aniworld.io';
+  const email = profile?.email || 'user@animan.io';
   const avatarUrl = profile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
 
   const handleSignOut = async () => {

@@ -255,7 +255,7 @@ export default function SignupPage() {
         <div className="text-center space-y-2">
           <Link to="/" className="inline-flex items-center gap-2 text-2xl font-black text-white tracking-tight">
             <span>Ani</span>
-            <span className="text-purple-400">World</span>
+            <span className="text-purple-400">Man</span>
           </Link>
           <h2 className="text-lg font-extrabold text-white">Create an Account</h2>
           <p className="text-xs text-slate-400">Sign up with your username and email to get started.</p>

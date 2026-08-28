@@ -39,7 +39,7 @@ export default function Navbar({ onOpenSearch }: NavbarProps) {
             </div>
             <div className="flex flex-col">
               <span className="font-black text-lg sm:text-xl tracking-tight text-white flex items-center gap-1">
-                Ani<span className="text-purple-400">World</span>
+                Ani<span className="text-purple-400">Man</span>
               </span>
               <span className="text-[8px] sm:text-[9px] uppercase tracking-widest text-purple-400 font-semibold -mt-1">
                 アニメ • Streaming
