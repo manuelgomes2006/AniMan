@@ -155,16 +155,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!isSubscribed) return;
 
+      console.log(`[AuthContext] Auth State Event: ${event}`, session?.user?.email || 'No User');
+
       setSession(session);
       if (session?.user) {
         setUser(session.user);
         loadProfile(session.user).catch((e) => console.error('[AuthContext] Profile state change notice:', e));
+        setLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
         setProfile(null);
-      }
-
-      if (isSubscribed) {
         setLoading(false);
       }
     });
