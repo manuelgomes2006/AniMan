@@ -25,7 +25,6 @@ import {
 
 import YomiVideoPlayer from '../components/player/YomiVideoPlayer';
 import ServerSelector from '../components/player/ServerSelector';
-import SubDubControls from '../components/player/SubDubControls';
 import YouAreWatchingCard from '../components/player/YouAreWatchingCard';
 import RightEpisodeSidebar from '../components/player/RightEpisodeSidebar';
 
@@ -394,23 +393,11 @@ export default function WatchPage() {
             />
           )}
 
-          {/* Sub / Dub Audio Track Selection Buttons */}
-          <SubDubControls
-            activeLanguage={activeLanguage}
-            hasSub={hasSub}
-            hasDub={hasDub}
-            onSelectLanguage={handleSelectLanguage}
-          />
-
           <YouAreWatchingCard
-            title={title}
+            animeTitle={title}
             epTitle={epTitle}
-            currentEpNum={currentEpNum}
-            score={score}
-            year={year}
-            format={anime?.format || 'TV'}
-            genres={anime?.genres || ['Action', 'Fantasy']}
-            description={anime?.description || ''}
+            episodeNumber={currentEpNum}
+            coverImage={cover}
           />
         </div>
 
