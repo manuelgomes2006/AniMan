@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
-import MobileBottomNav from './MobileBottomNav';
 import SearchOverlay from '../common/SearchOverlay';
 
 interface MainLayoutProps {
@@ -33,18 +32,13 @@ export default function MainLayout({ children }: MainLayoutProps) {
       {/* Body Container: Sidebar + Main Content */}
       <div className="flex-1 flex w-full max-w-[1600px] mx-auto overflow-hidden relative">
         <Sidebar />
-        <main className="flex-1 px-4 sm:px-8 py-4 sm:py-6 max-w-full overflow-y-auto overflow-x-hidden min-h-0 pb-8 md:pb-6 scrollbar-none">
+        <main className="flex-1 px-4 sm:px-8 py-4 sm:py-6 max-w-full overflow-y-auto overflow-x-hidden min-h-0 pb-6 scrollbar-none">
           {children}
         </main>
       </div>
 
       {/* Global Search Modal */}
       <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
-
-      {/* Mobile Bottom Navigation Bar - Fixed to Flex Layout Bottom */}
-      <div className="shrink-0 z-50 md:hidden w-full">
-        <MobileBottomNav />
-      </div>
     </div>
   );
 }
