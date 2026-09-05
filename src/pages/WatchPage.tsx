@@ -18,6 +18,7 @@ import {
   getWatchlist,
   updateWatchProgress,
   getWatchHistory,
+  fetchWatchHistoryFromSupabase,
   getUserAudioPreference,
   setUserAudioPreference,
   syncAllUserPreferencesToSupabase
@@ -114,8 +115,8 @@ export default function WatchPage() {
         const list = getWatchlist();
         setInWatchlist(list.some(item => item.anime.id === animeId));
 
-        // Check Resume History Timestamp
-        const history = getWatchHistory();
+        // Check Resume History Timestamp from Supabase Cloud / Local Cache
+        const history = await fetchWatchHistoryFromSupabase().catch(() => getWatchHistory());
         const past = history.find(h => h.animeId === animeId && h.episodeNumber === currentEpNum);
         if (past && past.currentTime > 5) {
           setResumeTime(past.currentTime);

@@ -155,32 +155,34 @@ export function updateWatchProgress(
       const basePayload = {
         user_id: user.id,
         anime_id: String(anime.id),
-        episode_id: `${anime.id}-${episodeNumber}`,
         episode_number: episodeNumber,
-        progress_seconds: validCurrentTime,
-        duration_seconds: validDuration,
+        current_time: validCurrentTime,
+        duration: validDuration,
         completed: completed,
-        updated_at: new Date().toISOString()
+        last_watched: new Date().toISOString()
       };
 
-      // Try upserting full payload with title and cover_image
-      const { error: primaryErr } = await supabase.from('watch_history').upsert({
+      // 1. Try upserting full payload with title and cover_image
+      let { error: primaryErr } = await supabase.from('watch_history').upsert({
         ...basePayload,
         title,
         cover_image: coverImage
-      }, { onConflict: 'user_id,anime_id,episode_id' });
+      }, { onConflict: 'user_id,anime_id,episode_number' });
+
+      // 2. If title or cover_image columns are not yet in database, fall back to exact standard columns
+      if (primaryErr && (primaryErr.code === 'PGRST204' || primaryErr.message?.includes('column'))) {
+        const { error: fallbackErr } = await supabase.from('watch_history').upsert(basePayload, {
+          onConflict: 'user_id,anime_id,episode_number'
+        });
+        primaryErr = fallbackErr;
+      }
 
       if (primaryErr) {
-        console.warn('[WatchHistory Upsert Notice] Primary upsert warning:', primaryErr.message);
-        // Fallback to strict standard schema payload if title/cover_image columns are absent
-        const { error: fallbackErr } = await supabase.from('watch_history').upsert(basePayload, {
-          onConflict: 'user_id,anime_id,episode_id'
-        });
-        if (fallbackErr) {
-          console.error('[WatchHistory Upsert Error] Failed to save watch progress to Supabase:', fallbackErr.message);
-          return;
-        }
+        console.error('[WatchHistory Upsert Error] Failed to save watch progress to Supabase:', primaryErr.message);
+        return;
       }
+
+      console.log(`[Supabase WatchHistory] Progress saved for user ${user.id}: Anime #${anime.id}, Ep ${episodeNumber}, ${validCurrentTime}s/${validDuration}s`);
 
       // Send instant cross-device WebSocket Broadcast signal to PC / Tablet / Phone
       supabase.channel(`realtime-user-sync-${user.id}`).send({
@@ -193,7 +195,7 @@ export function updateWatchProgress(
     } catch (err) {
       console.error('[WatchHistory Upsert Exception]:', err);
     }
-  }, 400);
+  }, 350);
 }
 
 import { isAllowedAnime, filterAllowedAnimeList } from './catalog/contentFilter';
@@ -229,23 +231,22 @@ export async function migrateLocalWatchHistoryToSupabase(userId: string): Promis
       const basePayload = {
         user_id: userId,
         anime_id: String(item.animeId),
-        episode_id: `${item.animeId}-${item.episodeNumber || 1}`,
         episode_number: item.episodeNumber || 1,
-        progress_seconds: item.currentTime || 0,
-        duration_seconds: item.duration || 1430,
+        current_time: item.currentTime || 0,
+        duration: item.duration || 1430,
         completed: (item.duration && item.duration > 0) ? (item.currentTime >= item.duration * 0.9) : false,
-        updated_at: item.lastWatched || new Date().toISOString()
+        last_watched: item.lastWatched || new Date().toISOString()
       };
 
-      const { error: primaryErr } = await supabase.from('watch_history').upsert({
+      let { error: primaryErr } = await supabase.from('watch_history').upsert({
         ...basePayload,
         title: item.title,
         cover_image: item.coverImage
-      }, { onConflict: 'user_id,anime_id,episode_id' });
+      }, { onConflict: 'user_id,anime_id,episode_number' });
 
-      if (primaryErr) {
+      if (primaryErr && (primaryErr.code === 'PGRST204' || primaryErr.message?.includes('column'))) {
         await supabase.from('watch_history').upsert(basePayload, {
-          onConflict: 'user_id,anime_id,episode_id'
+          onConflict: 'user_id,anime_id,episode_number'
         }).catch(() => {});
       }
     }
@@ -269,7 +270,6 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
     const user = session?.user;
 
     if (!user) {
-      console.log('[WatchHistory Fetch] Unauthenticated session; returning local cache.');
       return localHistory;
     }
 
@@ -278,12 +278,25 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
     // Perform one-time migration of local history to cloud if needed
     migrateLocalWatchHistoryToSupabase(user.id);
 
-    const { data, error } = await supabase
+    // Query watch history ordered by most recently watched timestamp
+    let { data, error } = await supabase
       .from('watch_history')
       .select('*')
       .eq('user_id', user.id)
-      .order('updated_at', { ascending: false })
+      .order('last_watched', { ascending: false })
       .limit(100);
+
+    // If last_watched column query fails, fallback to ordering by updated_at or id
+    if (error && error.message?.includes('last_watched')) {
+      const fallbackRes = await supabase
+        .from('watch_history')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('id', { ascending: false })
+        .limit(100);
+      data = fallbackRes.data;
+      error = fallbackRes.error;
+    }
 
     if (error) {
       console.error('[WatchHistory Fetch Error] Supabase query error:', error.message);
@@ -291,7 +304,6 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
     }
 
     if (!data || data.length === 0) {
-      console.log(`[AUTH USER ID: ${user.id}] No watch records in Supabase Cloud yet.`);
       return localHistory;
     }
 
@@ -311,8 +323,8 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
     const uniqueRows: any[] = [];
     animeGroups.forEach((rows) => {
       rows.sort((a, b) => {
-        const timeA = new Date(a.updated_at || 0).getTime();
-        const timeB = new Date(b.updated_at || 0).getTime();
+        const timeA = new Date(a.last_watched || a.updated_at || 0).getTime();
+        const timeB = new Date(b.last_watched || b.updated_at || 0).getTime();
         if (timeB !== timeA) return timeB - timeA;
         const epA = Number(a.episode_number || 1);
         const epB = Number(b.episode_number || 1);
@@ -329,7 +341,7 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
       let title = item.title || item.anime_title || match?.title;
       let coverImage = item.cover_image || item.cover_url || item.coverImage || match?.coverImage;
 
-      // Fallback details if missing
+      // Fallback details if missing (from AniList)
       if (!title || !coverImage) {
         try {
           const details = await getAnimeDetails(aid);
@@ -342,8 +354,8 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
       }
 
       const epNum = Number(item.episode_number || 1);
-      const curTime = Number(item.progress_seconds || item.current_time || 0);
-      const rawDur = Number(item.duration_seconds || item.duration || 0);
+      const curTime = Number(item.current_time ?? item.progress_seconds ?? 0);
+      const rawDur = Number(item.duration ?? item.duration_seconds ?? 0);
       const durTime = rawDur && rawDur > 60 ? rawDur : 1430;
       const validCurTime = Math.min(durTime, Math.max(0, curTime));
 
@@ -354,7 +366,7 @@ export async function fetchWatchHistoryFromSupabase(): Promise<WatchProgress[]> 
         episodeNumber: epNum,
         currentTime: validCurTime,
         duration: durTime,
-        lastWatched: item.updated_at || new Date().toISOString()
+        lastWatched: item.last_watched || item.updated_at || new Date().toISOString()
       };
     });
 
