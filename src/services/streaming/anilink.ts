@@ -30,11 +30,6 @@ export function getAniLinkStreamUrl(options: StreamUrlOptions): string {
     return `https://2embed.cc/embed/anime/${targetMalId}/${ep}`;
   }
 
-  // Server 4: VidSrc Resolver
-  if (server === 'server-4') {
-    return `https://vidsrc.to/embed/anime/${targetMalId}/${ep}`;
-  }
-
   return `https://anilink.cc/watch/${targetAniListId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238AD7D0&secondaryColor=%23B2EFEA&iconColor=%23FFFFFF`;
 }
 
@@ -70,12 +65,6 @@ export class AniLinkProvider extends BaseStreamingProvider {
         name: '2Embed Mirror',
         type: 'embed',
         url: getAniLinkStreamUrl({ animeId, episode: ep, variant, malId, server: 'server-3' })
-      },
-      {
-        id: 'server-4',
-        name: 'VidSrc Mirror',
-        type: 'embed',
-        url: getAniLinkStreamUrl({ animeId, episode: ep, variant, malId, server: 'server-4' })
       }
     ];
 

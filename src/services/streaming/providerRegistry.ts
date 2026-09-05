@@ -3,7 +3,7 @@ import { ProviderConfig, ProviderHealth, ProviderStatus } from './providerTypes'
 /**
  * Domain Allowlist for Verified Provider Embed Hosts
  */
-export const ALLOWED_EMBED_HOSTS: string[] = ['anilink.cc', 'vidsrc.pm', 'vidsrc.cc', 'megaplay.buzz'];
+export const ALLOWED_EMBED_HOSTS: string[] = ['megaplay.buzz', 'anilink.cc'];
 
 /**
  * Registered Provider Adapter Configurations
@@ -25,16 +25,6 @@ export const VIDEO_PROVIDERS: ProviderConfig[] = [
     enabled: true,
     priority: 2,
     allowedDomains: ['anilink.cc'],
-    status: 'available',
-    verified: true,
-    requiresAuth: false,
-  },
-  {
-    id: 'vidsrc',
-    name: 'VidSrc HD',
-    enabled: true,
-    priority: 3,
-    allowedDomains: ['vidsrc.pm', 'vidsrc.cc'],
     status: 'available',
     verified: true,
     requiresAuth: false,
