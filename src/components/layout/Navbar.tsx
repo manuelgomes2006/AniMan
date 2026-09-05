@@ -14,7 +14,7 @@ interface NavbarProps {
 
 export default function Navbar({ onOpenSearch }: NavbarProps) {
   const location = useLocation();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -94,19 +94,29 @@ export default function Navbar({ onOpenSearch }: NavbarProps) {
               </kbd>
             </button>
 
-            {/* Profile Avatar Circle Button */}
+            {/* Profile Avatar or Sign In Button */}
             <div className="relative">
-              <button
-                onClick={handleOpenProfileModal}
-                className="flex items-center gap-2 p-0.5 rounded-full border-2 border-purple-500/60 hover:border-purple-400 transition cursor-pointer shadow-lg shadow-purple-950/40"
-                title="View User Details"
-              >
-                <img
-                  src={avatarUrl}
-                  alt={username}
-                  className="w-8 h-8 rounded-full object-cover"
-                />
-              </button>
+              {user ? (
+                <button
+                  onClick={handleOpenProfileModal}
+                  className="flex items-center gap-2 p-0.5 rounded-full border-2 border-purple-500/60 hover:border-purple-400 transition cursor-pointer shadow-lg shadow-purple-950/40"
+                  title="View User Details"
+                >
+                  <img
+                    src={avatarUrl}
+                    alt={username}
+                    className="w-8 h-8 rounded-full object-cover"
+                  />
+                </button>
+              ) : (
+                <Link
+                  to="/login"
+                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs shadow-lg shadow-purple-950/60 transition"
+                >
+                  <User className="w-3.5 h-3.5" />
+                  <span>Sign In</span>
+                </Link>
+              )}
             </div>
           </div>
 
@@ -120,18 +130,27 @@ export default function Navbar({ onOpenSearch }: NavbarProps) {
               <Search className="w-4 h-4 text-slate-300" />
             </button>
 
-            {/* Mobile Profile Avatar Circle Button */}
-            <button
-              onClick={() => setIsProfileModalOpen(true)}
-              className="p-0.5 rounded-full border border-purple-500/60 shrink-0"
-              title="View User Details"
-            >
-              <img
-                src={avatarUrl}
-                alt={username}
-                className="w-7 h-7 rounded-full object-cover"
-              />
-            </button>
+            {/* Mobile Profile Avatar or Sign In */}
+            {user ? (
+              <button
+                onClick={() => setIsProfileModalOpen(true)}
+                className="p-0.5 rounded-full border border-purple-500/60 shrink-0"
+                title="View User Details"
+              >
+                <img
+                  src={avatarUrl}
+                  alt={username}
+                  className="w-7 h-7 rounded-full object-cover"
+                />
+              </button>
+            ) : (
+              <Link
+                to="/login"
+                className="px-2.5 py-1 bg-purple-600 hover:bg-purple-500 text-white text-[11px] font-bold rounded-lg shadow-md"
+              >
+                Sign In
+              </Link>
+            )}
 
             <button
               onClick={() => setIsDrawerOpen(true)}

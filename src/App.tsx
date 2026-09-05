@@ -46,19 +46,21 @@ export default function App() {
               </div>
             }>
               <Routes>
-                {/* Public Unauthenticated Routes */}
+                {/* Core Public Application Routes (Instant Access for Guests & Members) */}
+                <Route path="/" element={<HomePage />} />
+                <Route path="/browse" element={<BrowsePage />} />
+                <Route path="/anime/:id" element={<DetailsPage />} />
+                <Route path="/watch/:id/:episode" element={<WatchPage />} />
+                <Route path="/schedule" element={<SchedulePage />} />
+
+                {/* Public Authentication Pages */}
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/signup" element={<SignupPage />} />
                 <Route path="/forgot-password" element={<ForgotPasswordPage />} />
                 <Route path="/reset-password" element={<ResetPasswordPage />} />
                 <Route path="/debug-player" element={<DebugPlayerPage />} />
 
-                {/* Authenticated Protected Routes */}
-                <Route path="/" element={<ProtectedRoute><HomePage /></ProtectedRoute>} />
-                <Route path="/browse" element={<ProtectedRoute><BrowsePage /></ProtectedRoute>} />
-                <Route path="/anime/:id" element={<ProtectedRoute><DetailsPage /></ProtectedRoute>} />
-                <Route path="/watch/:id/:episode" element={<ProtectedRoute><WatchPage /></ProtectedRoute>} />
-                <Route path="/schedule" element={<ProtectedRoute><SchedulePage /></ProtectedRoute>} />
+                {/* Authenticated User Routes */}
                 <Route path="/watchlist" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
                 <Route path="/history" element={<ProtectedRoute><WatchlistPage /></ProtectedRoute>} />
                 <Route path="/profile" element={<ProtectedRoute><ProfilePage /></ProtectedRoute>} />

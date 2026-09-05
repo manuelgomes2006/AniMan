@@ -15,7 +15,7 @@ interface MobileDrawerProps {
 
 export default function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
   const location = useLocation();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
 
   if (!isOpen) return null;
@@ -67,20 +67,42 @@ export default function MobileDrawer({ isOpen, onClose }: MobileDrawerProps) {
             </div>
 
             {/* Interactive User Badge Card */}
-            <button
-              onClick={() => setIsProfileModalOpen(true)}
-              className="w-full flex items-center gap-3 p-3 bg-[#050507] hover:bg-slate-900 rounded-2xl border border-slate-800/80 mb-6 text-left transition cursor-pointer"
-            >
-              <img
-                src={avatarUrl}
-                alt={username}
-                className="w-10 h-10 rounded-full object-cover border border-purple-500/40 shrink-0"
-              />
-              <div className="min-w-0">
-                <span className="font-bold text-xs text-white block truncate">{username}</span>
-                <span className="text-[10px] text-purple-300 font-semibold truncate block">{email}</span>
+            {user ? (
+              <button
+                onClick={() => setIsProfileModalOpen(true)}
+                className="w-full flex items-center gap-3 p-3 bg-[#050507] hover:bg-slate-900 rounded-2xl border border-slate-800/80 mb-6 text-left transition cursor-pointer"
+              >
+                <img
+                  src={avatarUrl}
+                  alt={username}
+                  className="w-10 h-10 rounded-full object-cover border border-purple-500/40 shrink-0"
+                />
+                <div className="min-w-0">
+                  <span className="font-bold text-xs text-white block truncate">{username}</span>
+                  <span className="text-[10px] text-purple-300 font-semibold truncate block">{email}</span>
+                </div>
+              </button>
+            ) : (
+              <div className="mb-6 p-3.5 bg-purple-950/20 border border-purple-800/40 rounded-2xl">
+                <p className="text-xs text-slate-300 mb-2.5 font-medium leading-snug">Sign in to save favorites and sync progress across devices.</p>
+                <div className="flex gap-2">
+                  <Link
+                    to="/login"
+                    onClick={onClose}
+                    className="flex-1 py-2 text-center bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold rounded-xl shadow-md transition"
+                  >
+                    Sign In
+                  </Link>
+                  <Link
+                    to="/signup"
+                    onClick={onClose}
+                    className="flex-1 py-2 text-center bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl transition"
+                  >
+                    Register
+                  </Link>
+                </div>
               </div>
-            </button>
+            )}
 
             {/* Menu Links */}
             <div className="space-y-1">
