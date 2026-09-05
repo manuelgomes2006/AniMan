@@ -1,7 +1,9 @@
-import React from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
-import { X, User, Bookmark, Settings, LogOut, ShieldCheck, Mail } from 'lucide-react';
+import { X, User, Bookmark, Settings, LogOut, ShieldCheck, Mail, Camera, Loader2 } from 'lucide-react';
+import { processImageFile } from '../../utils/imageUpload';
+import { supabase } from '../../services/auth/supabaseClient';
 
 interface UserProfileModalProps {
   isOpen: boolean;
@@ -10,7 +12,9 @@ interface UserProfileModalProps {
 
 export default function UserProfileModal({ isOpen, onClose }: UserProfileModalProps) {
   const navigate = useNavigate();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, refreshProfile } = useAuth();
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   if (!isOpen) return null;
 
@@ -18,6 +22,35 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
   const handleName = profile?.username || 'user';
   const email = profile?.email || 'user@animan.io';
   const avatarUrl = profile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
+
+  const handleDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploading(true);
+      const dataUrl = await processImageFile(file, 400, 0.88);
+
+      if (profile?.id) {
+        await supabase.from('profiles').upsert({
+          id: profile.id,
+          avatar_url: dataUrl,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'id' });
+
+        await supabase.auth.updateUser({
+          data: { avatar_url: dataUrl }
+        }).catch(() => {});
+
+        await refreshProfile();
+      }
+    } catch (err) {
+      console.error('Failed to upload DP:', err);
+    } finally {
+      setIsUploading(false);
+      if (e.target) e.target.value = '';
+    }
+  };
 
   const handleSignOut = async () => {
     onClose();
@@ -50,13 +83,31 @@ export default function UserProfileModal({ isOpen, onClose }: UserProfileModalPr
           </button>
         </div>
 
-        {/* User Details Section */}
+        {/* User Details Section with Device DP Upload */}
         <div className="flex items-center gap-4 bg-[#050507] p-4 rounded-2xl border border-slate-800">
-          <img
-            src={avatarUrl}
-            alt={username}
-            className="w-14 h-14 rounded-full object-cover border-2 border-purple-500/50 shadow-md shrink-0"
-          />
+          <div className="relative group shrink-0">
+            <img
+              src={avatarUrl}
+              alt={username}
+              className="w-14 h-14 rounded-full object-cover border-2 border-purple-500/50 shadow-md"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploading}
+              className="absolute -bottom-1 -right-1 p-1.5 bg-purple-600 hover:bg-purple-500 text-white rounded-full shadow-lg border border-[#050507] transition transform hover:scale-110 cursor-pointer disabled:opacity-50"
+              title="Upload photo from device"
+            >
+              {isUploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+            </button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+              onChange={handleDeviceUpload}
+              className="hidden"
+            />
+          </div>
           <div className="min-w-0 space-y-1">
             <div className="flex items-center gap-1.5">
               <h3 className="text-base font-black text-white truncate">{username}</h3>

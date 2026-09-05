@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
-import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Volume2, Copy, ExternalLink, RefreshCw } from 'lucide-react';
+import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Volume2, Copy, ExternalLink, RefreshCw, Camera, Upload, Image as ImageIcon } from 'lucide-react';
+import { processImageFile } from '../utils/imageUpload';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -21,6 +22,25 @@ export default function ProfilePage() {
   const [saving, setSaving] = useState(false);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleDeviceFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setIsUploadingPhoto(true);
+      setErrorMsg(null);
+      const processedDataUrl = await processImageFile(file, 400, 0.88);
+      setAvatarUrl(processedDataUrl);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Could not load photo from device.');
+    } finally {
+      setIsUploadingPhoto(false);
+      if (e.target) e.target.value = '';
+    }
+  };
 
   // Double Confirmation Delete Account Modal State
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -223,11 +243,23 @@ NOTIFY pgrst, 'reload schema';`;
       {/* 1. Profile Header & Avatar Card */}
       <div className="bg-[#0D0D12] border border-slate-800/90 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
         <div className="flex flex-col sm:flex-row items-center gap-5 text-center sm:text-left">
-          <img
-            src={avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'}
-            alt={profile?.username || 'Profile'}
-            className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-purple-500/40 shadow-xl"
-          />
+          {/* Avatar with Camera Overlay */}
+          <div className="relative group shrink-0">
+            <img
+              src={avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80'}
+              alt={profile?.username || 'Profile'}
+              className="w-20 h-20 sm:w-24 sm:h-24 rounded-full object-cover border-4 border-purple-500/40 shadow-xl"
+            />
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingPhoto}
+              className="absolute bottom-0 right-0 p-2 bg-purple-600 hover:bg-purple-500 text-white rounded-full shadow-lg border-2 border-[#0D0D12] transition transform hover:scale-110 cursor-pointer disabled:opacity-50"
+              title="Upload photo from device"
+            >
+              {isUploadingPhoto ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+            </button>
+          </div>
           <div className="space-y-1">
             <div className="flex items-center justify-center sm:justify-start gap-2">
               <h1 className="text-xl sm:text-2xl font-black text-white">{displayName || username}</h1>
@@ -309,14 +341,73 @@ NOTIFY pgrst, 'reload schema';`;
           </div>
         </div>
 
-        <div>
-          <label className="block text-xs font-bold text-slate-300 mb-1">Avatar Image URL (Profile Picture / DP)</label>
+        {/* Display Picture (DP) Controller */}
+        <div className="space-y-2.5 bg-[#050507] p-4 rounded-2xl border border-slate-800/80">
+          <div className="flex items-center justify-between">
+            <label className="block text-xs font-bold text-slate-300">
+              Profile Display Picture (DP)
+            </label>
+            {avatarUrl && (
+              <button
+                type="button"
+                onClick={() => setAvatarUrl('')}
+                className="text-[11px] text-slate-400 hover:text-rose-400 transition cursor-pointer font-semibold"
+              >
+                Reset to default
+              </button>
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Upload Button */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isUploadingPhoto}
+              className="px-4 py-2.5 bg-purple-600/20 hover:bg-purple-600/30 text-purple-300 hover:text-white border border-purple-500/50 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
+            >
+              {isUploadingPhoto ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-purple-400" />
+                  <span>Processing image...</span>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-4 h-4 text-purple-400" />
+                  <span>Upload Photo from Device</span>
+                </>
+              )}
+            </button>
+
+            <span className="text-[11px] text-slate-500 font-medium">Supports JPG, PNG, WEBP from your phone or PC</span>
+          </div>
+
+          {/* Hidden File Input */}
           <input
-            type="text"
-            value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            className="w-full bg-[#050507] text-white px-4 py-2.5 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium"
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/*"
+            onChange={handleDeviceFileSelect}
+            className="hidden"
           />
+
+          {/* Direct URL input fallback */}
+          <div className="pt-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 mb-1">
+              <span>Or paste image link:</span>
+              {avatarUrl.startsWith('data:') && (
+                <span className="text-purple-400 font-bold">✓ Device photo loaded</span>
+              )}
+            </div>
+            <input
+              type="text"
+              placeholder="https://example.com/my-photo.jpg"
+              value={avatarUrl.startsWith('data:') ? '[Uploaded photo from device]' : avatarUrl}
+              onChange={(e) => setAvatarUrl(e.target.value)}
+              disabled={avatarUrl.startsWith('data:')}
+              className="w-full bg-[#0D0D12] text-white px-4 py-2 rounded-xl border border-slate-800 text-xs focus:outline-none focus:border-purple-500 font-medium disabled:opacity-60 disabled:cursor-not-allowed"
+            />
+          </div>
         </div>
 
         {/* Audio Mode Selection */}
