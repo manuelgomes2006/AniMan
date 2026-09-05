@@ -10,10 +10,20 @@ export const ALLOWED_EMBED_HOSTS: string[] = ['anilink.cc', 'vidsrc.pm', 'vidsrc
  */
 export const VIDEO_PROVIDERS: ProviderConfig[] = [
   {
+    id: 'megaplay',
+    name: 'MegaPlay HD',
+    enabled: true,
+    priority: 1,
+    allowedDomains: ['megaplay.buzz'],
+    status: 'available',
+    verified: true,
+    requiresAuth: false,
+  },
+  {
     id: 'anilink',
     name: 'AniLink HD',
     enabled: true,
-    priority: 1,
+    priority: 2,
     allowedDomains: ['anilink.cc'],
     status: 'available',
     verified: true,
@@ -23,20 +33,10 @@ export const VIDEO_PROVIDERS: ProviderConfig[] = [
     id: 'vidsrc',
     name: 'VidSrc HD',
     enabled: true,
-    priority: 2,
+    priority: 3,
     allowedDomains: ['vidsrc.pm', 'vidsrc.cc'],
     status: 'available',
     verified: true,
-    requiresAuth: false,
-  },
-  {
-    id: 'megaplay',
-    name: 'MegaPlay HD',
-    enabled: true,
-    priority: 3,
-    allowedDomains: ['megaplay.buzz'],
-    status: 'degraded',
-    verified: false,
     requiresAuth: false,
   },
 ];

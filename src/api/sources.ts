@@ -5,9 +5,9 @@ import { VidSrcProvider } from '../services/streaming/providers/vidsrcProvider';
 import { MegaPlayProvider } from '../services/streaming/providers/megaPlayProvider';
 
 const PROVIDER_INSTANCES = [
+  new MegaPlayProvider(),
   new AniLinkProvider(),
   new VidSrcProvider(),
-  new MegaPlayProvider(),
 ];
 
 /**

@@ -290,6 +290,10 @@ export default function YomiVideoPlayer({
             key={`${source.url}`}
             src={source.url}
             title={source.provider === 'anilink' ? 'AniLink Episode Playback' : `${title} - Episode ${episodeNumber}`}
+            width="100%"
+            height="100%"
+            frameBorder="0"
+            scrolling="no"
             className="w-full h-full border-0 relative z-10 pointer-events-auto"
             allow="autoplay; fullscreen; picture-in-picture; presentation; accelerometer; clipboard-write; encrypted-media; gyroscope"
             allowFullScreen

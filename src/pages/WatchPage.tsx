@@ -201,7 +201,14 @@ export default function WatchPage() {
     }
   };
 
-  const handleSelectServerIndex = (index: number) => {
+  const handleSelectServerIndex = (index: number, serverId?: string) => {
+    if (serverId) {
+      const idx = currentSourcesList.findIndex((s) => s.provider === serverId);
+      if (idx !== -1) {
+        setActiveSourceIndex(idx);
+        return;
+      }
+    }
     if (index >= 0 && index < currentSourcesList.length) {
       setActiveSourceIndex(index);
     }
@@ -212,8 +219,8 @@ export default function WatchPage() {
     (activeEmbedUrl
       ? {
           episodeId: `${animeId}-${currentEpNum}`,
-          provider: activeLangSource?.provider || 'anilink',
-          providerName: activeLangSource?.providerName || 'AniLink HD',
+          provider: activeLangSource?.provider || 'megaplay',
+          providerName: activeLangSource?.providerName || 'MegaPlay HD',
           language: activeLanguage || 'sub',
           type: 'iframe',
           url: activeEmbedUrl,
@@ -375,6 +382,7 @@ export default function WatchPage() {
               episodeNumber={currentEpNum}
               hasSub={hasSub}
               hasDub={hasDub}
+              activeProviderId={activeSourceItem?.provider}
             />
           )}
 

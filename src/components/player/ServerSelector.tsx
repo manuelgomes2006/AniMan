@@ -5,12 +5,13 @@ import { Server, AlertTriangle, CheckCircle, WifiOff, Volume2, ShieldCheck, Flag
 interface ServerSelectorProps {
   servers: StreamingServerOption[];
   activeSourceIndex: number;
-  onSelectServer: (index: number) => void;
+  onSelectServer: (index: number, serverId?: string) => void;
   audioVariant: AudioVariant;
   onAudioChange: (variant: AudioVariant) => void;
   episodeNumber: number;
   hasSub?: boolean;
   hasDub?: boolean;
+  activeProviderId?: string;
 }
 
 export default function ServerSelector({
@@ -22,6 +23,7 @@ export default function ServerSelector({
   episodeNumber,
   hasSub = true,
   hasDub = false,
+  activeProviderId,
 }: ServerSelectorProps) {
   const [reportedServerId, setReportedServerId] = useState<string | null>(null);
   const [showReportToast, setShowReportToast] = useState(false);
@@ -87,14 +89,16 @@ export default function ServerSelector({
       {/* Server Tabs Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {servers.map((server, idx) => {
-          const isActive = idx === activeSourceIndex;
+          const isActive = activeProviderId
+            ? server.id === activeProviderId
+            : idx === activeSourceIndex;
           const isOffline = server.status === 'offline';
           const isDegraded = server.status === 'degraded';
 
           return (
             <div
               key={server.id || idx}
-              onClick={() => !isOffline && onSelectServer(idx)}
+              onClick={() => !isOffline && onSelectServer(idx, server.id)}
               className={`relative rounded-xl p-3 border transition cursor-pointer flex flex-col justify-between gap-2 select-none ${
                 isActive
                   ? 'bg-purple-950/40 border-purple-500 ring-2 ring-purple-500/50 shadow-lg shadow-purple-950/50'
