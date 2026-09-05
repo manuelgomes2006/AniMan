@@ -4,8 +4,8 @@ import { AniLinkProvider } from '../services/streaming/providers/anilinkProvider
 import { MegaPlayProvider } from '../services/streaming/providers/megaPlayProvider';
 
 const PROVIDER_INSTANCES = [
-  new AniLinkProvider(),
   new MegaPlayProvider(),
+  new AniLinkProvider(),
 ];
 
 /**
