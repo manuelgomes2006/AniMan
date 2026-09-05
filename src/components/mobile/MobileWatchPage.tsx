@@ -39,6 +39,8 @@ interface MobileWatchPageProps {
   onRetryStream: () => void;
   inWatchlist: boolean;
   onToggleWatchlist: () => void;
+  hasSub?: boolean;
+  hasDub?: boolean;
 }
 
 export default function MobileWatchPage({
@@ -56,7 +58,9 @@ export default function MobileWatchPage({
   streamError,
   onRetryStream,
   inWatchlist,
-  onToggleWatchlist
+  onToggleWatchlist,
+  hasSub = true,
+  hasDub = false
 }: MobileWatchPageProps) {
   const navigate = useNavigate();
 
@@ -128,6 +132,8 @@ export default function MobileWatchPage({
             audioVariant={audioVariant}
             onAudioChange={onAudioChange}
             episodeNumber={currentEpNum}
+            hasSub={hasSub}
+            hasDub={hasDub}
           />
         </div>
       )}

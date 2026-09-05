@@ -1,8 +1,10 @@
 import { EpisodeSources, EpisodeSourceItem, AudioVariant } from '../services/streaming/providerTypes';
 import { VIDEO_PROVIDERS, isAllowedEmbedUrl } from '../services/streaming/providerRegistry';
+import { AniLinkProvider } from '../services/streaming/providers/anilinkProvider';
 import { MegaPlayProvider } from '../services/streaming/providers/megaPlayProvider';
 
 const PROVIDER_INSTANCES = [
+  new AniLinkProvider(),
   new MegaPlayProvider(),
 ];
 

@@ -9,6 +9,8 @@ interface ServerSelectorProps {
   audioVariant: AudioVariant;
   onAudioChange: (variant: AudioVariant) => void;
   episodeNumber: number;
+  hasSub?: boolean;
+  hasDub?: boolean;
 }
 
 export default function ServerSelector({
@@ -18,6 +20,8 @@ export default function ServerSelector({
   audioVariant,
   onAudioChange,
   episodeNumber,
+  hasSub = true,
+  hasDub = false,
 }: ServerSelectorProps) {
   const [reportedServerId, setReportedServerId] = useState<string | null>(null);
   const [showReportToast, setShowReportToast] = useState(false);
@@ -40,30 +44,43 @@ export default function ServerSelector({
           </h3>
         </div>
 
-        {/* Audio Variant Sub/Dub Switcher */}
+        {/* Audio Variant Sub/Dub Switcher - Only shows Dub when available! */}
         <div className="flex items-center gap-1.5 bg-[#14141F] p-1 rounded-xl border border-slate-800">
-          <button
-            onClick={() => onAudioChange('sub')}
-            className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
-              audioVariant === 'sub'
-                ? 'bg-purple-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Volume2 className="w-3 h-3" />
-            <span>SUB</span>
-          </button>
-          <button
-            onClick={() => onAudioChange('dub')}
-            className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
-              audioVariant === 'dub'
-                ? 'bg-purple-600 text-white shadow-md'
-                : 'text-slate-400 hover:text-white'
-            }`}
-          >
-            <Volume2 className="w-3 h-3" />
-            <span>DUB</span>
-          </button>
+          {hasSub && (
+            <button
+              type="button"
+              onClick={() => onAudioChange('sub')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                audioVariant === 'sub'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Volume2 className="w-3 h-3" />
+              <span>SUB</span>
+            </button>
+          )}
+
+          {hasDub && (
+            <button
+              type="button"
+              onClick={() => onAudioChange('dub')}
+              className={`px-3 py-1 rounded-lg text-xs font-black transition cursor-pointer flex items-center gap-1 ${
+                audioVariant === 'dub'
+                  ? 'bg-purple-600 text-white shadow-md'
+                  : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              <Volume2 className="w-3 h-3" />
+              <span>DUB</span>
+            </button>
+          )}
+
+          {!hasDub && (
+            <span className="text-[10px] text-slate-500 font-bold px-2 py-0.5">
+              Sub Only
+            </span>
+          )}
         </div>
       </div>
 

@@ -76,6 +76,8 @@ async function fetchAllMalEpisodes(targetId: number): Promise<Map<number, any>> 
   return malEpMap;
 }
 
+import { checkAnimeDubAvailability } from '../streaming/dubDetector';
+
 /**
  * Released Episodes Resolver:
  * Resolves ONLY actual released episodes returned by the source catalog (AniList nextAiringEpisode / streamingEpisodes / Jikan MAL).
@@ -87,7 +89,8 @@ export async function getNormalizedEpisodes(
   malId?: number,
   streamingEpisodes?: Array<{ title?: string; thumbnail?: string; url?: string }>,
   status?: string,
-  nextAiringEpisode?: { episode: number } | null
+  nextAiringEpisode?: { episode: number } | null,
+  title?: string
 ): Promise<NormalizedEpisode[]> {
   const targetId = malId || animeId;
 
@@ -102,6 +105,9 @@ export async function getNormalizedEpisodes(
       return cached.episodes;
     }
   }
+
+  // Check English dub availability dynamically
+  const dubSupported = await checkAnimeDubAvailability(animeId, malId, title);
 
   // 1. Extract official titles & thumbnails from AniList streamingEpisodes
   const streamingDataMap = new Map<number, { title?: string; thumbnail?: string }>();
@@ -162,7 +168,7 @@ export async function getNormalizedEpisodes(
         isFiller: Boolean(malItem?.filler),
         isRecap: Boolean(malItem?.recap),
         subAvailable: true,
-        dubAvailable: true,
+        dubAvailable: dubSupported,
         playable: true,
         thumbnail: thumb,
       });
@@ -183,7 +189,7 @@ export async function getNormalizedEpisodes(
         number: i,
         title: cleanTitle || `Episode ${i}`,
         subAvailable: true,
-        dubAvailable: true,
+        dubAvailable: dubSupported,
         playable: true,
         thumbnail: se.thumbnail,
       });

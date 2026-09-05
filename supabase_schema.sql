@@ -136,6 +136,12 @@ TO authenticated
 USING (auth.uid() = id)
 WITH CHECK (auth.uid() = id);
 
+DROP POLICY IF EXISTS "Users can delete their own profile" ON public.profiles;
+CREATE POLICY "Users can delete their own profile"
+ON public.profiles FOR DELETE
+TO authenticated
+USING (auth.uid() = id);
+
 -- Watchlist RLS Policies
 DROP POLICY IF EXISTS "Users manage their own watchlist" ON public.watchlist;
 CREATE POLICY "Users manage their own watchlist"
@@ -249,7 +255,7 @@ CREATE OR REPLACE FUNCTION public.delete_user_account()
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, auth
 AS $$
 DECLARE
   target_uid UUID;
@@ -258,21 +264,22 @@ BEGIN
   target_uid := auth.uid();
 
   IF target_uid IS NULL THEN
-    RAISE EXCEPTION 'Not authenticated';
+    RAISE EXCEPTION 'Not authenticated: No active user session found.';
   END IF;
 
-  -- 1. Delete user-owned application data
-  DELETE FROM public.profiles WHERE id = target_uid;
-  DELETE FROM public.user_preferences WHERE user_id = target_uid;
-  DELETE FROM public.watchlist WHERE user_id = target_uid;
+  -- 1. Explicitly remove all user application records
   DELETE FROM public.watch_history WHERE user_id = target_uid;
+  DELETE FROM public.watchlist WHERE user_id = target_uid;
   DELETE FROM public.favorites WHERE user_id = target_uid;
+  DELETE FROM public.user_preferences WHERE user_id = target_uid;
   DELETE FROM public.search_history WHERE user_id = target_uid;
+  DELETE FROM public.profiles WHERE id = target_uid;
 
-  -- 2. Delete Auth user account identity
+  -- 2. Permanently delete auth user account identity
+  -- Automatically cascades to auth.sessions, auth.identities, and auth.refresh_tokens
   DELETE FROM auth.users WHERE id = target_uid;
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.delete_user_account() FROM public;
-GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated;
+GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated, anon;
+NOTIFY pgrst, 'reload schema';

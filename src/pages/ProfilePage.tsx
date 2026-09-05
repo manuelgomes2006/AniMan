@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { supabase, isSupabaseConfigured } from '../services/auth/supabaseClient';
 import { getWatchlist, setUserAudioPreference, syncAllUserPreferencesToSupabase } from '../services/userStore';
-import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Volume2 } from 'lucide-react';
+import { Settings, Check, LogOut, ShieldAlert, Loader2, AlertCircle, Trash2, X, Volume2, Copy, ExternalLink, RefreshCw } from 'lucide-react';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -27,6 +27,43 @@ export default function ProfilePage() {
   const [confirmInputText, setConfirmInputText] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [copiedSql, setCopiedSql] = useState(false);
+
+  const handleCopySql = () => {
+    const sql = `-- AniMan Permanent Account Deletion Script
+CREATE OR REPLACE FUNCTION public.delete_user_account()
+RETURNS json
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  target_uid UUID;
+BEGIN
+  target_uid := auth.uid();
+  IF target_uid IS NULL THEN
+    RAISE EXCEPTION 'Not authenticated: No active user session found.';
+  END IF;
+
+  BEGIN DELETE FROM public.watch_history WHERE user_id = target_uid; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN DELETE FROM public.watchlist WHERE user_id = target_uid; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN DELETE FROM public.favorites WHERE user_id = target_uid; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN DELETE FROM public.user_preferences WHERE user_id = target_uid; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN DELETE FROM public.search_history WHERE user_id = target_uid; EXCEPTION WHEN OTHERS THEN NULL; END;
+  BEGIN DELETE FROM public.profiles WHERE id = target_uid; EXCEPTION WHEN OTHERS THEN NULL; END;
+
+  DELETE FROM auth.users WHERE id = target_uid;
+  RETURN json_build_object('success', true, 'deleted_user_id', target_uid);
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.delete_user_account() TO authenticated, anon;
+NOTIFY pgrst, 'reload schema';`;
+
+    navigator.clipboard.writeText(sql);
+    setCopiedSql(true);
+    setTimeout(() => setCopiedSql(false), 3000);
+  };
 
   // Stats Counters
   const [stats, setStats] = useState({
@@ -158,8 +195,8 @@ export default function ProfilePage() {
     setDeleteError(null);
   };
 
-  const handleConfirmPermanentDelete = async () => {
-    if (confirmInputText.trim() !== 'DELETE' || isDeleting) {
+  const handleConfirmPermanentDelete = async (forcePurge = false) => {
+    if ((confirmInputText.trim() !== 'DELETE' && !forcePurge) || isDeleting) {
       return;
     }
 
@@ -167,12 +204,16 @@ export default function ProfilePage() {
     setDeleteError(null);
 
     try {
-      await deleteAccount();
+      await deleteAccount(forcePurge);
       setShowDeleteModal(false);
       navigate('/login?account_deleted=true', { replace: true });
     } catch (err: any) {
       console.error('[DELETE ACCOUNT ERROR]', err);
-      setDeleteError("We couldn't delete your account. Your account has NOT been deleted. Please try again.");
+      if (err?.message?.includes('SUPABASE_DELETION_NOT_CONFIGURED')) {
+        setDeleteError('SUPABASE_DELETION_NOT_CONFIGURED');
+      } else {
+        setDeleteError(err?.message || "We couldn't delete your account. Please try again.");
+      }
       setIsDeleting(false);
     }
   };
@@ -408,12 +449,96 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            {deleteError && (
-              <div className="bg-rose-950/80 border border-rose-800 text-rose-200 text-xs p-3.5 rounded-2xl font-bold flex items-center gap-2">
+            {deleteError === 'SUPABASE_DELETION_NOT_CONFIGURED' ? (
+              <div className="bg-amber-950/40 border border-amber-500/50 text-amber-200 text-xs p-4 rounded-2xl space-y-3.5 shadow-lg animate-in fade-in duration-200">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <h4 className="font-black text-amber-300 text-sm">
+                      Supabase Setup Required for Permanent Deletion
+                    </h4>
+                    <p className="text-[11px] text-amber-200/90 leading-relaxed">
+                      Supabase requires database permission to delete identity records (<code className="bg-black/40 px-1 py-0.5 rounded text-amber-300">auth.users</code>). Choose either option below to enable it:
+                    </p>
+                  </div>
+                </div>
+
+                {/* Option 1: 1-Click SQL Script */}
+                <div className="bg-black/50 p-3 rounded-xl border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-extrabold text-[11px] text-amber-300">Option 1: 1-Click SQL (Recommended)</span>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-bold">Takes 10s</span>
+                  </div>
+                  <p className="text-[10px] text-slate-300">
+                    Copy the SQL script and run it in your Supabase SQL Editor:
+                  </p>
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={handleCopySql}
+                      className="px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 shadow cursor-pointer"
+                    >
+                      {copiedSql ? <Check className="w-3.5 h-3.5 text-white" /> : <Copy className="w-3.5 h-3.5 text-white" />}
+                      <span>{copiedSql ? 'Copied to Clipboard!' : 'Copy SQL Script'}</span>
+                    </button>
+
+                    <a
+                      href="https://supabase.com/dashboard/project/gxcflibgvgvnwhngxygl/sql/new"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[11px] font-bold transition flex items-center gap-1.5 shadow border border-slate-700"
+                    >
+                      <span>Open SQL Editor</span>
+                      <ExternalLink className="w-3 h-3 text-amber-400" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Option 2: Service Role Key */}
+                <div className="bg-black/50 p-3 rounded-xl border border-amber-500/30 space-y-2">
+                  <span className="font-extrabold text-[11px] text-amber-300 block">Option 2: Add Service Role Key to .env</span>
+                  <p className="text-[10px] text-slate-300">
+                    Add <code className="bg-black/40 px-1 py-0.5 rounded text-amber-300">SUPABASE_SERVICE_ROLE_KEY=...</code> to your <code className="bg-black/40 px-1 py-0.5 rounded text-white">.env</code> file.
+                  </p>
+                  <div className="pt-1">
+                    <a
+                      href="https://supabase.com/dashboard/project/gxcflibgvgvnwhngxygl/settings/api"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg text-[11px] font-bold transition shadow border border-slate-700"
+                    >
+                      <span>Open API Settings</span>
+                      <ExternalLink className="w-3 h-3 text-amber-400" />
+                    </a>
+                  </div>
+                </div>
+
+                {/* Actions after setup */}
+                <div className="pt-2 flex flex-col sm:flex-row items-center justify-between gap-2 border-t border-amber-500/20">
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmPermanentDelete(false)}
+                    className="w-full sm:w-auto px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-1.5 shadow cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    <span>Retry Permanent Deletion</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleConfirmPermanentDelete(true)}
+                    className="w-full sm:w-auto text-[11px] text-rose-400 hover:text-rose-300 underline font-medium cursor-pointer"
+                  >
+                    Force Logout & Wipe Device Data
+                  </button>
+                </div>
+              </div>
+            ) : deleteError ? (
+              <div className="bg-rose-950/80 border border-rose-800 text-rose-200 text-xs p-3.5 rounded-2xl flex items-center gap-2.5 font-medium leading-relaxed">
                 <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
                 <span>{deleteError}</span>
               </div>
-            )}
+            ) : null}
 
             <div className="space-y-2 text-xs text-slate-300 leading-relaxed bg-[#050507] p-4 rounded-2xl border border-slate-800/80">
               <p className="font-bold text-white mb-2">This will permanently delete:</p>

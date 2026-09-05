@@ -32,7 +32,9 @@ export default function DetailsPage() {
           data.episodes,
           data.idMal,
           data.streamingEpisodes,
-          data.status
+          data.status,
+          data.nextAiringEpisode,
+          data.title?.english || data.title?.romaji
         );
         setEpisodes(epList);
       } catch (err) {

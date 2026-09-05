@@ -28,10 +28,10 @@ interface AuthContextType {
   profile: UserProfileData | null;
   loading: boolean;
   authLoading: boolean;
-  signInWithGoogle: () => Promise<void>;
+  signInWithGoogle: (customRedirect?: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
-  deleteAccount: () => Promise<boolean>;
+  deleteAccount: (forceLocalPurge?: boolean) => Promise<boolean>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -44,12 +44,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const clearLocalUserData = useCallback(() => {
     try {
-      localStorage.removeItem('aniworld_active_session');
-      localStorage.removeItem('aniworld_registered_accounts');
-      localStorage.removeItem('aniworld_watch_history');
-      localStorage.removeItem('aniworld_watchlist');
+      // Clear all AniWorld / AniStream storage keys and Supabase session tokens
+      Object.keys(localStorage).forEach(key => {
+        if (
+          key.startsWith('aniworld_') || 
+          key.startsWith('anistream_') || 
+          key.startsWith('sb-') ||
+          key.includes('supabase.auth')
+        ) {
+          localStorage.removeItem(key);
+        }
+      });
       sessionStorage.clear();
-    } catch {}
+    } catch (e) {
+      console.warn('Clear local user data notice:', e);
+    }
   }, []);
 
   // Fetch real User Profile and Preferences from Supabase Database & Auth Metadata
@@ -74,14 +83,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.error('[AuthContext] Preferences fetch error:', prefErr.message);
       }
 
-      const username = profileData?.username || currentUser.user_metadata?.username || email.split('@')[0] || 'User';
-      const displayName = profileData?.display_name || currentUser.user_metadata?.display_name || username;
+      const username = profileData?.username || currentUser.user_metadata?.username || currentUser.user_metadata?.full_name || email.split('@')[0] || 'User';
+      const displayName = profileData?.display_name || currentUser.user_metadata?.display_name || currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || username;
       
-      // Avatar Cache Busting by updated_at timestamp
-      let rawAvatar = profileData?.avatar_url || currentUser.user_metadata?.avatar_url || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
+      // Avatar Cache Busting by updated_at timestamp (supports Supabase storage, Google OAuth picture, etc.)
+      let rawAvatar = profileData?.avatar_url || currentUser.user_metadata?.avatar_url || currentUser.user_metadata?.picture || currentUser.user_metadata?.avatar || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=250&q=80';
       const updatedAtTS = profileData?.updated_at ? new Date(profileData.updated_at).getTime() : Date.now();
       if (rawAvatar.startsWith('http') && !rawAvatar.includes('?v=')) {
         rawAvatar = `${rawAvatar}?v=${updatedAtTS}`;
+      }
+
+      // Auto-populate profile in database if new user (e.g. fresh Google OAuth sign-in)
+      if (!profileData && currentUser.id) {
+        supabase.from('profiles').upsert({
+          id: currentUser.id,
+          email: email.toLowerCase(),
+          username,
+          display_name: displayName,
+          avatar_url: rawAvatar,
+          updated_at: new Date().toISOString()
+        }).then(() => {}).catch(() => {});
       }
 
       // Multi-layer Fail-Safe Preferred Audio resolution (DB -> User Metadata -> Local Storage)
@@ -262,14 +283,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [user, loadProfile]);
 
-  const signInWithGoogle = useCallback(async () => {
-    if (!isSupabaseConfigured()) return;
-    await supabase.auth.signInWithOAuth({
+  const signInWithGoogle = useCallback(async (customRedirect?: string) => {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase is not configured. Please check your .env file.');
+    }
+
+    const redirectTarget = customRedirect?.startsWith('/')
+      ? `${window.location.origin}${customRedirect}`
+      : (customRedirect || `${window.location.origin}/`);
+
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`
+        redirectTo: redirectTarget,
+        skipBrowserRedirect: true
       }
     });
+
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    if (data?.url) {
+      // Validate whether the Google provider is enabled in Supabase before navigating away
+      try {
+        const check = await fetch(data.url, { redirect: 'manual' });
+        if (check.status === 400) {
+          const body = await check.json();
+          if (body?.msg?.includes('not enabled') || body?.error_code === 'validation_failed') {
+            throw new Error(
+              'GOOGLE_PROVIDER_DISABLED: Google Sign-In is not enabled in your Supabase project yet. Please enable Google in your Supabase Dashboard under Authentication -> Providers.'
+            );
+          }
+        }
+      } catch (err: any) {
+        if (err.message?.includes('GOOGLE_PROVIDER_DISABLED')) {
+          throw err;
+        }
+        // If CORS blocks the manual redirect fetch, that's expected for external redirects; proceed
+      }
+
+      window.location.href = data.url;
+    }
   }, []);
 
   const signOut = useCallback(async () => {
@@ -295,25 +350,86 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, loadProfile]);
 
-  const deleteAccount = useCallback(async (): Promise<boolean> => {
+  const deleteAccount = useCallback(async (forceLocalPurge: boolean = false): Promise<boolean> => {
     if (!user || !isSupabaseConfigured()) {
       throw new Error('No authenticated user session found');
     }
 
-    const { error: rpcError } = await supabase.rpc('delete_user_account');
+    const userId = user.id;
+    const token = session?.access_token;
+    let deletedInSupabase = false;
 
-    if (rpcError) {
-      console.error('[ACCOUNT DELETION FAILED]', rpcError);
-      throw new Error(rpcError.message || 'Account deletion failed');
+    // Method 1: Database RPC function delete_user_account() in Supabase PostgreSQL
+    try {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('delete_user_account');
+      if (!rpcError) {
+        deletedInSupabase = true;
+        console.log('[AuthContext] Account permanently deleted via Supabase RPC:', rpcData);
+      } else {
+        console.warn('[AuthContext] Supabase RPC delete_user_account notice:', rpcError.message);
+      }
+    } catch (rpcEx: any) {
+      console.warn('[AuthContext] Supabase RPC exception:', rpcEx.message);
     }
 
+    // Method 2: Server-side admin deletion API (/api/delete-account using SUPABASE_SERVICE_ROLE_KEY)
+    if (!deletedInSupabase) {
+      try {
+        const resp = await fetch('/api/delete-account', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ userId, token })
+        });
+        const resData = await resp.json().catch(() => ({}));
+        if (resp.ok && resData.success) {
+          deletedInSupabase = true;
+          console.log('[AuthContext] Account permanently deleted via Supabase Admin API');
+        } else {
+          console.warn('[AuthContext] /api/delete-account notice:', resData.error || resData.message);
+        }
+      } catch (apiErr: any) {
+        console.warn('[AuthContext] /api/delete-account exception:', apiErr.message);
+      }
+    }
+
+    // If neither Supabase RPC nor Admin Service Role deletion succeeded and forceLocalPurge is false,
+    // raise an explicit error to prevent giving a false confirmation
+    if (!deletedInSupabase && !forceLocalPurge) {
+      throw new Error('SUPABASE_DELETION_NOT_CONFIGURED');
+    }
+
+    // Wipe all user application tables
+    try {
+      await Promise.allSettled([
+        supabase.from('watch_history').delete().eq('user_id', userId),
+        supabase.from('watchlist').delete().eq('user_id', userId),
+        supabase.from('favorites').delete().eq('user_id', userId),
+        supabase.from('user_preferences').delete().eq('user_id', userId),
+        supabase.from('search_history').delete().eq('user_id', userId),
+        supabase.from('profiles').delete().eq('id', userId),
+      ]);
+    } catch (cleanupErr) {
+      console.warn('[SUPABASE DATA PURGE NOTICE]', cleanupErr);
+    }
+
+    // Clear all local browser storage, sessions, and cached tokens
     clearLocalUserData();
-    await supabase.auth.signOut().catch(() => {});
+
+    // Terminate active Supabase Auth session
+    try {
+      await supabase.auth.signOut();
+    } catch (signOutErr) {
+      console.warn('[AUTH SIGNOUT NOTICE]', signOutErr);
+    }
+
+    // Reset user and profile states
     setUser(null);
     setSession(null);
     setProfile(null);
+    setAuthLoading(false);
+
     return true;
-  }, [user, clearLocalUserData]);
+  }, [user, session, clearLocalUserData]);
 
   // Memoize Context Provider value to prevent unnecessary re-renders
   const contextValue = useMemo(

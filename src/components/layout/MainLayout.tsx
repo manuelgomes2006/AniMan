@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import Navbar from './Navbar';
 import Sidebar from './Sidebar';
 import MobileBottomNav from './MobileBottomNav';
@@ -10,6 +11,17 @@ interface MainLayoutProps {
 
 export default function MainLayout({ children }: MainLayoutProps) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
+  const location = useLocation();
+
+  const isAuthPage = ['/login', '/signup', '/forgot-password', '/reset-password'].includes(location.pathname);
+
+  if (isAuthPage) {
+    return (
+      <div className="min-h-screen w-full bg-[#050507] text-white font-sans antialiased overflow-x-hidden selection:bg-purple-600 selection:text-white">
+        {children}
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 w-full h-full h-[100dvh] bg-[#050507] text-white flex flex-col overflow-hidden selection:bg-purple-600 selection:text-white font-sans antialiased">

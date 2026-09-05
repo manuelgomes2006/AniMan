@@ -91,7 +91,8 @@ export default function WatchPage() {
           animeData.idMal,
           animeData.streamingEpisodes,
           animeData.status,
-          animeData.nextAiringEpisode
+          animeData.nextAiringEpisode,
+          animeData.title?.english || animeData.title?.romaji
         );
         setNormalizedEpisodes(episodesData);
 
@@ -135,8 +136,8 @@ export default function WatchPage() {
     loadWatchData();
   }, [animeId, currentEpNum, preferredLanguage]);
 
-  const hasSub = Boolean(resolvedEpisode?.sources?.sub?.embedUrl);
-  const hasDub = Boolean(resolvedEpisode?.sources?.dub?.embedUrl);
+  const hasSub = Boolean(resolvedEpisode?.hasSub);
+  const hasDub = Boolean(resolvedEpisode?.hasDub);
 
   const activeLangSource = activeLanguage === 'dub'
     ? resolvedEpisode?.sources?.dub
@@ -153,6 +154,8 @@ export default function WatchPage() {
   };
 
   const handleSelectLanguage = async (variant: Language) => {
+    if (variant === 'dub' && !hasDub) return;
+
     setPreferredLanguage(variant);
     setUserAudioPreference(variant);
     setDubFallbackAlert(null);
@@ -369,6 +372,8 @@ export default function WatchPage() {
               audioVariant={activeLanguage || 'sub'}
               onAudioChange={handleSelectLanguage}
               episodeNumber={currentEpNum}
+              hasSub={hasSub}
+              hasDub={hasDub}
             />
           )}
 

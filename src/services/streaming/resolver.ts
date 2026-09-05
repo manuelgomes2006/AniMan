@@ -15,17 +15,19 @@ const IN_FLIGHT_REQUESTS = new Map<string, Promise<NormalizedStreamResponse>>();
 const RESOLVED_CACHE = new Map<string, { data: NormalizedStreamResponse; timestamp: number }>();
 const CACHE_TTL_MS = 3 * 60 * 1000; // 3 minutes cache
 
+import { checkAnimeDubAvailability } from './dubDetector';
+
 /**
  * Language selection algorithm — Selects best available audio variant based on episode sources and user preference
  */
 export function getAvailableLanguage(
-  episode: { sources?: EpisodeSourcesMap | null } | null | undefined,
+  episode: { sources?: EpisodeSourcesMap | null; hasDub?: boolean } | null | undefined,
   preferredLanguage: Language
 ): Language | null {
   if (!episode || !episode.sources) return null;
 
   const hasSub = Boolean(episode.sources.sub?.embedUrl);
-  const hasDub = Boolean(episode.sources.dub?.embedUrl);
+  const hasDub = Boolean(episode.hasDub !== false && episode.sources.dub?.embedUrl);
 
   if (preferredLanguage === 'dub' && hasDub) {
     return 'dub';
@@ -142,13 +144,26 @@ export async function resolveEpisodeLanguageSources(options: {
 }): Promise<ResolvedEpisodeData> {
   const { animeId, title, episode, malId } = options;
 
+  // Check whether this anime has an English Dub available
+  const dubSupported = await checkAnimeDubAvailability(animeId, malId, title);
+
   const [subRes, dubRes] = await Promise.all([
     resolveParallelSources({ animeId, title, episode, variant: 'sub', malId }),
-    resolveParallelSources({ animeId, title, episode, variant: 'dub', malId }),
+    dubSupported
+      ? resolveParallelSources({ animeId, title, episode, variant: 'dub', malId })
+      : Promise.resolve({
+          animeId,
+          episodeNumber: episode,
+          variant: 'dub' as AudioVariant,
+          firstValidSource: null,
+          sources: [],
+          servers: [],
+          resolvedAt: Date.now(),
+        }),
   ]);
 
   const subUrl = subRes.firstValidSource?.url || null;
-  const dubUrl = dubRes.firstValidSource?.url || null;
+  const dubUrl = dubSupported ? (dubRes.firstValidSource?.url || null) : null;
 
   const subSource: EpisodeLanguageSource | null = subUrl
     ? {
@@ -176,7 +191,7 @@ export async function resolveEpisodeLanguageSources(options: {
   };
 
   const hasSub = Boolean(subSource?.embedUrl);
-  const hasDub = Boolean(dubSource?.embedUrl);
+  const hasDub = Boolean(dubSupported && dubSource?.embedUrl);
 
   return {
     animeId,
