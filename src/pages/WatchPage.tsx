@@ -212,8 +212,8 @@ export default function WatchPage() {
     (activeEmbedUrl
       ? {
           episodeId: `${animeId}-${currentEpNum}`,
-          provider: activeLangSource?.provider || 'megaplay',
-          providerName: activeLangSource?.providerName || 'MegaPlay HD',
+          provider: activeLangSource?.provider || 'anilink',
+          providerName: activeLangSource?.providerName || 'AniLink HD',
           language: activeLanguage || 'sub',
           type: 'iframe',
           url: activeEmbedUrl,

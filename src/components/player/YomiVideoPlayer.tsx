@@ -26,6 +26,7 @@ export default function YomiVideoPlayer({
   initialTime = 0,
   mediaDuration,
   skipIntroEnabled = false,
+  onSwitchMirror,
 }: AniworldVideoPlayerProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const hlsRef = useRef<Hls | null>(null);
@@ -227,10 +228,14 @@ export default function YomiVideoPlayer({
   };
 
   const handleIframeError = () => {
-    setHasPlayerError(true);
-    setIsIframeLoading(false);
-    setErrorReason('Unable to load video server.');
-    if (source?.provider) recordProviderFailure(source.provider);
+    if (onSwitchMirror) {
+      onSwitchMirror();
+    } else {
+      setHasPlayerError(true);
+      setIsIframeLoading(false);
+      setErrorReason('Unable to load video server.');
+      if (source?.provider) recordProviderFailure(source.provider);
+    }
   };
 
   return (
@@ -288,7 +293,6 @@ export default function YomiVideoPlayer({
             className="w-full h-full border-0 relative z-10 pointer-events-auto"
             allow="autoplay; fullscreen; picture-in-picture; presentation; accelerometer; clipboard-write; encrypted-media; gyroscope"
             allowFullScreen
-            loading="lazy"
             referrerPolicy="origin"
             onLoad={handleIframeLoad}
             onError={handleIframeError}

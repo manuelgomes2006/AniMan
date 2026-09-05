@@ -19,9 +19,11 @@ export class AniLinkProvider implements VideoProvider {
     variant: AudioVariant = 'sub',
     malId?: number
   ): Promise<string | null> {
-    const targetId = malId || animeId || 11061;
+    // AniLink strictly requires the AniList anime ID
+    const targetId = animeId || malId || 11061;
     const ep = Math.max(1, episode);
-    const url = `https://anilink.cc/watch/${targetId}/${ep}?variant=${variant}&autoplay=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238AD7D0&secondaryColor=%23B2EFEA&iconColor=%23FFFFFF`;
+    const audioVariant = variant === 'dub' ? 'dub' : 'sub';
+    const url = `https://anilink.cc/watch/${targetId}/${ep}?variant=${audioVariant}&autoplay=1&autonext=1&autoskipIntro=1&autoskipOutro=1&primaryColor=%238AD7D0&secondaryColor=%23B2EFEA&iconColor=%23FFFFFF`;
 
     if (!isAllowedEmbedUrl(url, this.id)) return null;
     return url;
