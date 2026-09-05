@@ -284,12 +284,12 @@ export default function YomiVideoPlayer({
           <iframe
             key={`${source.url}`}
             src={source.url}
-            title={`${title} - Episode ${episodeNumber}`}
+            title={source.provider === 'anilink' ? 'AniLink Episode Playback' : `${title} - Episode ${episodeNumber}`}
             className="w-full h-full border-0 relative z-10 pointer-events-auto"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen"
+            allow="autoplay; fullscreen; picture-in-picture; presentation; accelerometer; clipboard-write; encrypted-media; gyroscope"
             allowFullScreen
             loading="lazy"
-            referrerPolicy="strict-origin-when-cross-origin"
+            referrerPolicy="origin"
             onLoad={handleIframeLoad}
             onError={handleIframeError}
           />
