@@ -87,3 +87,42 @@
 .animate-fade-in {
   animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
+
+/* Dynamic Anime DP Background Marquee Animations */
+@keyframes marqueeLeft {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+@keyframes marqueeRight {
+  0% { transform: translateX(-50%); }
+  100% { transform: translateX(0%); }
+}
+
+.animate-marquee-left-slow {
+  display: flex;
+  width: max-content;
+  animation: marqueeLeft 80s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-right-slow {
+  display: flex;
+  width: max-content;
+  animation: marqueeRight 90s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-left-med {
+  display: flex;
+  width: max-content;
+  animation: marqueeLeft 65s linear infinite;
+  will-change: transform;
+}
+
+.animate-marquee-right-med {
+  display: flex;
+  width: max-content;
+  animation: marqueeRight 70s linear infinite;
+  will-change: transform;
+}
